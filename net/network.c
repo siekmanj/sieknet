@@ -41,38 +41,38 @@ void setOutputs(Layer *layer, float *outputs){
 	}
 }
 
-/* Description: Performs backpropagation algorithm on the network. cost() must be called before performing this.
- *
+/* Description: Performs backpropagation algorithm on the network.
+ * output_layer: The last layer in the network. You must call cost() on this layer before calling backpropagate.
  *
  */
-void backpropagate(Layer *output_layer){
+void backpropagate(Layer *output_layer, float plasticity){
   Layer *current = output_layer;
   while(current->input_layer != NULL){
     Layer* input_layer = (Layer*)(current->input_layer);
     for(int i = 0; i < input_layer->size; i++){
-      //Calculate activation gradients in input layer BEFORE doing nudges to weights in the current layer
+      //Calculate activation gradients in input layer BEFORE doing nudges to weights and biases in the current layer
       float sum = 0;
       for(int j = 0; j < current->size; j++){
         float weight = current->neurons[j].weights[i];
         float dSig = current->neurons[j].dOutput;
         float activationGradient = current->neurons[j].activationGradient;
-        sum += weight*dSig*activationGradient;
+        sum -= weight*dSig*activationGradient;
       }
-      input_layer->neurons[i].activationGradient = sum;
+      input_layer->neurons[i].activationGradient = sum*plasticity;
     }
-    
+
     for(int i = 0; i < current->size; i++){
       Neuron *currentNeuron = &current->neurons[i];
       float dSig = currentNeuron->dOutput;
       float activationGradient = currentNeuron->activationGradient;
 
       //Calculate bias nudge
-      currentNeuron->bias += 1 * dSig * activationGradient;
+      currentNeuron->bias -= 1 * dSig * activationGradient*plasticity;
 
       //Calculate weight nudges
       for(int j = 0; j < input_layer->size; j++){
         float a = input_layer->neurons[j].output;
-        currentNeuron->weights[j] += a*dSig*activationGradient;
+        currentNeuron->weights[j] -= a*dSig*activationGradient*plasticity;
       }
     }
     current = current->input_layer;
@@ -80,13 +80,9 @@ void backpropagate(Layer *output_layer){
 }
 
 float squish(float input){
-	return 1 / (1 + exp(input));
+	return 1 / (1 + exp(-input));
 }
 
-float dsqish(float input){
-  float squished = squish(input);
-  return squished * (1 - squished);
-}
 /* Description: Calculates the outputs of each neuron in a layer based on the outputs & weights of the neurons in the preceding layer
  * layer1: the layer with existing outputs
  * layer2: the layer whose outputs will be calculated
@@ -100,8 +96,9 @@ void calculateOutputs(Layer *layer){
 		for(int k = 0; k < input_layer->size; k++){
 			sum += input_layer->neurons[k].output * layer->neurons[i].weights[k];
 		}
-		current->output = squish(sum);
+		current->output = squish(sum + current->bias);
     current->dOutput = current->output * (1 - current->output);
+    //printf("%f, %f, %f, %f\n", current->output, current->dOutput, squish(sum), current->bias);
 	}
 }
 

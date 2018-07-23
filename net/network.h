@@ -14,7 +14,6 @@ typedef struct Neuron{
 typedef struct Layer{
   Neuron *neurons;
   void *input_layer;
-	void *output_layer;
   size_t size;
 } Layer;
 
@@ -28,5 +27,5 @@ float squish(float input);
 void calculateOutputs(Layer *layer);
 void setOutputs(Layer *layer, float *outputs);
 void printOutputs(Layer *layer);
-void backpropagate(Layer *output_layer);
+void backpropagate(Layer *output_layer, float plasticity);
 float cost(Layer*, int);
