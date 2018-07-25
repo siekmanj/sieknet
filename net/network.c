@@ -1,5 +1,13 @@
+/* Author: Jonah Siekmann
+ * 7/24/2018
+ * This is a basic feed-forward neural network implementation using backpropagation. I've tested it with mnist and a few trivial problems.
+ * Every function beginning with static is meant for internal use only. You may call any other function.
+ */
+
 #include "network.h"
 #include <math.h>
+
+
 /* Description: Allocates an array of Neurons, and then allocates and initializes each Neuron's weights and biases.
 * size: the size of the layer currently being build
 * previousLayer: the preceding layer in the network (can be NULL).
@@ -54,7 +62,6 @@ static void backpropagate(Layer *output_layer, float plasticity){
   Layer *current = output_layer;
   while(current->input_layer != NULL){
     Layer* input_layer = (Layer*)(current->input_layer);
-    //printf("calculating activation gradients.\n");
     for(int i = 0; i < input_layer->size; i++){
       //Calculate activation gradients in input layer BEFORE doing nudges to weights and biases in the current layer
       float sum = 0;
@@ -71,27 +78,14 @@ static void backpropagate(Layer *output_layer, float plasticity){
       Neuron *currentNeuron = &current->neurons[i];
       float dSig = currentNeuron->dOutput;
       float activationGradient = currentNeuron->activationGradient;
-      //int debug = i == label && i == neuron && current == output_layer;
-      int debug = 0;
-      if(debug){
-        //printf("Neuron %d had output %f (label is %d), which means it ", i, currentNeuron->output, label);
-        //if(i == label) printf("should've fired.\n");
-        //  else printf("shouldn't have fired.\n");
-      }
 
       //Calculate weight nudges
       for(int j = 0; j < input_layer->size; j++){
         float a = input_layer->neurons[j].output;
         float in = input_layer->neurons[j].input;
-        //if(debug) printf("  its relation with neuron %d of the input layer (which had output %f, whose input was %f) will be adjusted as such:\n", j, a, a*currentNeuron->weights[j]);
-        //if(debug) printf("    weight += %f due to a dSig of %f and activation gradient of %f\n", a*dSig*activationGradient*plasticity, dSig, activationGradient);
         currentNeuron->weights[j] += a*dSig*activationGradient*plasticity;
-        //if(debug) printf("%f\n", currentNeuron->weights[j]);
-
-
       }
       //Calculate bias nudge
-      //if(debug) printf("    bias += %f due to dSig of %f and activation gradient of %f\n", dSig * activationGradient*plasticity, dSig, activationGradient);
       currentNeuron->bias += dSig * activationGradient*plasticity;
     }
     current = current->input_layer;
@@ -112,11 +106,9 @@ static void calculateOutputs(Layer *layer){
     for(int k = 0; k < input_layer->size; k++){
       sum += input_layer->neurons[k].output * layer->neurons[i].weights[k];
     }
-    //printf("Result: %f\n", sum);
     current->input = sum + current->bias;
     current->dOutput = squish(current->input) * (1 - squish(current->input));
     current->output = squish(current->input);
-    //printf("%f, %f, %f, %f\n", current->output, current->dOutput, squish(sum), current->bias);
   }
 }
 
@@ -130,17 +122,23 @@ static float cost(Layer *output_layer, int label){
     int y = (i==label);
     sum += (output_layer->neurons[i].output - y)*(output_layer->neurons[i].output - y);
     output_layer->neurons[i].activationGradient = -2 * (output_layer->neurons[i].output - y);
-    //printf("Label is %d, so giving neuron %d an activation gradient of %f. y: %d\n", label, i, output_layer->neurons[i].activationGradient, y);
   }
   return sum;
 }
-
+/* Description: Initializes a network object.
+*
+*/
 Network initNetwork(){
   Network n;
   n.input = NULL;
   n.output = NULL;
   return n;
 }
+
+/* Description: Adds a layer to the network object. Layers will be inserted from input layer onward.
+*  n: the pointer to the network.
+*  size: the desired size of the layer to be added.
+*/
 
 void addLayer(Network *n, size_t size){
   Layer *newLayer = createLayer(size, n->output);
@@ -149,9 +147,18 @@ void addLayer(Network *n, size_t size){
 
 }
 
+/* Description: Sets the inputs of the network.
+*  n: the pointer to the network.
+*  arr: the array of values to be passed into the network.
+*/
 void setInputs(Network *n, float* arr){
   setOutputs(n->input, arr);
 }
+
+/* Description: Does feed-forward, cost, and then backpropagation.
+*  n: the pointer to the network.
+*  label: the neuron expected to fire (4 for neuron 4)
+*/
 float runEpoch(Network *n, int label){
   Layer *current = n->input->output_layer;
   while(current != NULL){
@@ -170,6 +177,7 @@ void printWeights(Layer *layer){
     printf("  Weight for neuron %d with output %f is %f\n", i, previousLayer->neurons[i].output, layer->neurons[1].weights[i]);
   }
 }
+
 void printActivationGradients(Layer *layer){
   printf("activation gradients:\n");
   for(int i = 0; i < layer->size; i++){

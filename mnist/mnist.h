@@ -1,3 +1,7 @@
+/* Jonah Siekmann
+ * 7/16/2018
+ * This is an interface for the MNIST handwritten digits image dataset, for use in a neural network.
+ */
 #ifndef MNIST_H
 #define MNIST_H
 
