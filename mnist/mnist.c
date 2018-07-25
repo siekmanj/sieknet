@@ -56,7 +56,7 @@ float* img2floatArray(ImageSet *imgset, int index, size_t *rows, size_t *cols){
 	int base = index * imgset->height * imgset->width + 16;
 	float *array = (float*)malloc(imgset->height*imgset->width*sizeof(float));
 	for(int k = 0; k < imgset->height*imgset->width; k++){
-		array[k] = imgset->imgBuff[base + k];
+		array[k] = (float)imgset->imgBuff[base + k] / 255;
 	}
 	return array;
 }

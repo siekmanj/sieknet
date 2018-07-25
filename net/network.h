@@ -7,7 +7,6 @@ typedef struct Neuron{
 	float bias;
 	float output;
 	float input;
-	float dBias;
 	float dOutput;
 	float activationGradient;
 } Neuron;
@@ -29,13 +28,8 @@ Network initNetwork();
 void addLayer(Network *n, size_t size);
 void setInputs(Network *n, float* arr);
 float runEpoch(Network *n, int label);
-Layer *createLayer(size_t size, Layer *previousLayer);
-float squish(float input);
-void calculateOutputs(Layer *layer);
-void setOutputs(Layer *layer, float *outputs);
+
 void printOutputs(Layer *layer);
 void prettyprint(Layer *layer);
 void printActivationGradients(Layer *layer);
 void printWeights(Layer *layer);
-void backpropagate(Layer *output_layer, float plasticity);
-float cost(Layer*, int);
