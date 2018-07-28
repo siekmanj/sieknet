@@ -1,6 +1,6 @@
 /* Author: Jonah Siekmann
  * 7/24/2018
- * This is a basic feed-forward neural network implementation using backpropagation. I've tested it with mnist and a few trivial problems.
+ * This is a basic feed-forward neural MLP implementation using backpropagation. I've tested it with mnist and a few trivial problems.
  * Every function beginning with static is meant for internal use only. You may call any other function.
  */
 
@@ -128,19 +128,19 @@ static float cost(Layer *output_layer, int label){
 /* Description: Initializes a network object.
 *
 */
-Network initNetwork(){
-  Network n;
+MLP initMLP(){
+  MLP n;
   n.input = NULL;
   n.output = NULL;
   return n;
 }
 
-/* Description: Adds a layer to the network object. Layers will be inserted from input layer onward.
+/* Description: Adds a layer to the MLP object. Layers will be inserted from input layer onward.
 *  n: the pointer to the network.
 *  size: the desired size of the layer to be added.
 */
 
-void addLayer(Network *n, size_t size){
+void addLayer(MLP *n, size_t size){
   Layer *newLayer = createLayer(size, n->output);
   n->output = newLayer;
   if(n->input == NULL) n->input = newLayer;
@@ -151,15 +151,15 @@ void addLayer(Network *n, size_t size){
 *  n: the pointer to the network.
 *  arr: the array of values to be passed into the network.
 */
-void setInputs(Network *n, float* arr){
+void setInputs(MLP *n, float* arr){
   setOutputs(n->input, arr);
 }
 
 /* Description: Does feed-forward, cost, and then backpropagation.
-*  n: the pointer to the network.
+*  n: the pointer to the MLP.
 *  label: the neuron expected to fire (4 for neuron 4)
 */
-float runEpoch(Network *n, int label){
+float runEpoch(MLP *n, int label){
   Layer *current = n->input->output_layer;
   while(current != NULL){
     calculateOutputs(current);

@@ -18,16 +18,16 @@ typedef struct Layer{
   size_t size;
 } Layer;
 
-typedef struct Network{
+typedef struct MLP{
 	Layer *input;
 	Layer *output;
 	unsigned long age;
-} Network;
+} MLP;
 
-Network initNetwork();
-void addLayer(Network *n, size_t size);
-void setInputs(Network *n, float* arr);
-float runEpoch(Network *n, int label);
+MLP initMLP();
+void addLayer(MLP *n, size_t size);
+void setInputs(MLP *n, float* arr);
+float runEpoch(MLP *n, int label);
 
 void printOutputs(Layer *layer);
 void prettyprint(Layer *layer);
