@@ -1,11 +1,12 @@
 /* Author: Jonah Siekmann
  * 7/24/2018
- * This is a basic feed-forward neural MLP implementation using backpropagation. I've tested it with mnist and a few trivial problems.
+ * This is a basic multilayer perceptron implementation using backpropagation. I've tested it with mnist and a few trivial problems.
  * Every function beginning with static is meant for internal use only. You may call any other function.
  */
 
-#include "network.h"
+#include "MLP.h"
 #include <math.h>
+#include <string.h>
 
 
 /* Description: Allocates an array of Neurons, and then allocates and initializes each Neuron's weights and biases.
@@ -27,7 +28,7 @@ static Layer *createLayer(size_t size, Layer *previousLayer){
     //Allocate weights
     float *weights = (float*)malloc(previous_layer_size*sizeof(float));
     for(int j = 0; j < previous_layer_size; j++){
-      weights[j] = ((float)(rand()%7)-3.2); //Slight bias towards positive weights
+      weights[j] = ((float)(rand()%7)-3.3); //Slight bias towards positive weights
     }
     neurons[i].weights = weights;
     neurons[i].bias = ((float)(rand()%7)-3.5);
@@ -37,10 +38,33 @@ static Layer *createLayer(size_t size, Layer *previousLayer){
   layer->input_layer = previousLayer;
   return layer;
 }
-static float squish(float input){
+
+static float sigmoid(float input){
   return 1 / (1 + exp(-input));
 }
 
+static float dSigmoid(float input){
+  float sig = sigmoid(input);
+  return sig * (1 - sig);
+}
+
+//Not working - gradient too negative?
+static float relu(float input){
+  if(input < 0) return 0;
+  return input;
+}
+
+static float dRelu(float input){
+  if(input >= 0) return 1;
+  return 0.01;
+}
+
+static float squish(float input){
+  return sigmoid(input);
+}
+static float dsquish(float input){
+  return dSigmoid(input);
+}
 /* Description: Sets the outputs of a layer manually, instead of calculating them.
 *              The purpose of this function is to set the outputs of the input layer.
 * layer: The layer whose outputs will be set.
@@ -49,16 +73,31 @@ static float squish(float input){
 */
 static void setOutputs(Layer *layer, float *outputs){
   for(int i = 0; i < layer->size; i++){
-    layer->neurons[i].output = outputs[i];//squish(outputs[i]);
-    layer->neurons[i].dOutput = squish(layer->neurons[i].input) * (1 - squish(layer->neurons[i].input));
+    layer->neurons[i].activation = outputs[i];//squish(outputs[i]);
   }
 }
 
+/* Description: Calculates the cost of the output layer and sets the activation gradients for the output neurons.
+* output_layer: the last layer in the network.
+* label: the expected value chosen by the network.
+*/
+static float cost(Layer *output_layer, int label){
+  float sum = 0;
+  for(int i = 0; i < output_layer->size; i++){
+    int y = (i==label);
+    sum += ((y-output_layer->neurons[i].activation)*(y-output_layer->neurons[i].activation));
+    output_layer->neurons[i].activationGradient = (2 * (y-output_layer->neurons[i].activation));
+  }
+  return sum;
+}
+
 /* Description: Performs backpropagation algorithm on the network.
-* output_layer: The last layer in the network. You must call cost() on this layer before calling backpropagate.
+* output_layer: The last layer in the network.
 *
 */
-static void backpropagate(Layer *output_layer, float plasticity){
+float backpropagate(Layer *output_layer, int label, float plasticity){
+  float c = cost(output_layer, label); //Calculate cost & set activation gradients in output layer
+
   Layer *current = output_layer;
   while(current->input_layer != NULL){
     Layer* input_layer = (Layer*)(current->input_layer);
@@ -67,7 +106,7 @@ static void backpropagate(Layer *output_layer, float plasticity){
       float sum = 0;
       for(int j = 0; j < current->size; j++){
         float weight = current->neurons[j].weights[i];
-        float dSig = current->neurons[j].dOutput;
+        float dSig = current->neurons[j].dActivation;
         float activationGradient = current->neurons[j].activationGradient;
         sum += weight*dSig*activationGradient;
       }
@@ -76,12 +115,12 @@ static void backpropagate(Layer *output_layer, float plasticity){
 
     for(int i = 0; i < current->size; i++){
       Neuron *currentNeuron = &current->neurons[i];
-      float dSig = currentNeuron->dOutput;
+      float dSig = currentNeuron->dActivation;
       float activationGradient = currentNeuron->activationGradient;
 
       //Calculate weight nudges
       for(int j = 0; j < input_layer->size; j++){
-        float a = input_layer->neurons[j].output;
+        float a = input_layer->neurons[j].activation;
         float in = input_layer->neurons[j].input;
         currentNeuron->weights[j] += a*dSig*activationGradient*plasticity;
       }
@@ -90,6 +129,7 @@ static void backpropagate(Layer *output_layer, float plasticity){
     }
     current = current->input_layer;
   }
+  return c;
 }
 
 
@@ -104,34 +144,24 @@ static void calculateOutputs(Layer *layer){
     float sum = 0;
     Neuron *current = &(layer->neurons[i]);
     for(int k = 0; k < input_layer->size; k++){
-      sum += input_layer->neurons[k].output * layer->neurons[i].weights[k];
+      sum += input_layer->neurons[k].activation * layer->neurons[i].weights[k];
     }
     current->input = sum + current->bias;
-    current->dOutput = squish(current->input) * (1 - squish(current->input));
-    current->output = squish(current->input);
+    current->dActivation = dsquish(current->input);
+    current->activation = squish(current->input);
   }
 }
 
-/* Description: Calculates the cost of the output layer and sets the activation gradients for the output neurons.
-* output_layer: the last layer in the network.
-* label: the expected value chosen by the network.
-*/
-static float cost(Layer *output_layer, int label){
-  float sum = 0;
-  for(int i = 0; i < output_layer->size; i++){
-    int y = (i==label);
-    sum += (output_layer->neurons[i].output - y)*(output_layer->neurons[i].output - y);
-    output_layer->neurons[i].activationGradient = -2 * (output_layer->neurons[i].output - y);
-  }
-  return sum;
-}
-/* Description: Initializes a network object.
+
+/* Description: Initializes an multilayer perceptron object.
 *
 */
 MLP initMLP(){
   MLP n;
   n.input = NULL;
   n.output = NULL;
+  n.performance = 0;
+  n.plasticity = 1;
   return n;
 }
 
@@ -155,45 +185,89 @@ void setInputs(MLP *n, float* arr){
   setOutputs(n->input, arr);
 }
 
-/* Description: Does feed-forward, cost, and then backpropagation.
+/* Description: Does feed-forward, cost, and then backpropagation (gradient descent)
 *  n: the pointer to the MLP.
 *  label: the neuron expected to fire (4 for neuron 4)
 */
-float runEpoch(MLP *n, int label){
+float descend(MLP *n, int label){
+  feedforward(n);
+  return backpropagate(n->output, label, n->plasticity);
+}
+
+void feedforward(MLP *n){
   Layer *current = n->input->output_layer;
   while(current != NULL){
     calculateOutputs(current);
     current = current->output_layer;
   }
-  float c = cost(n->output, label);
-  backpropagate(n->output, 1);
-  return c;
+}
+
+/* Description: Returns the number the network thinks was inputted (must set inputs before calling).
+ * n: the pointer to the MLP.
+ */
+int bestGuess(MLP *n){
+ int highestActivation = 0;
+ for(int i = 0; i < n->output->size; i++){
+   if(n->output->neurons[i].activation > n->output->neurons[highestActivation].activation){
+     highestActivation = i;
+   }
+ }
+ //printf("best guess: %d, outputs:\n", highestActivation);
+ //printOutputs(n->output);
+ return highestActivation;
+}
+
+void saveToFile(MLP *n, char* filename){
+  FILE *fp;
+ char buff[100];
+
+ //Create file
+ char *dir = "./saves/";
+ strcat(buff, dir);
+ strcat(buff, filename);
+ strcat(buff, ".mlp");
+ printf("Saving to: %s\n", buff);
+ fp = fopen(buff, "w");
+
+ size_t size;
+ Layer *current = n->input;
+ while(1){
+   if(current != NULL) size++;
+   if(current == n->output) break;
+   current = current->output_layer;
+ }
+
+ memset(buff, '\0', strlen(buff));
+ strcat(buff, "MLP ");
+ strcat(buff, (char*)size);
+ fprintf(fp, buff);
+ fprintf(fp, "THIS IS A TEST\nHEREWEGO");
 }
 
 void printWeights(Layer *layer){
   printf("weights:\n");
   Layer *previousLayer = (Layer*)layer->input_layer;
   for(int i = 0; i < previousLayer->size; i++){
-    printf("  Weight for neuron %d with output %f is %f\n", i, previousLayer->neurons[i].output, layer->neurons[1].weights[i]);
+    printf("  Weight for neuron %d with output %f is %f\n", i, previousLayer->neurons[i].activation, layer->neurons[1].weights[i]);
   }
 }
 
 void printActivationGradients(Layer *layer){
   printf("activation gradients:\n");
   for(int i = 0; i < layer->size; i++){
-    printf("  Neuron %d: %f from %f\n", i, layer->neurons[i].activationGradient, layer->neurons[i].output);
+    printf("  Neuron %d: %f from %f\n", i, layer->neurons[i].activationGradient, layer->neurons[i].activation);
   }
 }
 void printOutputs(Layer *layer){
   for(int i = 0; i < layer->size; i++){
-    float val = layer->neurons[i].output;
+    float val = layer->neurons[i].activation;
       printf("Neuron %d output: %f, bias: %f\n", i, val, squish(layer->neurons[i].bias));
 		}
 		printf("\n");
 }
 void prettyprint(Layer *layer){
   for(int i = 0; i < layer->size; i++){
-    float val = layer->neurons[i].output;
+    float val = layer->neurons[i].activation;
     if(!(i % (int)sqrt(layer->size))) printf("\n");
 		if(val <= 0.5) printf(".");
     if(val > 0.5) printf("A");
