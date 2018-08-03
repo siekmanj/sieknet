@@ -1,8 +1,0 @@
-NETDIR = ./net
-MNIST = ./mnist
-CFLAGS = -lm
-CSRC = ./*.c ${NETDIR}/*.c ${MNIST}/*.c
-default:
-	gcc ${CSRC} ${CFLAGS}
-clean:
-	rm ./a.out

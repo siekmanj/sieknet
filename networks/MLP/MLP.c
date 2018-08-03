@@ -7,6 +7,7 @@
 #include "MLP.h"
 #include <math.h>
 #include <string.h>
+#include <stdlib.h>
 
 
 /* Description: Allocates an array of Neurons, and then allocates and initializes each Neuron's weights and biases.
@@ -218,8 +219,11 @@ int bestGuess(MLP *n){
 }
 
 void saveToFile(MLP *n, char* filename){
-  FILE *fp;
- char buff[100];
+ FILE *fp;
+ char buff[500];
+ char temp[100];
+ memset(buff, '\0', 500);
+ memset(temp, '\0', 100);
 
  //Create file
  char *dir = "./saves/";
@@ -229,7 +233,7 @@ void saveToFile(MLP *n, char* filename){
  printf("Saving to: %s\n", buff);
  fp = fopen(buff, "w");
 
- size_t size;
+ size_t size = 0;
  Layer *current = n->input;
  while(1){
    if(current != NULL) size++;
@@ -239,9 +243,12 @@ void saveToFile(MLP *n, char* filename){
 
  memset(buff, '\0', strlen(buff));
  strcat(buff, "MLP ");
- strcat(buff, (char*)size);
- fprintf(fp, buff);
- fprintf(fp, "THIS IS A TEST\nHEREWEGO");
+ printf("buff: %s\n", buff);
+ snprintf(temp, 100, "%lu", size);
+ strcat(buff, temp);
+ printf("buff: %s\n", buff);
+ fprintf(fp, "%s", buff);
+ printf("buff: %s\n", buff);
 }
 
 void printWeights(Layer *layer){
