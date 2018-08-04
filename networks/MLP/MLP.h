@@ -30,11 +30,12 @@ typedef struct MLP{
 } MLP;
 
 MLP initMLP();
+MLP loadMLPFromFile(const char *filename);
 
 void addLayer(MLP *n, size_t size);
 void setInputs(MLP *n, float* arr);
 void feedforward(MLP *n);
-void saveToFile(MLP *n, char* filename);
+void saveMLPToFile(MLP *n, char* filename);
 
 float descend(MLP *n, int label);
 float backpropagate(Layer *output_layer, int label, float plasticity);

@@ -17,7 +17,7 @@ int main(void){
 	addLayer(&n, 15);
 	addLayer(&n, 10); //output layer
 
-	size_t epochs = 10;
+	size_t epochs = 3;
 	int epoch = 0;
 
 	//Training data
@@ -59,4 +59,5 @@ int main(void){
 		}
 		printf("resulting avg correct: %f\n", avgCorrect/testing_set.numImages);
 	}
+  saveMLPToFile(&n, "../saves/mnist.mlp");
 }

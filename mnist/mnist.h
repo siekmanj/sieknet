@@ -18,9 +18,9 @@ typedef struct mnist{
 } ImageSet;
 
 uint32_t extractInt32(uint8_t*, size_t);
-void printImage(ImageSet*, size_t);
 int openImageSet(ImageSet*, size_t, char*, char*);
-float* img2floatArray(ImageSet*, int, size_t*, size_t*);
 int label(ImageSet*, int);
+float* img2floatArray(ImageSet*, int, size_t*, size_t*);
+void printImage(ImageSet*, size_t);
 
 #endif

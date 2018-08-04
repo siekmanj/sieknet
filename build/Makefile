@@ -1,10 +1,12 @@
 CC = gcc
 .PHONY: filesavetest mlp_mnist binary
-	
+
 MLP_INCLUDE = -I../mnist -I../networks/MLP
 
-filesavetest:
+filesave:
 	gcc $(MLP_INCLUDE) ../mnist/mnist.c ../networks/MLP/MLP.c ../examples/filesave.c -o $@.out -lm
+fileload:
+	gcc $(MLP_INCLUDE) ../mnist/mnist.c ../networks/MLP/MLP.c ../examples/fileload.c -o $@.out -lm
 mlp_mnist:
 	gcc $(MLP_INCLUDE) ../mnist/mnist.c ../networks/MLP/MLP.c ../examples/mlp_mnist.c -o $@.out -lm
 binary:

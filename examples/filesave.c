@@ -14,10 +14,12 @@ const int RANGE = 7;
 
 void savetest(){
 	MLP n = initMLP();
-	addLayer(&n, 28*28); //input layer
-	addLayer(&n, 15);
-	addLayer(&n, 10); //output layer
-	saveToFile(&n, "test");
+	addLayer(&n, 28*27); //input layer
+	addLayer(&n, 3);
+	addLayer(&n, 4); //output layer
+	saveMLPToFile(&n, "../saves/thisatestman.mlp");
+
+	MLP recovered = loadMLPFromFile("../saves/thisatestman.mlp");
 }
 
 
