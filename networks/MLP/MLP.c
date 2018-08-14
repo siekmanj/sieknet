@@ -13,7 +13,7 @@
 * previousLayer: the preceding layer in the network (can be NULL).
 *
 */
-static Layer *createLayer(size_t size, Layer *previousLayer){
+static Layer *create_layer(size_t size, Layer *previousLayer){
   Layer *layer = (Layer*)malloc(size*sizeof(Layer));
   size_t previous_layer_size = 0;
   if(previousLayer != NULL){
@@ -42,7 +42,7 @@ static float sigmoid(float input){
   return 1 / (1 + exp(-input));
 }
 
-static float dSigmoid(float input){
+static float d_sigmoid(float input){
   float sig = sigmoid(input);
   return sig * (1 - sig);
 }
@@ -53,7 +53,7 @@ static float relu(float input){
   return input;
 }
 
-static float dRelu(float input){
+static float d_relu(float input){
   if(input >= 0) return 1;
   return 0.01;
 }
@@ -61,8 +61,8 @@ static float dRelu(float input){
 static float squish(float input){
   return sigmoid(input);
 }
-static float dsquish(float input){
-  return dSigmoid(input);
+static float d_squish(float input){
+  return d_sigmoid(input);
 }
 /* Description: Sets the outputs of a layer manually, instead of calculating them.
 *              The purpose of this function is to set the outputs of the input layer.
@@ -70,10 +70,24 @@ static float dsquish(float input){
 * outputs: The array of outputs which will be assigned to the layer
 * important: dimensions of outputs and layer must both be size*size
 */
-static void setOutputs(Layer *layer, float *outputs){
+static void set_outputs(Layer *layer, float *outputs){
   for(int i = 0; i < layer->size; i++){
     layer->neurons[i].activation = outputs[i];//squish(outputs[i]);
   }
+}
+
+static float quadratic_cost(Neuron *neuron, int y){
+  neuron->activationGradient = (2 * (y-neuron->activation));
+  return ((y-neuron->activation)*(y-neuron->activation));
+}
+
+static float cross_entropy_cost(Neuron *neuron, int y){
+  //Make sure we don't get divide by zero errors for safety
+  if(neuron->activation < 0.0001) neuron->activation = 0.0001;
+  else if(neuron->activation > 0.999) neuron->activation = 0.999;
+
+  neuron->activationGradient = ((float)y)/neuron->activation - (float)(1-y)/(1.0-neuron->activation);
+  return -(y * log(neuron->activation)) + (1 - y) * log(1 - neuron->activation);
 }
 
 /* Description: Calculates the cost of the output layer and sets the activation gradients for the output neurons.
@@ -84,8 +98,13 @@ static float cost(Layer *output_layer, int label){
   float sum = 0;
   for(int i = 0; i < output_layer->size; i++){
     int y = (i==label);
-    sum += ((y-output_layer->neurons[i].activation)*(y-output_layer->neurons[i].activation));
-    output_layer->neurons[i].activationGradient = (2 * (y-output_layer->neurons[i].activation));
+    //sum += ((y-output_layer->neurons[i].activation)*(y-output_layer->neurons[i].activation));
+    //output_layer->neurons[i].activationGradient = (2 * (y-output_layer->neurons[i].activation));
+
+    Neuron *neuron = &output_layer->neurons[i];
+    sum += quadratic_cost(neuron, y);
+
+    //output_layer->neurons[i].activationGradient = ((float)y)/activation - (float)(1-y)/(1.0-activation);
   }
   return sum;
 }
@@ -137,7 +156,7 @@ float backpropagate(Layer *output_layer, int label, float plasticity){
 * layer2: the layer whose outputs will be calculated
 * important: dimensions of weights of layer2 must match dimensions of neurons of layer1
 */
-static void calculateOutputs(Layer *layer){
+static void calculate_outputs(Layer *layer){
   Layer *input_layer = (Layer*)(layer->input_layer);
   for(int i = 0; i < layer->size; i++){
     float sum = 0;
@@ -146,7 +165,7 @@ static void calculateOutputs(Layer *layer){
       sum += input_layer->neurons[k].activation * layer->neurons[i].weights[k];
     }
     current->input = sum + current->bias;
-    current->dActivation = dsquish(current->input);
+    current->dActivation = d_squish(current->input);
     current->activation = squish(current->input);
   }
 }
@@ -160,7 +179,7 @@ MLP initMLP(){
   n.input = NULL;
   n.output = NULL;
   n.performance = 0;
-  n.plasticity = 1;
+  n.plasticity = .5;
   return n;
 }
 
@@ -170,7 +189,7 @@ MLP initMLP(){
 */
 
 void addLayer(MLP *n, size_t size){
-  Layer *newLayer = createLayer(size, n->output);
+  Layer *newLayer = create_layer(size, n->output);
   n->output = newLayer;
   if(n->input == NULL) n->input = newLayer;
 
@@ -181,7 +200,7 @@ void addLayer(MLP *n, size_t size){
 *  arr: the array of values to be passed into the network.
 */
 void setInputs(MLP *n, float* arr){
-  setOutputs(n->input, arr);
+  set_outputs(n->input, arr);
 }
 
 /* Description: Does feed-forward, cost, and then backpropagation (gradient descent)
@@ -196,7 +215,7 @@ float descend(MLP *n, int label){
 void feedforward(MLP *n){
   Layer *current = n->input->output_layer;
   while(current != NULL){
-    calculateOutputs(current);
+    calculate_outputs(current);
     current = current->output_layer;
   }
 }
@@ -211,8 +230,6 @@ int bestGuess(MLP *n){
      highestActivation = i;
    }
  }
- //printf("best guess: %d, outputs:\n", highestActivation);
- //printOutputs(n->output);
  return highestActivation;
 }
 
@@ -254,7 +271,7 @@ void saveMLPToFile(MLP *n, char* filename){
  //Write header info to file
  strcat(buff, "MLP ");
  writeToFile(fp, buff); //Write identifier
- snprintf(buff, 100, "%lu\n", size); //Convert num of layers to int
+ snprintf(buff, 100, "%lu ", size); //Convert num of layers to int
  writeToFile(fp, buff); //Write number of layers to file
 
  current = n->input;
@@ -262,12 +279,12 @@ void saveMLPToFile(MLP *n, char* filename){
    //Write layer info to file
    strcat(buff, "layer ");
    writeToFile(fp, buff);
-   snprintf(buff, 100, "%lu\n", current->size);
+   snprintf(buff, 100, "%lu ", current->size);
    writeToFile(fp, buff);
 
    //Write neuron info to file
    if(current == n->input){
-     strcat(buff, "INPUTLAYER\n");
+     strcat(buff, "INPUTLAYER ");
      writeToFile(fp, buff);
    }else{
      for(int j = 0; j < current->size; j++){
@@ -275,14 +292,14 @@ void saveMLPToFile(MLP *n, char* filename){
 
        strcat(buff, "neuron ");
        writeToFile(fp, buff);
-       snprintf(buff, 100, "%lu\n", input_layer->size);
+       snprintf(buff, 100, "%lu ", input_layer->size);
        writeToFile(fp, buff);
 
        for(int k = 0; k < input_layer->size; k++){
          snprintf(buff, 100, "%f ", current->neurons[j].weights[k]);
          writeToFile(fp, buff);
        }
-       strcat(buff, "\n");
+       snprintf(buff, 100, "%f ", current->neurons[j].bias);
        writeToFile(fp, buff);
      }
    }
@@ -299,7 +316,6 @@ MLP loadMLPFromFile(const char *filename){
 
   MLP n = initMLP();
   getWord(fp, buff); //Get first word to check if MLP file
-  printf("p: %p, buff: %s\n", fp, buff);
 
   if(strcmp(buff, "MLP") != 0){
     printf("ERROR: [%s] is not MLP.\n", buff);
@@ -333,8 +349,12 @@ MLP loadMLPFromFile(const char *filename){
         float weight = strtod(buff, NULL);
         n.output->neurons[j].weights[k] = weight;
       }
+      getWord(fp, buff);
+      float bias = strtod(buff, NULL);
+      n.output->neurons[j].bias = bias;
     }
   }
+  fclose(fp);
   return n;
 }
 

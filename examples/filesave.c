@@ -17,9 +17,9 @@ void savetest(){
 	addLayer(&n, 28*27); //input layer
 	addLayer(&n, 3);
 	addLayer(&n, 4); //output layer
-	saveMLPToFile(&n, "../saves/thisatestman.mlp");
+	saveMLPToFile(&n, "../saves/thisatest.mlp");
 
-	MLP recovered = loadMLPFromFile("../saves/thisatestman.mlp");
+	MLP recovered = loadMLPFromFile("../saves/thisatest.mlp");
 }
 
 

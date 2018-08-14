@@ -6,7 +6,9 @@
 
 #include "./mnist.h"
 
-
+/*
+ * 
+ */
 uint32_t extractInt32(uint8_t *ptr, size_t offset){
 	uint32_t num = 0;
 	for(int i = offset; i < offset+4; i++){
@@ -14,6 +16,7 @@ uint32_t extractInt32(uint8_t *ptr, size_t offset){
 	}
 	return num;
 }
+
 void printImage(ImageSet *imgset, size_t index){
 	size_t rows = imgset->height;
 	size_t cols = imgset->width;
@@ -29,6 +32,7 @@ void printImage(ImageSet *imgset, size_t index){
 	}
 	printf("\n");
 }
+
 int openImageSet(ImageSet *imgset, size_t size, char* imgFilename, char* labelFilename){
 	FILE *imageFile = fopen(imgFilename, "rb");
 	FILE *labelFile = fopen(labelFilename, "rb");
@@ -49,6 +53,7 @@ int openImageSet(ImageSet *imgset, size_t size, char* imgFilename, char* labelFi
 	imgset->labelBuff = labelBuff;
 	return 1;
 }
+
 float* img2floatArray(ImageSet *imgset, int index, size_t *rows, size_t *cols){
 	*rows = imgset->height;
 	*cols = imgset->width;
@@ -62,17 +67,3 @@ float* img2floatArray(ImageSet *imgset, int index, size_t *rows, size_t *cols){
 int label(ImageSet *imgset, int index){
 	return imgset->labelBuff[8 + index];
 }
-
-/*
-int main(){
-	FILE *fp;
-	int arr[1000];
-	size_t bytes = 7840016;
-	size_t size = 1;
-
-	ImageSet imgs;
-	openImageSet(&imgs, bytes, "t10k-images-idx3-ubyte", "t10k-labels-idx1-ubyte");
-	printImage(&imgs, 100);
-
-	printf("\n");
-}*/

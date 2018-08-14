@@ -17,7 +17,7 @@ int main(void){
 	addLayer(&n, 15);
 	addLayer(&n, 10); //output layer
 
-	size_t epochs = 3;
+	size_t epochs = 1;
 	int epoch = 0;
 
 	//Training data
@@ -34,13 +34,24 @@ int main(void){
 
 			setInputs(&n, img);
 			float c = descend(&n, label(&training_set, index));
+      if(isnan(c)){
+        printf("cost was nan: %f\n", c);
+        printOutputs(n.output);
+        printWeights(n.output);
+        printActivationGradients(n.output);
+        printActivationGradients(n.output->input_layer);
+      }
+      // printf("Label: %d, cost %f\n", label(&training_set, index), c);
+      // printOutputs(n.output);
 			avgCost += c;
 
 			if(i % training_set.numImages == 0 && i != 0){
 				printf("Epoch %d finished, cost %f.\n", epoch++, avgCost/i);
+        saveMLPToFile(&n, "../saves/mnist_test.mlp");
 			}
+      while(isnan(c));
 		}
-		printf("\nAvg training cost: %f\n", avgCost / (training_set.numImages*epochs));
+		printf("\nAvg training cost: %f / %u * %d = %f\n", avgCost, training_set.numImages, epoch, avgCost / (training_set.numImages*epochs));
 	}
 	//Testing data
   {
@@ -59,5 +70,4 @@ int main(void){
 		}
 		printf("resulting avg correct: %f\n", avgCorrect/testing_set.numImages);
 	}
-  saveMLPToFile(&n, "../saves/mnist.mlp");
 }
