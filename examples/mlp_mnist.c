@@ -54,7 +54,7 @@ int main(void){
 		printf("\nAvg training cost: %f / %u * %d = %f\n", avgCost, training_set.numImages, epoch, avgCost / (training_set.numImages*epochs));
 	}
 	//Testing data
-  {
+	{
 		printf("Testing:\n");
 		ImageSet testing_set;
 		openImageSet(&testing_set, 7840016, "../mnist/t10k-images-idx3-ubyte", "../mnist/t10k-labels-idx1-ubyte");
