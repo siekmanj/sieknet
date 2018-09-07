@@ -7,17 +7,21 @@
 #include <math.h>
 #include <MLP.h>
 #include <mnist.h>
+#include <string.h>
 
 
-
-int main(void){
+int main(int argc, char *argv[]){
   srand(time(NULL));
+	if(argc < 2 || strlen(argv[1]) == 0){
+		printf("You must provide a valid filename.\n");
+		return -1;
+	}
 	MLP n = initMLP();
 	addLayer(&n, 28*28); //input layer
 	addLayer(&n, 15);
 	addLayer(&n, 10); //output layer
 
-	size_t epochs = 1;
+	size_t epochs = 30;
 	int epoch = 0;
 
 	//Training data
@@ -31,25 +35,30 @@ int main(void){
 		for(size_t i = 0; i < training_set.numImages * epochs; i++){
 			size_t index = i % training_set.numImages;
 			float* img = img2floatArray(&training_set, index, &height, &width);
+      int correctlabel = label(&training_set, index);
 
 			setInputs(&n, img);
-			float c = descend(&n, label(&training_set, index));
+			float c = descend(&n, correctlabel);
       if(isnan(c)){
         printf("cost was nan: %f\n", c);
-        printOutputs(n.output);
-        printWeights(n.output);
-        printActivationGradients(n.output);
-        printActivationGradients(n.output->input_layer);
+        while(1);
       }
-      // printf("Label: %d, cost %f\n", label(&training_set, index), c);
-      // printOutputs(n.output);
 			avgCost += c;
+
+      if(rand() % 5000 == 0){
+        printf("label: %d, cost: %f\n", correctlabel, c);
+        printOutputs(n.output);
+      }
 
 			if(i % training_set.numImages == 0 && i != 0){
 				printf("Epoch %d finished, cost %f.\n", epoch++, avgCost/i);
-        saveMLPToFile(&n, "../saves/mnist_test.mlp");
+				char buff[100];
+				memset(buff, '\0', 100);
+				strcat(buff, "../saves/");
+				strcat(buff, argv[1]);
+				strcat(buff, ".mlp");
+        saveMLPToFile(&n, buff);
 			}
-      while(isnan(c));
 		}
 		printf("\nAvg training cost: %f / %u * %d = %f\n", avgCost, training_set.numImages, epoch, avgCost / (training_set.numImages*epochs));
 	}

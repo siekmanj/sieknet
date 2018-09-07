@@ -8,12 +8,14 @@
 //Toy problem - trains an MLP to convert from binary to decimal
 int main(){
   srand(time(NULL));
+	MLP n = createMLP(4, 8, 16);
+/*	
 	MLP n = initMLP();
 	addLayer(&n, 4);
 	addLayer(&n, 8);
 	addLayer(&n, 16);
-
-	for(int i = 0; i < 8000; i++){
+*/
+	for(int i = 0; i < 80000000; i++){
 		//Create a random 4-bit binary number
 		int bit0 = rand()%2==0;
 		int bit1 = rand()%2==0;
@@ -29,7 +31,8 @@ int main(){
 		//Debug stuff
 		if(i % 500 == 0){
 			printOutputs(n.output);
-			printf("Label %f, Cost: %f\n\n\n", ans, cost);
+			printWeights(n.output);
+			printf("Label %f, guess %d, Cost: %f\n\n\n", ans, bestGuess(&n), cost);
 
 		}
 	}
