@@ -7,14 +7,9 @@
 
 //Toy problem - trains an MLP to convert from binary to decimal
 int main(){
-  srand(time(NULL));
+	srand(time(NULL));
 	MLP n = createMLP(4, 8, 16);
-/*	
-	MLP n = initMLP();
-	addLayer(&n, 4);
-	addLayer(&n, 8);
-	addLayer(&n, 16);
-*/
+	
 	for(int i = 0; i < 80000000; i++){
 		//Create a random 4-bit binary number
 		int bit0 = rand()%2==0;
@@ -29,11 +24,12 @@ int main(){
 		float cost = descend(&n, (int)ans); //Calculate outputs and run backprop
 
 		//Debug stuff
-		if(i % 500 == 0){
+		if(!(i % 1000)){
+			printf("CURRENTLY ON EXAMPLE %d\n", i);
 			printOutputs(n.output);
 			printWeights(n.output);
-			printf("Label %f, guess %d, Cost: %f\n\n\n", ans, bestGuess(&n), cost);
-
-		}
+			printf("Label %2d, guess %2d, Cost: %5.3f\n\n\n", (int)ans, bestGuess(&n), cost);
+			getchar();
+		}	
 	}
 }

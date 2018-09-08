@@ -35,11 +35,11 @@ static void softmax(void* layerptr){
 
   for(int i = 0; i < layer->size; i++){
     if(layer->neurons[i].input > logC) logC = layer->neurons[i].input;
-    sum += exp(layer->neurons[i].input - logC);
+    sum += exp(layer->neurons[i].input);
   }
 
   for(int i = 0; i < layer->size; i++){
-    layer->neurons[i].activation = exp(layer->neurons[i].input - logC) / sum;
+    layer->neurons[i].activation = exp(layer->neurons[i].input) / sum;
     layer->neurons[i].dActivation = layer->neurons[i].activation * (1 - layer->neurons[i].activation);
 
   }
@@ -132,7 +132,7 @@ static float cost(Layer *output_layer, int label){
     int y = (i==label);
 
     Neuron *neuron = &output_layer->neurons[i];
-     sum += cross_entropy_cost(neuron, y); //Calculate the cost from the desired value and actual neuron output
+		sum += cross_entropy_cost(neuron, y); //Calculate the cost from the desired value and actual neuron output
 		//sum += quadratic_cost(neuron, y);
   }
   return sum;
@@ -437,10 +437,15 @@ void printWeights(Layer *layer){
 	printf("\n");
 	for(int i = 0; i < previousLayer->size; i++){
 		for(int j = 0; j < layer->size; j++){
-			if(i > 9) printf(" %9.1f  ", layer->neurons[j].weights[i]);
-			else printf("%8.1f  ", layer->neurons[j].weights[i]);
+			if(j > 9) printf(" %9.2f ", layer->neurons[j].weights[i]);
+			else printf("%8.2f  ", layer->neurons[j].weights[i]);
 		}
 		printf("\n");
+	}
+	printf("\n");
+	for(int i = 0; i < layer->size; i++){
+			if(i > 9) printf(" %9.2f ", layer->neurons[i].bias);
+			else printf("%8.2f  ", layer->neurons[i].bias);
 	}
 	printf("\n");
 }

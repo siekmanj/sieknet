@@ -12,14 +12,16 @@
 
 int main(int argc, char *argv[]){
   srand(time(NULL));
+
 	if(argc < 2 || strlen(argv[1]) == 0){
 		printf("You must provide a valid filename.\n");
 		return -1;
 	}
-	MLP n = initMLP();
-	addLayer(&n, 28*28); //input layer
-	addLayer(&n, 15);
-	addLayer(&n, 10); //output layer
+
+	MLP n = createMLP(28*28, 15, 10);
+	//addLayer(&n, 28*28); //input layer
+	//addLayer(&n, 15);
+	//addLayer(&n, 10); //output layer
 
 	size_t epochs = 30;
 	int epoch = 0;
@@ -39,16 +41,12 @@ int main(int argc, char *argv[]){
 
 			setInputs(&n, img);
 			float c = descend(&n, correctlabel);
+
       if(isnan(c)){
         printf("cost was nan: %f\n", c);
         while(1);
       }
 			avgCost += c;
-
-      if(rand() % 5000 == 0){
-        printf("label: %d, cost: %f\n", correctlabel, c);
-        printOutputs(n.output);
-      }
 
 			if(i % training_set.numImages == 0 && i != 0){
 				printf("Epoch %d finished, cost %f.\n", epoch++, avgCost/i);
@@ -58,6 +56,10 @@ int main(int argc, char *argv[]){
 				strcat(buff, argv[1]);
 				strcat(buff, ".mlp");
         saveMLPToFile(&n, buff);
+        printf("\n**********\nlabel: %d, cost: %f, avgcost: %f\n", correctlabel, c, avgCost/i);
+			  printOutputs(n.output);
+				printWeights(n.output);
+				getchar();
 			}
 		}
 		printf("\nAvg training cost: %f / %u * %d = %f\n", avgCost, training_set.numImages, epoch, avgCost / (training_set.numImages*epochs));
@@ -75,7 +77,7 @@ int main(int argc, char *argv[]){
 			setInputs(&n, img);
 			feedforward(&n);
 			int guess = bestGuess(&n);
-			avgCorrect += guess == label(&testing_set, i);
+			avgCorrect += (guess == label(&testing_set, i));
 		}
 		printf("resulting avg correct: %f\n", avgCorrect/testing_set.numImages);
 	}

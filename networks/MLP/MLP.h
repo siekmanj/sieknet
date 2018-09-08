@@ -13,7 +13,7 @@ typedef struct Neuron{
 	float input;
 	float bias;
 	float activation;
-	float dActivation;
+	float dActivation;	
 	float activationGradient;
 } Neuron;
 
@@ -22,7 +22,7 @@ typedef struct Layer{
   void *input_layer;
 	void *output_layer;
 	void (*squish)(void*);
-  size_t size;
+	size_t size;
 } Layer;
 
 
@@ -34,7 +34,6 @@ typedef struct MLP{
 	unsigned long age;
 } MLP;
 
-MLP initMLP();
 MLP mlp_from_arr(size_t arr[], size_t size);
 MLP loadMLPFromFile(const char *filename);
 
