@@ -29,6 +29,7 @@ typedef struct Layer{
 typedef struct MLP{
 	Layer *input;
 	Layer *output;
+	void (*setInputs)(void* layer, void* arr);
 	double performance;
 	double plasticity;
 	unsigned long age;

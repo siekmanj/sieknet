@@ -2,7 +2,9 @@ CC = gcc
 .PHONY: filesavetest mlp_mnist binary
 
 MLP_INCLUDE = -I../mnist -I../networks/MLP
-
+RNN_INCLUDE = -I../networks/RNN
+recurrence:
+	gcc $(RNN_INCLUDE) $(MLP_INCLUDE) ../networks/MLP/MLP.c ../networks/RNN/RNN.c ../examples/character.c -o $@.out -lm
 filesave:
 	gcc $(MLP_INCLUDE) ../mnist/mnist.c ../networks/MLP/MLP.c ../examples/filesave.c -o $@.out -lm
 fileload:
