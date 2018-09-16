@@ -26,12 +26,12 @@ int label_from_char(char inpt, const char *alphabet){
 }
 
 int main(void){
-	const char *training = " hello world"; //desired sentence
-	const char *inputs = "helowrd "; //possible inputs/outputs
+	const char *training = " hello world what is up"; //desired sentence
+	const char *inputs = "helowrdahtisup "; //possible inputs/outputs
 
-	RNN n = createRNN(strlen(inputs), 6, strlen(inputs));
+	RNN n = createRNN(strlen(inputs), 20, strlen(inputs));
 
-	for(int epoch = 0; epoch < 1000000; epoch++){
+	for(int epoch = 0; epoch < 1000; epoch++){
 		char output[strlen(inputs)];
 		memset(output, '\0', strlen(inputs));
 		float cost = 0;	
@@ -52,5 +52,15 @@ int main(void){
 			printf("output: %s\n", output);
 			getchar();
 		}
+	}
+	char in = ' ';
+	for(int i = 0; i < 100; i++){
+		float input_one_hot[strlen(inputs)];
+		make_one_hot(in, inputs, input_one_hot);
+
+		setOneHotInput(&n, input_one_hot); 
+		feedforward_recurrent(&n);
+		printf("%c", inputs[bestGuess(&n)]);
+		in = inputs[bestGuess(&n)];	
 	}
 }

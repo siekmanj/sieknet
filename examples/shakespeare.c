@@ -20,19 +20,18 @@ int label_from_char(char inpt, const char *alphabet){
 	for(int i = 0; i < strlen(alphabet); i++){
 		if(alphabet[i] == inpt) return i;
 	}
-	printf("ERRRRRRR: %d (%c) not in alphabet.\n", inpt, inpt);
-	while(1);
-	return -1;
+	return EOF;
 }
 
-char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!-()'\"\n ";
+char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!-()[]'\"\n ";
 
 int main(void){
+	srand(time(NULL));
 	RNN n;
 
 	if(getchar() == 'n'){
 		printf("creating new network...\n");
-		n	= createRNN(strlen(alphabet), 100, 200, 100, strlen(alphabet));
+		n	= createRNN(strlen(alphabet), 200, 200, 200, strlen(alphabet));
 	}else{
 		printf("loading network from file...\n");
 		RNN n = loadRNNFromFile("../saves/rnn_sonnets.rnn");
@@ -43,45 +42,51 @@ int main(void){
 	int count = 0;
 	int debug = 0;
 	int epochs = 10;
+	int debug_interval = 5000;
 
 	for(int i = 0; i < epochs; i++){
-		FILE *fp = fopen("../shakespeare/sonnets.txt", "rb");
-		char c = fgetc(fp);
-		
+		FILE *fp = fopen("../shakespeare/king_henry.txt", "rb");
+	
+		char input_character = ' ';
+		char label = label_from_char(fgetc(fp), alphabet);
 		float cost = 0;
 		float lastavgcost = 10000000;
 
-		while(c != EOF){
+		do {
+			
 			float input_one_hot[strlen(alphabet)];
-			make_one_hot(c, alphabet, input_one_hot);	
+			make_one_hot(input_character, alphabet, input_one_hot);	
 			setOneHotInput(&n, input_one_hot);
 			
-			char label = label_from_char(fgetc(fp), alphabet); 
-			
-			cost += step(&n, label);
-	
-			if(count % 5000 == 0){
-				debug ^= 1;	
-				n.plasticity *= 0.9;
-				if(debug){
-					printf("\n\n************\navgcost: %f, plasticity: %f\n************\n\n", cost/count, n.plasticity);
-					if(lastavgcost > cost/count){		
-						saveRNNToFile(&n, "../saves/rnn_sonnets.rnn"); 
-						lastavgcost = cost/count;
-						printf("trying to beat cost of %f\n", lastavgcost);
-					}else{
-						printf("\n\n************\nPROGRESS LOST!!! %f vs %f\n************\n\n", cost/count, lastavgcost);
-					}
-				}
-			}
-			if(debug){
-				printf("%c", alphabet[bestGuess(&n)]); 
-			}
-			c = label;
+			float cost_local = step(&n, label);
+
+			cost += cost_local;
+
+			printf("%c", alphabet[bestGuess(&n)]);
+
+			input_character = alphabet[label];
 			count++;
-		}
+			
+			label = label_from_char(fgetc(fp), alphabet);
+		}	
+		while(label != EOF);
+
 		fclose(fp);
 		printf("\n\n***********\nepoch %d concluded, avgcost: %f.\n************\n\n", i, cost/count);
+		saveRNNToFile(&n, "../saves/rnn_sonnets.rnn"); 
+
+		printf("Sample:\n");
+		char input = ' ';
+		for(int i = 0; i < 1000; i++){
+			float input_one_hot[strlen(alphabet)];
+			make_one_hot(input, alphabet, input_one_hot);
+			setOneHotInput(&n, input_one_hot);
+
+			feedforward_recurrent(&n);
+			input = alphabet[bestGuess(&n)];
+
+			printf("%c", bestGuess(&n));
+		}
 		getchar();
 	}
 }

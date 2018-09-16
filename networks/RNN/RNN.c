@@ -74,8 +74,7 @@ static void set_recurrent_inputs(RNN *n){
 }
 
 float step(RNN *n, int label){
-	set_recurrent_inputs(n);
-	feedforward(n);
+	feedforward_recurrent(n);
 	return backpropagate(n->output, label, n->plasticity);
 }
 
@@ -84,15 +83,12 @@ float step(RNN *n, int label){
  * Description: Performs the feed-forward operation on the network.
  * NOTE: setInputs should be used before calling feedforward.
  * n: A pointer to the network.
- *
-void feedforward(RNN *n){
-  Layer *current = n->input->output_layer;
-  while(current != NULL){
-    calculate_outputs(current);
-    current = current->output_layer;
-  }
+ */
+void feedforward_recurrent(RNN *n){
+	set_recurrent_inputs(n);
+	feedforward(n);
 }
-*/
+
 
 /*
  * IO FUNCTIONS FOR READING AND WRITING TO A FILE

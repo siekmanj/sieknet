@@ -26,6 +26,7 @@ RNN loadRNNFromFile(const char *filename);
 //void setInputs(RNN *n, char* arr);
 void setOneHotInput(RNN *n, float* arr);
 //void feedforward(RNN *n);
+void feedforward_recurrent(RNN *n);
 void saveRNNToFile(RNN *n, char* filename);
 
 float step(RNN *n, int label);
