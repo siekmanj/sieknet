@@ -20,13 +20,13 @@ typedef MLP RNN;/*{
 } RNN;*/
 
 RNN rnn_from_arr(size_t arr[], size_t size);
-//RNN loadRNNFromFile(const char *filename);
+RNN loadRNNFromFile(const char *filename);
 
 //void addLayer(RNN *n, size_t size);
 //void setInputs(RNN *n, char* arr);
 void setOneHotInput(RNN *n, float* arr);
 //void feedforward(RNN *n);
-//void saveRNNToFile(RNN *n, char* filename);
+void saveRNNToFile(RNN *n, char* filename);
 
 float step(RNN *n, int label);
 //float descend(RNN *n, int label);

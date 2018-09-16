@@ -3,6 +3,9 @@ CC = gcc
 
 MLP_INCLUDE = -I../mnist -I../networks/MLP
 RNN_INCLUDE = -I../networks/RNN
+
+shakespeare:
+	gcc $(RNN_INCLUDE) $(MLP_INCLUDE) ../networks/MLP/MLP.c ../networks/RNN/RNN.c ../examples/shakespeare.c -o $@.out -lm
 recurrence:
 	gcc $(RNN_INCLUDE) $(MLP_INCLUDE) ../networks/MLP/MLP.c ../networks/RNN/RNN.c ../examples/character.c -o $@.out -lm
 filesave:

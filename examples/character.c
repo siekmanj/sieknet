@@ -48,10 +48,7 @@ int main(void){
 			output[i] = inputs[bestGuess(&n)];
 		}
 		cost /= strlen(training);
-		if(epoch % 50000 == 0){
-			printf("output of network: %d (%c), cost: %f\n", bestGuess(&n), inputs[bestGuess(&n)], cost);
-			printf("Output Layer:\n");
-			printOutputs(n.output);
+		if(epoch % 150 == 0){
 			printf("output: %s\n", output);
 			getchar();
 		}

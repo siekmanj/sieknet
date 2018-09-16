@@ -132,8 +132,8 @@ static float cost(Layer *output_layer, int label){
 
     Neuron *neuron = &output_layer->neurons[i];
 	  //Calculate the cost from the desired value and actual neuron output
-		//sum += cross_entropy_cost(neuron, y);
-		sum += quadratic_cost(neuron, y);
+		sum += cross_entropy_cost(neuron, y);
+		//sum += quadratic_cost(neuron, y);
   }
   return sum;
 }
@@ -245,7 +245,7 @@ void addLayer(MLP *n, size_t size){
   Layer *newLayer = create_layer(size, n->output);
   if(n->output != NULL) n->output->squish = sigmoid; //Turn the previous output layer into a sigmoid layer.
   n->output = newLayer;
-  n->output->squish = sigmoid; //Set the new output layer to a softmax layer.
+  n->output->squish = softmax; //Set the new output layer to a softmax layer.
   if(n->input == NULL) n->input = newLayer;
 
 }
