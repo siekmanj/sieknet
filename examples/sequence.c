@@ -19,7 +19,7 @@ int data[] = {
  						 9, 9, 9, 9, 9, 9, 9, 9, 9,
              };
 int main(void){
-	RNN n = createRNN(10, 5, 10);
+	RNN n = createRNN(10, 15, 10);
 	int count = 0;
 	float cost = 0;
 	n.plasticity = 0.01;
