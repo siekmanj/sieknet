@@ -28,49 +28,38 @@ static RNN initRNN(){
 RNN rnn_from_arr(size_t arr[], size_t size){
 	RNN n = initRNN();
 	size_t input_size = 0;
-	for(int i = 0; i < size-2; i++){
+	for(int i = 0; i < size-1; i++){
 		addLayer(&n, arr[i] + arr[i+1]); //Add a layer but allocate extra neurons for the hidden state of next layer. 
 	}	
-	addLayer(&n, arr[size-2]); //Add the layer right before the output layer which is not used as a recurrent input for the output layer.
+	addLayer(&n, arr[size-1]); //Add a non-recurrent output layer.
+
+	printf("original sizes:\n");
+	for(int i = 0; i < size; i++) printf("%lu, ", arr[i]);
+	Layer *current = n.input;
+	printf("\nnetwork sizes:\n");
+	for(int i = 0; i < size; i++){
+		printf("%lu, ", current->size);
+		current = (Layer*) current->output_layer;
+	}
+	printf("\n");
+	/*
+	for(int i = 0; i < size-1; i++){
+		input_size += arr[i];
+	}
+	for(int i = 0; i < size; i++){
+		if(i == 0) addLayer(&n, input_size);
+		else addLayer(&n, arr[i]);
+	}
+	*/
+
 	for(int i = 0; i < n.input->size; i++){
-		Layer *layer = n.input;
-	}	
-	addLayer(&n, arr[size-1]); //Add an output layer that is not used as a recurrent input.
+		n.input->neurons[i].activation = ((float)(rand()%70))/70;
+	}
   return n;
 }
 
 
-static size_t recurrentInputSize(Layer* layer){
-  Layer* current = layer;
-//	printf("		recurrentInputSize: Layer being considered: %p, input layer: %p\n", layer, layer->input_layer);
-//	printf("		recurrentInputSize: Layers: %p --> %p --> %p\n", layer, layer->output_layer, ((Layer*)layer->output_layer)->output_layer);
-	while(((Layer*)current->output_layer)->output_layer != NULL) current = current->output_layer;
-//	printf("		recurrentInputSize: Layer selected to work back from %p\n", current);
-	
-	size_t recurrent_offset;
-	size_t temp = 0;
-	while(current != layer->input_layer){
-		recurrent_offset = current->size - temp;
-		temp = recurrent_offset;
-//		printf("		recurrentInputSize: On layer %p, recurrent offset is %lu\n", current, recurrent_offset);
-		current = current->input_layer;
-	}
-//	printf("		recurrentInputSize: returning %lu\n", recurrent_offset);
-	return recurrent_offset;
-	/*
-  while(((Layer*)current->output_layer)->output_layer != NULL) current = current->output_layer;
-
-	size_t recurrent_neurons_starting_index;
-	size_t temp = 0;
-	while(current != layer->input_layer){
-		recurrent_neurons_starting_index = current->size - temp; 
-		temp = recurrent_neurons_starting_index; 
-		current = current->input_layer;
-	}
-	printf("recurrent offset: %lu\n", recurrent_neurons_starting_index);
-	return recurrent_neurons_starting_index;
-*/
-/*
+static size_t recurrentInputSize(RNN *n){
 	Layer *current = (Layer*)n->input->output_layer;
 	int sum = 0;
 	
@@ -79,37 +68,30 @@ static size_t recurrentInputSize(Layer* layer){
 		current = (Layer*)current->output_layer;
 	}
 	return sum;
-*/
 }
 void setOneHotInput(RNN *n, float *arr){
-	size_t recurrentInputIndex = recurrentInputSize(n->input);
-//	printf("Setting recurrent inputs of layer %p, starting at index %lu\n", n->input, recurrentInputIndex);
+	size_t recurrentInputIndex = n->input->size - recurrentInputSize(n);
 	for(int i = 0; i < recurrentInputIndex; i++){
 		n->input->neurons[i].activation = arr[i];
 	}
 }
 
 static void set_recurrent_inputs(Layer* layer){
-//	printf("	set_recurrent_inputs: Setting recurrent inputs for layer %p, input: %p\n", layer, layer->input_layer);
-	size_t recurrent_offset = recurrentInputSize(layer->input_layer);
 	if(layer->input_layer != NULL){
-//		printf("	set_recurrent_inputs: using offset of %lu for layer %p\n", recurrent_offset, layer->input_layer);
+		size_t input_layer_size = ((Layer*)layer->input_layer)->size;
 
-		Layer *input_layer = (Layer*)layer->input_layer;
-		for(int i = 0; i < input_layer->size; i++){
-//			printf("	set_recurrent_inputs: before assignment neuron %d with val %f in layer %p\n", i, input_layer->neurons[i].activation, input_layer);
+		Layer* current = layer;
+		while(((Layer*)current->output_layer)->output_layer != NULL) current = current->output_layer;
+
+		size_t recurrent_neurons_starting_index = current->size;
+
+		while(current != layer){
+			recurrent_neurons_starting_index = 
 		}
-		for(int i = recurrent_offset; i < input_layer->size; i++){
-			Neuron *recurrent_neuron = &input_layer->neurons[i];
-			Neuron *old_neuron = &layer->neurons[i-recurrent_offset];
-			input_layer->neurons[i].activation = layer->neurons[i-recurrent_offset].activation;
-//			printf("	set_recurrent_inputs: neuron %d of layer %p (%f) set to val of neuron %d of layer %p (%f)\n", i, input_layer, recurrent_neuron->activation, i-recurrent_offset, layer, old_neuron->activation);
-			//printf("WE GOT A FUCKIN PROBLEM BOIS: %f\n", input_layer->neurons[i].activation);
-			//getchar();
-		}
-//		for(int i = 0; i < input_layer->size; i++){
-//			printf("	set_recurrent_inputs: AFTER ASSIGNMENT NEURON %d HAS VAL %f\n", i, input_layer->neurons[i].activation);
-//		}
+	}
+	Layer* current = n->output;
+	while(current != NULL){
+
 	}
 	/*
 	size_t recurrentInputs = recurrentInputSize(n);
@@ -130,10 +112,6 @@ static void set_recurrent_inputs(Layer* layer){
 }
 
 float step(RNN *n, int label){
-	for(int i = 0; i < n->input->size; i++){
-		Layer *layer = n->input;
-//		printf("Neuron %d of layer %p has output %f\n", i, layer, layer->neurons[i].activation);
-	}	
 	feedforward_recurrent(n);
 	return backpropagate(n->output, label, n->plasticity);
 }
@@ -146,15 +124,10 @@ float step(RNN *n, int label){
  * n: A pointer to the network.
  */
 void feedforward_recurrent(RNN *n){
-//	set_recurrent_inputs(n->input);
-
-	Layer* current = n->input->output_layer;
 	while(current != NULL){
-//		printf("feedforward_recurrent: setting recurrent inputs for %p\n", current);
-		/*if(current != n->output/* && current != ((Layer*)n->output)->input_layer*/ set_recurrent_inputs(current);
+		set_recurrent_inputs(current);
 		calculate_outputs(current);
 		current = current->output_layer;
-//		printf("feedforward_recurrent: done with %p\n", current);
 	}
 }
 
