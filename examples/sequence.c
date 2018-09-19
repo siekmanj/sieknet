@@ -19,10 +19,10 @@ int data[] = {
  						 9, 9, 9, 9, 9, 9, 9, 9, 9,
              };
 int main(void){
-	RNN n = createRNN(10, 15, 10);
+	RNN n = createRNN(10, 15, 15, 10);
 	int count = 0;
 	float cost = 0;
-	n.plasticity = 0.01;
+	n.plasticity = 0.05;
 	for(int epoch = 0; epoch < 1000000; epoch++){
 		size_t len = sizeof(data)/sizeof(data[0]);
 		for(int i = 0; i < len; i++){
@@ -39,14 +39,14 @@ int main(void){
 			count++;	
 		
 				printf("label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", label, data[i], bestGuess(&n), c, cost/count, bestGuess(&n) == label);
-			if(epoch > 10000){
-			//	printf("input vector:\n");
-			//	for(int j = 0; j < 10; j++) printf("%f, ", one_hot[j]); printf("\n");
-			//	printf("input layer:\n");
-			//	printOutputs(n.input);
-			//	printf("hidden layer:\n");
-			//	printOutputs((Layer*)n.input->output_layer);
-			//	getchar();
+			if(epoch > 100000){
+				printf("input vector:\n");
+				for(int j = 0; j < 10; j++) printf("%f, ", one_hot[j]); printf("\n");
+				printf("input layer:\n");
+				printOutputs(n.input);
+				printf("hidden layer:\n");
+				printOutputs((Layer*)n.input->output_layer);
+				getchar();
 			}
 		}
 		if(epoch % 100000 == 0){
