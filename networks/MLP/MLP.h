@@ -40,6 +40,7 @@ MLP loadMLPFromFile(const char *filename);
 
 void addLayer(MLP *n, size_t size);
 void setInputs(MLP *n, float* arr);
+void calculate_outputs(Layer*);
 void feedforward(MLP *n);
 void saveMLPToFile(MLP *n, char* filename);
 

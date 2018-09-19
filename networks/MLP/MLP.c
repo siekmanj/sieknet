@@ -25,7 +25,7 @@ static void sigmoid(void* layerptr){
  * Description: Calculates the activation of a given neuron using softmax, and
  *              sets the partial derivative of the cost with respect to the activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
- * NOTE: potentially stable(?)
+ * NOTE: potentially stable (may not work with very large/very negative inputs)
  */
 static void softmax(void* layerptr){
   Layer* layer = (Layer*)layerptr;
@@ -42,6 +42,7 @@ static void softmax(void* layerptr){
     layer->neurons[i].activation = exp(layer->neurons[i].input) / sum;
     layer->neurons[i].dActivation = layer->neurons[i].activation * (1 - layer->neurons[i].activation);
   }
+	
 }
 
 /* 
@@ -63,16 +64,16 @@ static Layer *create_layer(size_t size, Layer *previousLayer){
     //Allocate weights
     float *weights = (float*)malloc(previous_layer_size*sizeof(float));
     for(int j = 0; j < previous_layer_size; j++){
-      weights[j] = ((float)(rand()%70)-35)/10; //Slight bias towards positive weights
+      weights[j] = ((float)(rand()%7000)-3500)/10000; //Slight bias towards positive weights
     }
     neurons[i].weights = weights;
-    neurons[i].bias = ((float)(rand()%70)-35)/10;
-
+    neurons[i].bias = ((float)(rand()%7000)-3500)/10000;
+		neurons[i].activation = ((float)(rand()%70000)/70000); //Initialize a random activation (for use in recurrent neural net as initial hidden state)
   }
   layer->size = size;
   layer->neurons = neurons;
   layer->input_layer = previousLayer;
-  layer->squish = sigmoid;
+  layer->squish = sigmoid; //Set layer activation to sigmoid by default
   return layer;
 }
 
@@ -108,8 +109,8 @@ static float quadratic_cost(Neuron *neuron, int y){
  */
 static float cross_entropy_cost(Neuron *neuron, int y){
   //Make sure we don't get divide by zero errors for safety
-  if(neuron->activation < 0.000001) neuron->activation = 0.000001;
-  else if(neuron->activation > 0.99999) neuron->activation = 0.99999;
+  if(neuron->activation < 0.00001) neuron->activation = 0.00001;
+  else if(neuron->activation > 0.9999) neuron->activation = 0.9999;
 
   neuron->activationGradient = ((float)y)/neuron->activation - (float)(1-y)/(1.0-neuron->activation);
 
@@ -141,6 +142,8 @@ static float cost(Layer *output_layer, int label){
 /* 
  * Description: Performs backpropagation algorithm on the network.
  * output_layer: The last layer in the network.
+ * label: The neuron that should have fired in the output layer.
+ * plasticity: The learning rate of the network.
  */
 float backpropagate(Layer *output_layer, int label, float plasticity){
   float c = cost(output_layer, label); //Calculate cost & set activation gradients in output layer
@@ -185,11 +188,9 @@ float backpropagate(Layer *output_layer, int label, float plasticity){
 
 /* 
  * Description: Calculates the outputs of each neuron in a layer based on the outputs & weights of the neurons in the preceding layer
- * layer1: the layer with existing outputs
- * layer2: the layer whose outputs will be calculated
- * important: dimensions of weights of layer2 must match dimensions of neurons of layer1
+ * layer: the layer for which outputs will be calculated from inputs of the previous layer.
  */
-static void calculate_outputs(Layer *layer){
+void calculate_outputs(Layer *layer){
   Layer *input_layer = (Layer*)(layer->input_layer);
   for(int i = 0; i < layer->size; i++){
     float sum = 0;
@@ -237,7 +238,7 @@ MLP mlp_from_arr(size_t arr[], size_t size){
 }
 
 /* 
- * Description: Adds a layer to the MLP object. Layers will be inserted from input layer onward.
+ * Description: Adds a layer to the MLP object. Layers will be appended from input layer onward.
  * n: the pointer to the network.
  * size: the desired size of the layer to be added.
  */
