@@ -4,6 +4,8 @@ CC = gcc
 MLP_INCLUDE = -I../mnist -I../networks/MLP
 RNN_INCLUDE = -I../networks/RNN
 
+test_recurrent_output:
+	gcc $(RNN_INCLUDE) $(MLP_INCLUDE) ../networks/MLP/MLP.c ../networks/RNN/RNN.c ../examples/test_recurrent_output.c -o $@.out -lm
 sequence:
 	gcc $(RNN_INCLUDE) $(MLP_INCLUDE) ../networks/MLP/MLP.c ../networks/RNN/RNN.c ../examples/sequence.c -o $@.out -lm
 shakespeare:
