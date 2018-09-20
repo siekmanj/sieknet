@@ -37,7 +37,7 @@ int main(void){
 		printf("loading network from file...\n");
 		RNN n = loadRNNFromFile("../saves/rnn_sonnets_experimental.rnn");
 	}
-	n.plasticity = 0.025;	
+	n.plasticity = 0.01;	
 
 	int count = 0;
 	int debug = 0;
@@ -90,16 +90,17 @@ int main(void){
 
 		char input = alphabet[rand()%(strlen(alphabet)-1)];
 		printf("Sample from input '%c':\n", input);
-		for(int j = 0; j < 1000; j++){
-			float input_one_hot[strlen(alphabet)];
-			make_one_hot(input, alphabet, input_one_hot);
-			setOneHotInput(&n, input_one_hot);
-
+		for(int i = 0; i < 2000; i++){
+			float input_vector[strlen(alphabet)];		
+			make_one_hot(input, alphabet, input_vector);
+			
+			setOneHotInput(&n, input_vector);
+			
 			feedforward_recurrent(&n);
+	
 			input = alphabet[bestGuess(&n)];
-
-			printf("%c", bestGuess(&n));
+			printf("%c", input);
 		}
-		if(i % 30 == 0) getchar(); //wait for user input to continue after 30 epochs
+		if(i % 30 == 0 && i != 0) getchar(); //wait for user input to continue after 30 epochs
 	}
 }
