@@ -37,11 +37,11 @@ int main(void){
 		printf("loading network from file...\n");
 		RNN n = loadRNNFromFile("../saves/rnn_sonnets_experimental.rnn");
 	}
-	n.plasticity = 0.05;	
+	n.plasticity = 0.025;	
 
 	int count = 0;
 	int debug = 0;
-	int epochs = 10;
+	int epochs = 1000;
 	int debug_interval = 5000;
 	for(int i = 0; i < epochs; i++){
 		FILE *fp = fopen("../shakespeare/sonnets.txt", "rb");
@@ -62,38 +62,20 @@ int main(void){
 
 			cost += cost_local;
 
-//			printf("%c", alphabet[bestGuess(&n)]);
-/*
-			if(count > 1000){
-				Layer *layer1 = n.input;
-				Layer *layer2 = (Layer*)layer1->output_layer;
-				Layer *layer3 = (Layer*)layer2->output_layer;
-				Layer *layer4 = n.output;
-				printf("Layer 1		 Layer 2		  Layer 3		 Layer 4\n");
-				for(int i = 0; i < 77; i++){
-					printf("%10.6f (%10.6f)		%10.6f (%10.6f)	%10.6f	(%10.6f)		%10.6f (%10.6f)\n", layer1->neurons[i].activation, layer1->neurons[i].activationGradient, layer2->neurons[i].activation, layer2->neurons[i].activationGradient, layer3->neurons[i].activation, layer3->neurons[i].activationGradient, layer4->neurons[i].activation, layer4->neurons[i].activationGradient); 
-					
-				}
-				printf("weights of best guess neuron (%d):\n", bestGuess(&n));
-				Neuron *guess = &n.output->neurons[bestGuess(&n)];
-				for(int i = 0; i < ((Layer*)n.output->input_layer)->size; i++) printf("%10.5f,", guess->weights[i]);
-				printf("\nactivation gradient of best guess neuron: %f, dActivation: %f from %f * (1 - %f): %f\n", guess->activationGradient, guess->dActivation, guess->activation, guess->activation, guess->activation * (1 - guess->activation)); 
-				getchar();
-			}	
-*/
-			//printActivationGradients(n.output);
+			printf("%c", alphabet[bestGuess(&n)]);
+
 			input_character = alphabet[label];
 			count++;
 		
 			label = label_from_char(fgetc(fp), alphabet);
-			if(count % 200 == 0){
+			if(count % 2000 == 0){
 				epochcount += count;
 				epochcost += cost;
-				printf("most recent activation gradients for output:\n");
-				printActivationGradients(n.output);
+				//printf("most recent activation gradients for output:\n");
+				//printActivationGradients(n.output);
 				printf("\n\n****\nlatest cost: %f vs previous cost: %f vs epoch avg cost:%f\n****\n\n", cost/count, lastavgcost, epochcost/epochcount);
 				Neuron *output_neuron = &n.output->neurons[bestGuess(&n)];
-				printf("output neuron (%d) has gradient %f, dActivation %f, output %f, \'%c\'\n", bestGuess(&n), output_neuron->activationGradient, output_neuron->dActivation, output_neuron->activation, alphabet[bestGuess(&n)]);
+				printf("output neuron (%d) has gradient %f, dActivation %f, output %f, \'%c\'\n\n", bestGuess(&n), output_neuron->activationGradient, output_neuron->dActivation, output_neuron->activation, alphabet[bestGuess(&n)]);
 				lastavgcost = cost/count;
 				cost = 0;
 				count = 0;
@@ -103,12 +85,12 @@ int main(void){
 		while(label != EOF);
 
 		fclose(fp);
-		printf("\n\n***********\nepoch %d concluded, avgcost: %f.\n************\n\n", i, cost/count);
+		printf("\n\n***********\nepoch %d concluded, avgcost: %f.\n************\n\n", i, epochcost/epochcount);
 		saveRNNToFile(&n, "../saves/rnn_sonnets_experimental.rnn"); 
 
-		printf("Sample:\n");
-		char input = ' ';
-		for(int i = 0; i < 1000; i++){
+		char input = alphabet[rand()%(strlen(alphabet)-1)];
+		printf("Sample from input '%c':\n", input);
+		for(int j = 0; j < 1000; j++){
 			float input_one_hot[strlen(alphabet)];
 			make_one_hot(input, alphabet, input_one_hot);
 			setOneHotInput(&n, input_one_hot);
@@ -118,6 +100,6 @@ int main(void){
 
 			printf("%c", bestGuess(&n));
 		}
-		getchar();
+		if(i % 30 == 0) getchar(); //wait for user input to continue after 30 epochs
 	}
 }
