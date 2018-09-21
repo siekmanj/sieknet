@@ -2,6 +2,8 @@
 /* Author: Jonah Siekmann
  * 8/10/2018
  * This is an attempt at writing a recurrent neural network (RNN) Every function beginning with static is meant for internal use only. You may call any other function.
+ * Some confusion may arise from the fact that many of the functions used in this implementation are defined in MLP.c, like backpropagate. Instead of rewriting these
+ * functions, I have elected to build on the basic multilayer perceptron and re-use these functions.
  * As of 9/20/2018, this appears to be working in a somewhat stable fashion. If you get nans at any point, consider changing your n.plasticity. 
  */
 
@@ -42,7 +44,7 @@ RNN rnn_from_arr(size_t arr[], size_t size){
 
 
 /*
- * Description: Calculates the offset at which the hidden state of the output layer starts. 
+ * Description: Calculates the offset at which the hidden state of the next layer starts. 
  * layer: A pointer to the layer for which the recurrent input offset will be calculated.
  */
 static size_t recurrent_input_offset(Layer* layer){
@@ -63,7 +65,7 @@ static size_t recurrent_input_offset(Layer* layer){
  * Description: Sets the activations of the neurons in the input layer of the network.
  * n: The pointer to the rnn.
  * arr: An array of floats (of which all but one should be 0.0, and the other 1.0, depending on your use case)
- * NOTE: setInputs in rnn.c works similarly, but doesn't take into account the fact that the input layer
+ * NOTE: setInputs in MLP.c works similarly, but doesn't take into account the fact that the input layer
  *       includes the hidden state of its output layer - therefore the size of the layer will be larger than
  *       the array size, possibly leading to weird behavior.
  */
@@ -88,7 +90,7 @@ static void set_recurrent_inputs(Layer* layer){
 			Neuron *recurrent_neuron = &input_layer->neurons[i];
 			Neuron *old_neuron = &layer->neurons[i-recurrent_offset];
 
-			input_layer->neurons[i].activation = layer->neurons[i-recurrent_offset].activation;
+			recurrent_neuron->activation = old_neuron->activation;
 		}
 	}
 }
@@ -123,6 +125,7 @@ void feedforward_recurrent(RNN *n){
 
 /*
  * IO FUNCTIONS FOR READING AND WRITING TO A FILE
+ * NOTE: Since these are copy+pasted from MLP.c, they will be replaced once I find a cleaner solution.
  */
 
 static void writeToFile(FILE *fp, char *ptr){
