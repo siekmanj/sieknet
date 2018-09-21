@@ -2,6 +2,7 @@
 /* Author: Jonah Siekmann
  * 8/10/2018
  * This is an attempt at writing a recurrent neural network (RNN) Every function beginning with static is meant for internal use only. You may call any other function.
+ * As of 9/20/2018, this appears to be working in a somewhat stable fashion. If you get nans at any point, consider changing your n.plasticity. 
  */
 
 #include "RNN.h"
@@ -40,100 +41,66 @@ RNN rnn_from_arr(size_t arr[], size_t size){
 }
 
 
-static size_t recurrentInputSize(Layer* layer){
+/*
+ * Description: Calculates the offset at which the hidden state of the output layer starts. 
+ * layer: A pointer to the layer for which the recurrent input offset will be calculated.
+ */
+static size_t recurrent_input_offset(Layer* layer){
   Layer* current = layer;
-//	printf("		recurrentInputSize: Layer being considered: %p, input layer: %p\n", layer, layer->input_layer);
-//	printf("		recurrentInputSize: Layers: %p --> %p --> %p\n", layer, layer->output_layer, ((Layer*)layer->output_layer)->output_layer);
 	while(((Layer*)current->output_layer)->output_layer != NULL) current = current->output_layer;
-//	printf("		recurrentInputSize: Layer selected to work back from %p\n", current);
 	
 	size_t recurrent_offset;
 	size_t temp = 0;
 	while(current != layer->input_layer){
 		recurrent_offset = current->size - temp;
 		temp = recurrent_offset;
-//		printf("		recurrentInputSize: On layer %p, recurrent offset is %lu\n", current, recurrent_offset);
 		current = current->input_layer;
 	}
-//	printf("		recurrentInputSize: returning %lu\n", recurrent_offset);
 	return recurrent_offset;
-	/*
-  while(((Layer*)current->output_layer)->output_layer != NULL) current = current->output_layer;
-
-	size_t recurrent_neurons_starting_index;
-	size_t temp = 0;
-	while(current != layer->input_layer){
-		recurrent_neurons_starting_index = current->size - temp; 
-		temp = recurrent_neurons_starting_index; 
-		current = current->input_layer;
-	}
-	printf("recurrent offset: %lu\n", recurrent_neurons_starting_index);
-	return recurrent_neurons_starting_index;
-*/
-/*
-	Layer *current = (Layer*)n->input->output_layer;
-	int sum = 0;
-	
-	while(current != n->output && current != NULL){
-		sum += current->size;
-		current = (Layer*)current->output_layer;
-	}
-	return sum;
-*/
 }
+
+/*
+ * Description: Sets the activations of the neurons in the input layer of the network.
+ * n: The pointer to the rnn.
+ * arr: An array of floats (of which all but one should be 0.0, and the other 1.0, depending on your use case)
+ * NOTE: setInputs in rnn.c works similarly, but doesn't take into account the fact that the input layer
+ *       includes the hidden state of its output layer - therefore the size of the layer will be larger than
+ *       the array size, possibly leading to weird behavior.
+ */
 void setOneHotInput(RNN *n, float *arr){
-	size_t recurrentInputIndex = recurrentInputSize(n->input);
-//	printf("Setting recurrent inputs of layer %p, starting at index %lu\n", n->input, recurrentInputIndex);
+	size_t recurrentInputIndex = recurrent_input_offset(n->input);
+
 	for(int i = 0; i < recurrentInputIndex; i++){
 		n->input->neurons[i].activation = arr[i];
 	}
 }
 
+/*
+ * Description: Sets the recurrent inputs in the input layer of the provided layer.
+ * layer: The pointer to the layer for which recurrent inputs will be set (layer->input_layer should not be null)
+ */
 static void set_recurrent_inputs(Layer* layer){
-//	printf("	set_recurrent_inputs: Setting recurrent inputs for layer %p, input: %p\n", layer, layer->input_layer);
-	size_t recurrent_offset = recurrentInputSize(layer->input_layer);
+	size_t recurrent_offset = recurrent_input_offset(layer->input_layer);
 	if(layer->input_layer != NULL){
-//		printf("	set_recurrent_inputs: using offset of %lu for layer %p\n", recurrent_offset, layer->input_layer);
 
 		Layer *input_layer = (Layer*)layer->input_layer;
-		for(int i = 0; i < input_layer->size; i++){
-//			printf("	set_recurrent_inputs: before assignment neuron %d with val %f in layer %p\n", i, input_layer->neurons[i].activation, input_layer);
-		}
 		for(int i = recurrent_offset; i < input_layer->size; i++){
 			Neuron *recurrent_neuron = &input_layer->neurons[i];
 			Neuron *old_neuron = &layer->neurons[i-recurrent_offset];
-			input_layer->neurons[i].activation = layer->neurons[i-recurrent_offset].activation;
-//			printf("	set_recurrent_inputs: neuron %d of layer %p (%f) set to val of neuron %d of layer %p (%f)\n", i, input_layer, recurrent_neuron->activation, i-recurrent_offset, layer, old_neuron->activation);
-			//printf("WE GOT A FUCKIN PROBLEM BOIS: %f\n", input_layer->neurons[i].activation);
-			//getchar();
-		}
-//		for(int i = 0; i < input_layer->size; i++){
-//			printf("	set_recurrent_inputs: AFTER ASSIGNMENT NEURON %d HAS VAL %f\n", i, input_layer->neurons[i].activation);
-//		}
-	}
-	/*
-	size_t recurrentInputs = recurrentInputSize(n);
 
-	Layer *current = (Layer*)n->input->output_layer;
-	int idx = n->input->size - recurrentInputs;
-	int count = 0;
-	for(int i = idx; i < n->input->size; i++){
-		if(count > current->size){
-			count = 0;
-			current = (Layer*)current->output_layer;
+			input_layer->neurons[i].activation = layer->neurons[i-recurrent_offset].activation;
 		}
-		n->input->neurons[i].activation = current->neurons[count].activation;
-//		printf("Setting input neuron %d to hidden neuron %d,  %f -> %f\n", i, count, current->neurons[count].activation, n->input->neurons[i].activation);
-		count++;
 	}
-  */
 }
 
+/* 
+ * Description: This is the RNN equivalent of descend in mlp.c. It performs a feedforward operation
+ *              in which the recurrent inputs of recurrent layers are set, then does backpropagation.
+ * n: the pointer to the rnn
+ * label: the neuron expected to fire.
+ * NOTE: setInputs should be used before calling step().
+ */
 float step(RNN *n, int label){
-	for(int i = 0; i < n->input->size; i++){
-		Layer *layer = n->input;
-//		printf("Neuron %d of layer %p has output %f\n", i, layer, layer->neurons[i].activation);
-	}	
 	feedforward_recurrent(n);
 	return backpropagate(n->output, label, n->plasticity);
 }
@@ -142,19 +109,15 @@ float step(RNN *n, int label){
  *
  * Description: Performs the feed-forward operation on the network and sets
  *              recurrent inputs from previous hidden state of layers.
- * NOTE: setInputs should be used before calling feedforward_recurrent.
  * n: A pointer to the network.
+ * NOTE: setInputs should be used before calling feedforward_recurrent().
  */
 void feedforward_recurrent(RNN *n){
-//	set_recurrent_inputs(n->input);
-
 	Layer* current = n->input->output_layer;
 	while(current != NULL){
-//		printf("feedforward_recurrent: setting recurrent inputs for %p\n", current);
-		/*if(current != n->output/* && current != ((Layer*)n->output)->input_layer*/ set_recurrent_inputs(current);
+		set_recurrent_inputs(current);
 		calculate_outputs(current);
 		current = current->output_layer;
-//		printf("feedforward_recurrent: done with %p\n", current);
 	}
 }
 
