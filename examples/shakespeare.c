@@ -32,12 +32,12 @@ int main(void){
 
 	if(getchar() == 'n'){
 		printf("creating new network...\n");
-		n = createRNN(strlen(alphabet), 350, 350, 350, strlen(alphabet));
+		n = createRNN(strlen(alphabet), 512, 512, 512, strlen(alphabet));
 	}else{
 		printf("loading network from file...\n");
-		RNN n = loadRNNFromFile("../saves/rnn_sonnets_experimental.rnn");
+		RNN n = loadRNNFromFile("../saves/rnn_sonnets_3x512.rnn");
 	}
-	n.plasticity = 0.01;	
+	n.plasticity = 0.05;	
 
 	int count = 0;
 	int debug = 0;
@@ -52,6 +52,7 @@ int main(void){
 		float lastavgcost = 10000000;
 		float epochcost = 0;
 		float epochcount = 0;
+		float previousepochavgcost = 1000000000;
 		do {
 			
 			float input_one_hot[strlen(alphabet)];
@@ -62,20 +63,20 @@ int main(void){
 
 			cost += cost_local;
 
-			printf("%c", alphabet[bestGuess(&n)]);
+			//printf("%c", alphabet[bestGuess(&n)]);
 
 			input_character = alphabet[label];
 			count++;
 		
 			label = label_from_char(fgetc(fp), alphabet);
-			if(count % 2000 == 0){
+			if(count % 1000 == 0){
 				epochcount += count;
 				epochcost += cost;
 				//printf("most recent activation gradients for output:\n");
 				//printActivationGradients(n.output);
-				printf("\n\n****\nlatest cost: %f vs previous cost: %f vs epoch avg cost:%f\n****\n\n", cost/count, lastavgcost, epochcost/epochcount);
+				printf("\n\n****\nlatest cost: %f vs previous cost: %f vs epoch avg cost:%f, epoch %5.2f%% completed.\n", cost/count, lastavgcost, epochcost/epochcount, 100 * (float)epochcount/102892.0);
 				Neuron *output_neuron = &n.output->neurons[bestGuess(&n)];
-				printf("output neuron (%d) has gradient %f, dActivation %f, output %f, \'%c\'\n\n", bestGuess(&n), output_neuron->activationGradient, output_neuron->dActivation, output_neuron->activation, alphabet[bestGuess(&n)]);
+				printf("output neuron (%d) has gradient %f, dActivation %f, output %f, \'%c\'\n*****\n", bestGuess(&n), output_neuron->activationGradient, output_neuron->dActivation, output_neuron->activation, alphabet[bestGuess(&n)]);
 				lastavgcost = cost/count;
 				cost = 0;
 				count = 0;
@@ -85,8 +86,14 @@ int main(void){
 		while(label != EOF);
 
 		fclose(fp);
-		printf("\n\n***********\nepoch %d concluded, avgcost: %f.\n************\n\n", i, epochcost/epochcount);
-		saveRNNToFile(&n, "../saves/rnn_sonnets_experimental.rnn"); 
+		printf("\n\n***********\nepoch %d concluded, avgcost: %f (vs previous %f).\n************\n\n", i, epochcost/epochcount, previousepochavgcost);
+		if(previousepochavgcost < epochcost/epochcount){
+			printf("performance this epoch was worse than the one before. Plasticity next epoch will be %f.\n", n.plasticity * 0.75);
+			n.plasticity *= 0.75;
+		}else{
+		  saveRNNToFile(&n, "../saves/rnn_sonnets_3x512.rnn"); 
+    }
+		previousepochavgcost = epochcost/epochcount;
 
 		char input = alphabet[rand()%(strlen(alphabet)-1)];
 		printf("Sample from input '%c':\n", input);
