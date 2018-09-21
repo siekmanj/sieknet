@@ -4,6 +4,20 @@
 #include <string.h>
 #include "RNN.h"
 
+/*
+ * This is a simple demonstration of the recurrent neural network.
+ * The network is trained character-by-character to output a simple sentence (you are free to provide your own sentence and alphabet).
+ */
+
+	const char *training = " hello world what is up"; //desired sentence
+	const char *alphabet = "helowrdahtisup "; //possible inputs/outputs
+
+/*
+ * Description: This is a function that uses an input character to create a one-hot input vector.
+ * inpt: the character whose position in alphabet will be used to set a single element to 1.0 in dest.
+ * alphabet: the list of all possible inputs and outputs of the network (needs to be the same length as input/output layer of network)
+ * dest: the output float array.
+ */
 void make_one_hot(char inpt, const char *alphabet, float *dest){
 	for(int i = 0; i < strlen(alphabet); i++){
 		if(inpt == alphabet[i]){
@@ -16,51 +30,51 @@ void make_one_hot(char inpt, const char *alphabet, float *dest){
 	return;
 }
 
+/*
+ * Description: This function turns a character into a label using that character's position in an alphabet.
+ * inpt: the character whose position in alphabet will be used to return a label.
+ * alphabet: the list of all possible inputs and outputs of the network (needs to be the same length as input/output layer of network)
+ */
 int label_from_char(char inpt, const char *alphabet){
 	for(int i = 0; i < strlen(alphabet); i++){
 		if(alphabet[i] == inpt) return i;
 	}
-	printf("ERRRRRRR\n");
+	printf("ERROR NOT IN ALPHABET\n");
 	while(1);
 	return -1;
 }
 
 int main(void){
-	const char *training = " hello world what is up"; //desired sentence
-	const char *inputs = "helowrdahtisup "; //possible inputs/outputs
 
-	RNN n = createRNN(strlen(inputs), 20, strlen(inputs));
+	RNN n = createRNN(strlen(alphabet), 40, strlen(alphabet)); //Create a network with a sufficiently large input & output layer, and a 40-neuron hidden layer.
+	n.plasticity = 0.1; //The network seems to perform best with a learning rate of around 0.1.
 
-	for(int epoch = 0; epoch < 1000; epoch++){
-		char output[strlen(inputs)];
-		memset(output, '\0', strlen(inputs));
-		float cost = 0;	
-		for(int i = 0; i < strlen(training) - 1; i++){
-			float input_one_hot[strlen(inputs)];
-			make_one_hot(training[i], inputs, input_one_hot);
+	int epochs = 1000;
 
-			setOneHotInput(&n, input_one_hot); 
-		
-			int label = label_from_char(training[i+1], inputs);	
-			
-			float c = step(&n, label);
-			cost += c;
-			output[i] = inputs[bestGuess(&n)];
-		}
-		cost /= strlen(training);
-		if(epoch % 150 == 0){
-			printf("output: %s\n", output);
-			getchar();
-		}
+	for(int i = 0; i < epochs*strlen(training); i++){ //Run the network for 1000 epochs.
+		int input_idx = i % strlen(training);
+		int label_idx = (i+1) % strlen(training);
+
+		//Create a one-hot input vector.
+		float input_one_hot[strlen(alphabet)];
+		make_one_hot(training[input_idx], alphabet, input_one_hot);
+
+		setOneHotInput(&n, input_one_hot); 	
+
+		int label = label_from_char(training[label_idx], alphabet);	//Create a label from the next character.
+		float c = step(&n, label); //Perform feedforward & backpropagation.
 	}
-	char in = ' ';
+
+	//The below code prints sample output, where the network's guess is fed back in as input.
+	char in = 'h';
+	printf("%c", in);
 	for(int i = 0; i < 100; i++){
-		float input_one_hot[strlen(inputs)];
-		make_one_hot(in, inputs, input_one_hot);
+		float input_one_hot[strlen(alphabet)];
+		make_one_hot(in, alphabet, input_one_hot);
 
 		setOneHotInput(&n, input_one_hot); 
 		feedforward_recurrent(&n);
-		printf("%c", inputs[bestGuess(&n)]);
-		in = inputs[bestGuess(&n)];	
+		printf("%c", alphabet[bestGuess(&n)]);
+		in = alphabet[bestGuess(&n)];	
 	}
 }
