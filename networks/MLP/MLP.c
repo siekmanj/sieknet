@@ -25,16 +25,15 @@ static void sigmoid(void* layerptr){
  * Description: Calculates the activation of a given neuron using softmax, and
  *              sets the partial derivative of the cost with respect to the activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
- * NOTE: potentially stable (may not work with very large/very negative inputs)
+ * NOTE: potentially stable (dActivation tends toward 0 with very large/very negative inputs)
  */
 static void softmax(void* layerptr){
   Layer* layer = (Layer*)layerptr;
-  //Calculate denominator sum
   double sum = 0;
-  double logC = 0;
+  //double logC = 0;
 
   for(int i = 0; i < layer->size; i++){
-    if(layer->neurons[i].input > logC) logC = layer->neurons[i].input;
+    //if(layer->neurons[i].input > logC) logC = layer->neurons[i].input;
     sum += exp(layer->neurons[i].input);
   }
 
