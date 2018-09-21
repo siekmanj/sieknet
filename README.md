@@ -9,8 +9,8 @@ I have used the following resources extensively in the course of this project:
   * Andrej Karpathy's [article on RNN's](http://karpathy.github.io/2015/05/21/rnn-effectiveness/)
 
 So far, I have implemented:
-  * A feed-forward neural network which you can find under `/networks/MLP`. 
-  * A recurrent neural network, which you can find under `/networks/RNN`. 
+  * A feed-forward neural network which you can find under `/networks/MLP/`. 
+  * A recurrent neural network, which you can find under `/networks/RNN/`. 
   * The backpropagation algorithm.
   * Softmax and cross-entropy cost.
   
