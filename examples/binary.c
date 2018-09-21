@@ -1,16 +1,18 @@
-#include <stdlib.h>
 #include <stdio.h>
-#include <time.h>
 #include <math.h>
 #include <MLP.h>
-#include <mnist.h>
 
-//Toy problem - trains an MLP to convert from binary to decimal
+/*
+ * This is an example problem that demonstrates a very simple use of a multilayer perceptron.
+ * The network is trained to convert a 4-bit binary string into a decimal number.
+ * For example, the bitstring 0 0 1 1 would result in neuron 3 of the output layer firing.
+ */
+
 int main(){
 	srand(time(NULL));
-	MLP n = createMLP(4, 8, 16);
+	MLP n = createMLP(4, 8, 16); //Create a network with a 4-neuron input layer, 8-neuron hidden layer, and 16-neuron output layer.
 	
-	for(int i = 0; i < 80000000; i++){
+	for(int i = 0; i < 80000000; i++){ //Run the network for 80000....00 examples
 		//Create a random 4-bit binary number
 		int bit0 = rand()%2==0;
 		int bit1 = rand()%2==0;
@@ -28,7 +30,7 @@ int main(){
 			printf("CURRENTLY ON EXAMPLE %d\n", i);
 			printOutputs(n.output);
 			printWeights(n.output);
-			printf("Label %2d, guess %2d, Cost: %5.3f\n\n\n", (int)ans, bestGuess(&n), cost);
+			printf("Label %2d, guess %2d, Cost: %5.3f\n\n(ENTER to continue, CTRL+C to quit)\n", (int)ans, bestGuess(&n), cost);
 			getchar();
 		}	
 	}
