@@ -29,7 +29,7 @@ typedef struct Layer{
 typedef struct MLP{
 	Layer *input;
 	Layer *output;
-	void (*setInputs)(void* layer, void* arr);
+	//void (*setInputs)(void* layer, void* arr);
 	double performance;
 	double plasticity;
 	unsigned long age;
@@ -48,7 +48,6 @@ float descend(MLP *n, int label);
 float backpropagate(Layer *output_layer, int label, float plasticity);
 
 int bestGuess(MLP *n);
-
 
 void printOutputs(Layer *layer);
 void prettyprint(Layer *layer);

@@ -1,34 +1,19 @@
-/* Jonah Siekmann
+/* 
+ * Jonah Siekmann
  * 7/24/2018
- * In this file are some tests I've done with the network.
  */
 
-#include <stdlib.h>
 #include <stdio.h>
-#include <time.h>
-#include <math.h>
 #include <MLP.h>
-#include <mnist.h>
 
-const int RANGE = 7;
+/*
+ * This is a simple example of how to use the provided saveMLPToFile and loadMLPFromFile functions.
+ * The saveRNNToFile and loadRNNFromFile functions work identically.
+ */
 
-void savetest(){
-	MLP n = initMLP();
-	addLayer(&n, 28*27); //input layer
-	addLayer(&n, 3);
-	addLayer(&n, 4); //output layer
+int main(void){
+	MLP n = createMLP(1, 2, 3);
 	saveMLPToFile(&n, "../saves/thisatest.mlp");
-
 	MLP recovered = loadMLPFromFile("../saves/thisatest.mlp");
 }
 
-
-int main(){
-	srand(time(NULL));
-	//binarySolver();
-	//mnist();
-	savetest();
-
-
-
-}
