@@ -14,7 +14,7 @@ So far, I have implemented:
   * The backpropagation algorithm.
   * Softmax and cross-entropy cost.
   
-Various demonstrations of how to use the networks can be found in `/examples/`
+Various demonstrations of how to use the networks can be found in `/examples/`. Currently, I am  using Shakespeare's sonnets to train a 512x512x512 recurrent network to compose a sonnet. 
   
 In the coming months, I intend to implement:
   * A LSTM network.
