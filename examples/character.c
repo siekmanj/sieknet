@@ -9,8 +9,8 @@
  * The network is trained character-by-character to output a simple sentence (you are free to provide your own sentence and alphabet).
  */
 
-	const char *training = " hello world what is up"; //desired sentence
-	const char *alphabet = "helowrdahtisup "; //possible inputs/outputs
+const char *training = " hello world what is up"; //desired sentence
+const char *alphabet = "helowrdahtisup "; //possible inputs/outputs
 
 /*
  * Description: This is a function that uses an input character to create a one-hot input vector.
@@ -39,9 +39,7 @@ int label_from_char(char inpt, const char *alphabet){
 	for(int i = 0; i < strlen(alphabet); i++){
 		if(alphabet[i] == inpt) return i;
 	}
-	printf("ERROR NOT IN ALPHABET\n");
-	while(1);
-	return -1;
+	return EOF;
 }
 
 int main(void){
