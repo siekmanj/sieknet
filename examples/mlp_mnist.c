@@ -32,7 +32,7 @@ int main(void){
 			float* img = img2floatArray(&training_set, index, &height, &width); //Image is returned as a float array (must have same dims as input layer)
 			setInputs(&n, img); //Set the activations of the neurons in the input layer.
 
-      int correctlabel = label(&training_set, index); //Retrieve the label from the image set.
+			int correctlabel = label(&training_set, index); //Retrieve the label from the image set.
 
 			float c = descend(&n, correctlabel); //Perform feedforward & backpropagation, and return cost
 
@@ -41,7 +41,7 @@ int main(void){
 			//Save the state of the network at the end of each epoch.
 			if(i % training_set.numImages == 0 && i != 0){
 				printf("Epoch %d finished, cost %f.\n", epoch++, avgCost/i);
-        saveMLPToFile(&n, "../saves/mnist_784_25_10.mlp");
+				saveMLPToFile(&n, "../saves/mnist_784_25_10.mlp");
 			}
 		}
 	}
