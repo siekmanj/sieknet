@@ -54,8 +54,11 @@ int main(void){
 	printf("loading network from %s...\n", filename);
 	RNN n = loadRNNFromFile(filename);
 
-	char input = alphabet[rand()%(strlen(alphabet)-1)];
+	char input = alphabet[rand()%(strlen(alphabet)-1)]; //Give the network a random character to start with.
 	printf("Sample from input '%c':\n", input);
+
+
+	//Get 2000 sample characters from the network
 	for(int i = 0; i < 2000; i++){
 		float input_vector[strlen(alphabet)];		
 		make_one_hot(input, alphabet, input_vector);
