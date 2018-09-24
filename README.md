@@ -12,7 +12,7 @@ I have used the following resources extensively in the course of this project:
 So far, I have implemented:
   * A feed-forward neural network which you can find under `/networks/MLP/`. 
   * A recurrent neural network, which you can find under `/networks/RNN/`. 
-  * A backpropagation algorithm.
+  * Backpropagation.
   * The Softmax activation function and the cross-entropy cost function, as well as some less interesting ones.
   
 Various demonstrations of how to use the networks can be found in `/examples/`. Currently, I am  using Shakespeare's sonnets to train a 512x512x512 recurrent network to compose a sonnet. 
@@ -24,7 +24,6 @@ git clone https://github.com/siekmanj/sieknet
 cd sieknet/build
 make recurrent_demo && ./recurrent_demo.out
 ```
-
   
 In the coming months, I intend to implement:
   * A LSTM network.
