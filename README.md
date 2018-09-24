@@ -1,5 +1,5 @@
 # sieknet
-This is a neural network/deep learning library I am attempting to write from scratch in C. 
+This is a dependency-free neural network/deep learning library I am attempting to write from scratch in C. 
 
 I have used the following resources extensively in the course of this project:
 
