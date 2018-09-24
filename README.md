@@ -19,11 +19,11 @@ Various demonstrations of how to use the networks can be found in `/examples/`. 
 
 To do a quick-and-dirty demo:
 
-  `git clone https://github.com/siekmanj/sieknet`
-
-  `cd sieknet/build`
-  
-  `make recurrent_demo && ./recurrent_demo.out`
+```
+git clone https://github.com/siekmanj/sieknet
+cd sieknet/build
+make recurrent_demo && ./recurrent_demo.out
+```
 
   
 In the coming months, I intend to implement:
