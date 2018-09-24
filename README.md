@@ -13,7 +13,7 @@ So far, I have implemented:
   * A feed-forward neural network which you can find under `/networks/MLP/`. 
   * A recurrent neural network, which you can find under `/networks/RNN/`. 
   * Backpropagation.
-  * The Softmax activation function and the cross-entropy cost function, as well as some less interesting ones.
+  * Softmax activation and cross-entropy cost.
   
 Various demonstrations of how to use the networks can be found in `/examples/`. Currently, I am  using Shakespeare's sonnets to train a 512x512x512 recurrent network to compose a sonnet. 
 
