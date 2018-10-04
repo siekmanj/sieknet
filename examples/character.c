@@ -46,9 +46,17 @@ int main(void){
 
 	RNN n = createRNN(strlen(alphabet), 40, strlen(alphabet)); //Create a network with a sufficiently large input & output layer, and a 40-neuron hidden layer.
 	n.plasticity = 0.1; //The network seems to perform best with a learning rate of around 0.1.
-
+  Layer *current = n.input;
+	while(current != NULL){
+    if(!(current == n.input || current == n.output)){
+      current->use_dropout = 1;
+    }
+		current = current->output_layer;
+  }
+		
 	int epochs = 1000;
-
+	float avgcost = 0;
+	float cost_threshold = 0.25;
 	for(int i = 0; i < epochs*strlen(training); i++){ //Run the network for 1000 epochs.
 		int input_idx = i % strlen(training);
 		int label_idx = (i+1) % strlen(training);
@@ -61,6 +69,13 @@ int main(void){
 
 		int label = label_from_char(training[label_idx], alphabet);	//Create a label from the next character.
 		float c = step(&n, label); //Perform feedforward & backpropagation.
+		
+		printf("%c", alphabet[bestGuess(&n)]);
+		if(alphabet[label] == '\n') printf("\n");
+		avgcost += c;
+		if(cost_threshold > avgcost/i){
+			printf("Cost threshold of %f reached (%f) in %d examples.", cost_threshold, avgcost/i, i);
+		}
 	}
 
 	//The below code prints sample output, where the network's guess is fed back in as input.
