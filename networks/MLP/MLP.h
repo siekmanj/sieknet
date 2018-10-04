@@ -23,7 +23,7 @@ typedef struct Layer{
   void *input_layer;
 	void *output_layer;
 	void (*squish)(void*);
-	uint8_t use_dropout;
+	float dropout;
 	size_t size;
 } Layer;
 
