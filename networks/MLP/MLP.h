@@ -1,6 +1,7 @@
 #ifndef MLP_H
 #define MLP_H
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -22,6 +23,7 @@ typedef struct Layer{
   void *input_layer;
 	void *output_layer;
 	void (*squish)(void*);
+	uint8_t use_dropout;
 	size_t size;
 } Layer;
 
