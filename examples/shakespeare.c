@@ -58,11 +58,11 @@ int main(void){
 	printf("loading network from %s...\n", filename);
 	RNN n = loadRNNFromFile(filename);
 	
-	n.plasticity = 0.05; //I've found that the larger the network, the lower the initial learning rate should be.	
+	n.plasticity = 0.015; //I've found that the larger the network, the lower the initial learning rate should be.	
 
 	int count = 0;
 	int epochs = 1000;
-	float previousepochavgcost = 1000000000;
+	float previousepochavgcost = 2.013922; 
 
 	for(int i = 0; i < epochs; i++){ //Run for a large number of epochs
 		FILE *fp = fopen("../shakespeare/sonnets.txt", "rb"); //This is the dataset
