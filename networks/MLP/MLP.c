@@ -16,8 +16,12 @@
 static void sigmoid(void* layerptr){
   Layer* layer = (Layer*)layerptr;
   for(int i = 0; i < layer->size; i++){
-    layer->neurons[i].activation = 1 / (1 + exp(-layer->neurons[i].input));
-    layer->neurons[i].dActivation = layer->neurons[i].activation * (1 - layer->neurons[i].activation);
+		uint8_t set_output = 1;
+		if(((float)(rand()%100))/100 < layer->dropout){
+			set_output = 0;
+		}
+    layer->neurons[i].activation = set_output*(1 / (1 + exp(-layer->neurons[i].input)));
+    layer->neurons[i].dActivation = set_output*(layer->neurons[i].activation * (1 - layer->neurons[i].activation));
   }
 }
 
@@ -30,10 +34,7 @@ static void sigmoid(void* layerptr){
 static void softmax(void* layerptr){
   Layer* layer = (Layer*)layerptr;
   double sum = 0;
-  //double logC = 0;
-
   for(int i = 0; i < layer->size; i++){
-    //if(layer->neurons[i].input > logC) logC = layer->neurons[i].input;
     sum += exp(layer->neurons[i].input);
   }
 
@@ -73,6 +74,7 @@ static Layer *create_layer(size_t size, Layer *previousLayer){
   layer->neurons = neurons;
   layer->input_layer = previousLayer;
   layer->squish = sigmoid; //Set layer activation to sigmoid by default
+	layer->dropout = 0;
   return layer;
 }
 
