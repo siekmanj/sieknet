@@ -98,7 +98,7 @@ static void set_outputs(Layer *layer, float *outputs){
  * y: Whether or not the neuron was supposed to fire or not (0 or 1)
  */
 static float quadratic_cost(Neuron *neuron, int y){
-  neuron->activationGradient = (2 * (y-neuron->activation));
+  neuron->gradient = (2 * (y-neuron->activation));
   return ((y-neuron->activation)*(y-neuron->activation));
 }
 
@@ -113,7 +113,7 @@ static float cross_entropy_cost(Neuron *neuron, int y){
   if(neuron->activation < 0.00001) neuron->activation = 0.00001;
   else if(neuron->activation > 0.9999) neuron->activation = 0.9999;
 
-  neuron->activationGradient = ((float)y)/neuron->activation - (float)(1-y)/(1.0-neuron->activation);
+  neuron->gradient = ((float)y)/neuron->activation - (float)(1-y)/(1.0-neuron->activation);
 
   float c = -(y * log(neuron->activation) + (1 - y) * log(1 - neuron->activation));
   if(isnan(c)){
@@ -158,28 +158,28 @@ float backpropagate(Layer *output_layer, int label, float plasticity){
       for(int j = 0; j < current->size; j++){
         float dSig = current->neurons[j].dActivation;
         float weight = current->neurons[j].weights[i];
-        float activationGradient = current->neurons[j].activationGradient;
-        sum += weight*dSig*activationGradient;
+        float gradient = current->neurons[j].gradient;
+        sum += weight*dSig*gradient;
         if(isnan(sum)){
-          printf("NAN DURING BACKPROP: %f, %f, %f\n", dSig, weight, activationGradient);
+          printf("NAN DURING BACKPROP: %f, %f, %f\n", dSig, weight, gradient);
           while(1);
         }
       }
-      input_layer->neurons[i].activationGradient = sum*plasticity;
+      input_layer->neurons[i].gradient = sum*plasticity;
     }
     for(int i = 0; i < current->size; i++){
       Neuron *currentNeuron = &current->neurons[i];
       float dSig = currentNeuron->dActivation;
-      float activationGradient = currentNeuron->activationGradient;
+      float gradient = currentNeuron->gradient;
 
       //Calculate weight nudges
       for(int j = 0; j < input_layer->size; j++){
         float a = input_layer->neurons[j].activation;
         float in = input_layer->neurons[j].input;
-        currentNeuron->weights[j] += a*dSig*activationGradient*plasticity;
+        currentNeuron->weights[j] += a*dSig*gradient*plasticity;
       }
       //Calculate bias nudge
-      currentNeuron->bias += dSig*activationGradient*plasticity;
+      currentNeuron->bias += dSig*gradient*plasticity;
     }
     current = current->input_layer;
   }
@@ -458,7 +458,7 @@ void printWeights(Layer *layer){
 void printActivationGradients(Layer *layer){
   printf("activation gradients:\n");
   for(int i = 0; i < layer->size; i++){
-    printf("  Neuron %d: %f from %f\n", i, layer->neurons[i].activationGradient, layer->neurons[i].activation);
+    printf("  Neuron %d: %f from %f\n", i, layer->neurons[i].gradient, layer->neurons[i].activation);
   }
 }
 void printOutputs(Layer *layer){
