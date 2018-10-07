@@ -83,7 +83,12 @@ int main(void){
 			float cost_local = step(&n, label);
 
 			cost += cost_local;
-
+			if(alphabet[label] == alphabet[bestGuess(&n)])
+				printf("%c", alphabet[label]);
+			else if(alphabet[label] == '\n') 
+				printf("\n");
+			else 
+				printf("_");
 			input_character = alphabet[label];
 			count++;
 		
