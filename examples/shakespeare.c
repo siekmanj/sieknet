@@ -50,13 +50,17 @@ int main(void){
 	srand(time(NULL));
 	setbuf(stdout, NULL);
 
-	char* filename = "../saves/rnn_sonnets_3x512.rnn"; //This is the network file that will be loaded, and the one that will be saved to.
+	char* filename = "../saves/rnn_sonnets_600x900x500.rnn"; //This is the network file that will be loaded, and the one that will be saved to.
 
 	printf("Press ENTER to load %s (may take a while to load)\n", filename);
-	getchar();
-
-	printf("loading network from %s...\n", filename);
-	RNN n = loadRNNFromFile(filename);
+	RNN n;
+	if(getchar() == 'n'){
+		printf("creating network...\n");
+		n = createRNN(strlen(alphabet), 600, 900, 500, strlen(alphabet));//loadRNNFromFile(filename);
+	}else{
+		printf("loading network from %s...\n", filename);
+		n = loadRNNFromFile(filename);
+	}
 	
 	n.plasticity = 0.05; //I've found that the larger the network, the lower the initial learning rate should be.	
 
@@ -83,7 +87,9 @@ int main(void){
 			float cost_local = step(&n, label);
 
 			cost += cost_local;
-
+			if(alphabet[bestGuess(&n)] == alphabet[label]) printf("%c", alphabet[label]);
+			else if(alphabet[label] == '\n') printf("\n");
+			else printf("_");
 			input_character = alphabet[label];
 			count++;
 		
@@ -113,10 +119,10 @@ int main(void){
 
 		//If the network did worse this epoch than the last, don't save the state and lower the learning rate.
 		if(previousepochavgcost < epochcost/epochcount){
-			printf("performance this epoch was worse than the one before. Plasticity next epoch will be %f.\n", n.plasticity * 0.75);
-			n.plasticity *= 0.75;
+			printf("performance this epoch was worse than the one before. Plasticity next epoch will be %f.\n", n.plasticity * 1.0);
+			n.plasticity *= 1.0;
 		}else{
-		  saveRNNToFile(&n, "../saves/rnn_sonnets_3x512.rnn"); 
+		  saveRNNToFile(&n, filename); 
     }
 		previousepochavgcost = epochcost/epochcount;
 
