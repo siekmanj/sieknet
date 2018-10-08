@@ -8,9 +8,9 @@
  * This is a simple demonstration of the recurrent neural network.
  * The network is trained character-by-character to output a simple sentence (you are free to provide your own sentence and alphabet).
  */
+const char *training = "A horse walked into a bar and said 'Can I have a drink please?'. The bartender said 'Hay, why not.'"; 
+const char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.?' "; //possible inputs/outputs
 
-const char *training = " hello world what is up"; //desired sentence
-const char *alphabet = "helowrdahtisup "; //possible inputs/outputs
 
 /*
  * Description: This is a function that uses an input character to create a one-hot input vector.
@@ -44,10 +44,21 @@ int label_from_char(char inpt, const char *alphabet){
 
 int main(void){
 
-	RNN n = createRNN(strlen(alphabet), 40, strlen(alphabet)); //Create a network with a sufficiently large input & output layer, and a 40-neuron hidden layer.
-	n.plasticity = 0.1; //The network seems to perform best with a learning rate of around 0.1.
+	RNN n = createRNN(strlen(alphabet), 100, strlen(alphabet)); //Create a network with a sufficiently large input & output layer, and a 40-neuron hidden layer.
+	n.plasticity = 0.2; //The network seems to perform best with a learning rate of around 0.1.
+  Layer *current = n.input;
 
+	//This is an experimental dropout feature I am working on.	
+	while(current != NULL){
+    if(!(current == n.input || current == n.output)){
+      current->dropout = 0.1;
+    }
+		current = current->output_layer;
+  }
+		
 	int epochs = 1000;
+	float cost_threshold = 0.25;
+	float epoch_cost = 0;
 
 	for(int i = 0; i < epochs*strlen(training); i++){ //Run the network for 1000 epochs.
 		int input_idx = i % strlen(training);
@@ -59,8 +70,20 @@ int main(void){
 
 		setOneHotInput(&n, input_one_hot); 	
 
-		int label = label_from_char(training[label_idx], alphabet);	//Create a label from the next character.
+		int label = label_from_char(training[label_idx], alphabet); //Create a label from the next character.
 		float c = step(&n, label); //Perform feedforward & backpropagation.
+		
+		epoch_cost += c/strlen(training);
+		printf("%c", alphabet[bestGuess(&n)]);
+		if(i % strlen(training) == 0 && i != 0){
+			printf("\nEpoch finished, cost: %f\n", epoch_cost);
+//			printf("\n");
+			if(cost_threshold > epoch_cost){
+				printf("Cost threshold of %f reached (%f) in %d examples.\n", cost_threshold, epoch_cost, i);
+				exit(0);
+			}
+			epoch_cost = 0;
+		}
 	}
 
 	//The below code prints sample output, where the network's guess is fed back in as input.
