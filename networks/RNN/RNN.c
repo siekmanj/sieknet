@@ -1,15 +1,23 @@
 
 /* Author: Jonah Siekmann
  * 8/10/2018
- * This is an attempt at writing a recurrent neural network (RNN) Every function beginning with static is meant for internal use only. You may call any other function.
+ * This is an attempt at writing a recurrent neural network (RNN).
+ *  Every function beginning with static is meant for internal use only. 
+ *  You may call any other function.
  *
- * I am fairly certain this is not a 'full' RNN, since the network only has access to the previous timestep's state, and thus only needs to do one feedforward and one
- * backprop operation per timestep - most descriptions of RNN's seem to mention multiple feedforward/backprops per timestep. It is possible this implementation is
- * more similar to an Elman network than a true RNN. If anyone can clarify or offer insight, I would be very grateful.
+ * I am uncertain whether this is 'full' RNN or just an 
+ * SRN (Simple Recurrent Network), since the network only has access 
+ * to the previous timestep's state, and thus only needs to do one 
+ * feedforward and one backprop operation per timestep - most descriptions 
+ * of RNN's seem to mention multiple feedforward/backprops per timestep. 
+ * It is possible this implementation is more similar to an Elman network 
+ * than a true RNN. If anyone can clarify or offer insight, I would be very grateful.
  * 
- * Some confusion may arise from the fact that many of the functions used in this implementation are defined in MLP.c, like backpropagate. Instead of rewriting these
- * functions, I have elected to build on the basic multilayer perceptron and re-use these functions.
- * As of 9/20/2018, this appears to be working in a somewhat stable fashion. If you get nans at any point, consider changing your n.plasticity. 
+ * Some confusion may arise from the fact that many of the functions used in this 
+ * implementation are defined in MLP.c, like backpropagate. Instead of rewriting these
+ * functions, I have elected to build on the basic multilayer perceptron and re-use 
+ * these functions. As of 9/20/2018, this appears to be working in a somewhat stable fashion. 
+ * If you get nans at any point, consider changing your n.plasticity. 
  */
 
 #include "RNN.h"
