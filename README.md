@@ -3,7 +3,7 @@ This is a dependency-free neural network/deep learning library I am attempting t
 
 I have used the following resources extensively in the course of this project:
 
-  * Michael Nielsen's excellent [online book](www.neuralnetworksanddeeplearning.com)
+  * Michael Nielsen's excellent [online book](http://www.neuralnetworksanddeeplearning.com)
   * 3blue1brown's [YouTube series](https://www.youtube.com/watch?v=aircAruvnKk&list=PLZHQObOWTQDNU6R1_67000Dx_ZCJB-3pi)
   * Wikipedia's article on [Recurrent Neural Networks](https://en.wikipedia.org/wiki/Recurrent_neural_network) 
   * Andrej Karpathy's [article on RNN's](http://karpathy.github.io/2015/05/21/rnn-effectiveness/)
