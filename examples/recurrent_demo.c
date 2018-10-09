@@ -46,7 +46,7 @@ int main(void){
 	srand(time(NULL));
 	setbuf(stdout, NULL);
 
-	char* filename = "../saves/rnn_sonnets_3x512.rnn"; //This is the network file that will be loaded, and the one that will be saved to.
+	char* filename = "../saves/rnn_sonnets_600x900x500.rnn"; //This is the network file that will be loaded, and the one that will be saved to.
 
 	printf("Press ENTER to load %s (may take a while to load)\n", filename);
 	getchar();
