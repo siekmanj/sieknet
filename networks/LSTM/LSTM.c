@@ -9,6 +9,16 @@
 #include <math.h>
 #include <string.h>
 
+/* 
+ * [   ]   [   ]   
+ * [INP] x [ H ]
+ * [   ]   [   ]
+ * remember gate: sigmoid of inputs and previous hidden state
+ * candidate ltm: tanh of inputs and previous hidden state
+ * 
+ *
+ */
+
 /*
  * Description: Initializes a long short-term memory network object.
  */ 
@@ -30,3 +40,5 @@ LSTM lstm_from_arr(size_t arr[], size_t size){
 	LSTM n = initLSTM();
 	return n;
 }
+
+
