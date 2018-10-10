@@ -30,3 +30,5 @@ LSTM lstm_from_arr(size_t arr[], size_t size){
 	LSTM n = initLSTM();
 	return n;
 }
+
+static void forget_gate

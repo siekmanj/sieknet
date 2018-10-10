@@ -74,7 +74,7 @@ static Layer *create_layer(size_t size, Layer *previousLayer){
   layer->neurons = neurons;
   layer->input_layer = previousLayer;
   layer->squish = sigmoid; //Set layer activation to sigmoid by default
-	layer->dropout = 0;
+	layer->dropout = 0; //Default to a 0% dropout rate
   return layer;
 }
 
@@ -221,7 +221,7 @@ static MLP initMLP(){
   n.input = NULL;
   n.output = NULL;
   n.performance = 0;
-  n.plasticity = .25;
+  n.plasticity = .1;
   return n;
 }
 

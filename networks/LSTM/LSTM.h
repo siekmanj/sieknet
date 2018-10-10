@@ -9,11 +9,16 @@
 // some magic to allow arbitrary numbers of parameters
 #define createRNN(...) rnn_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
-typedef MLP LSTM;
+//typedef MLP LSTM;
+typedef struct cell{
+ 
+
+} LSTM;
 
 LSTM lstm_from_arr(size_t arr[], size_t size);
 LSTM loadLSTMFromFile(const char *filename);
 
 void feedforward_forget(LSTM *n);
+float step(LSTM *n, int label;
 
 #endif
