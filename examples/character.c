@@ -45,13 +45,13 @@ int label_from_char(char inpt, const char *alphabet){
 int main(void){
 
 	RNN n = createRNN(strlen(alphabet), 100, strlen(alphabet)); //Create a network with a sufficiently large input & output layer, and a 40-neuron hidden layer.
-	n.plasticity = 0.2; //The network seems to perform best with a learning rate of around 0.1.
+	n.plasticity = 0.1; //The network seems to perform best with a learning rate of around 0.1.
   Layer *current = n.input;
 
 	//This is an experimental dropout feature I am working on.	
 	while(current != NULL){
     if(!(current == n.input || current == n.output)){
-      current->dropout = 0.1;
+//      current->squish = hypertan;
     }
 		current = current->output_layer;
   }
@@ -59,6 +59,7 @@ int main(void){
 	int epochs = 1000;
 	float cost_threshold = 0.25;
 	float epoch_cost = 0;
+	float avg_cost = 0;
 
 	for(int i = 0; i < epochs*strlen(training); i++){ //Run the network for 1000 epochs.
 		int input_idx = i % strlen(training);
@@ -74,9 +75,10 @@ int main(void){
 		float c = step(&n, label); //Perform feedforward & backpropagation.
 		
 		epoch_cost += c/strlen(training);
+		avg_cost += c;
 		printf("%c", alphabet[bestGuess(&n)]);
 		if(i % strlen(training) == 0 && i != 0){
-			printf("\nEpoch finished, cost: %f\n", epoch_cost);
+			printf("\nEpoch finished, cost: %f, avgcost: %f\n", epoch_cost, avg_cost/i);
 //			printf("\n");
 			if(cost_threshold > epoch_cost){
 				printf("Cost threshold of %f reached (%f) in %d examples.\n", cost_threshold, epoch_cost, i);

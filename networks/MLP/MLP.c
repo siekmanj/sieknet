@@ -13,17 +13,35 @@
  *              sets the partial derivative of the cost with respect to the activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
  */
-static void sigmoid(void* layerptr){
+void sigmoid(void* layerptr){
   Layer* layer = (Layer*)layerptr;
   for(int i = 0; i < layer->size; i++){
 		uint8_t set_output = 1;
 		if(((float)(rand()%100))/100 < layer->dropout){
 			set_output = 0;
 		}
-    layer->neurons[i].activation = set_output*(1 / (1 + exp(-layer->neurons[i].input)));
-    layer->neurons[i].dActivation = set_output*(layer->neurons[i].activation * (1 - layer->neurons[i].activation));
+    layer->neurons[i].activation = set_output * (1 / (1 + exp(-layer->neurons[i].input)));
+    layer->neurons[i].dActivation = set_output * (layer->neurons[i].activation * (1 - layer->neurons[i].activation));
   }
 }
+
+/*
+ * Description: Calculates the activation of a given neuron using hyperbolic tangent, and
+ *              sets the partial derivative of the cost with respect to the activation.
+ * layerptr: A pointer to the layer for which outputs will be calculated.
+ */
+ void hypertan(void* layerptr){
+	Layer* layer = (Layer*)layerptr;
+	for(int i = 0; i < layer->size; i++){
+		uint8_t set_output = 1;
+		if(((float)(rand()%100))/100 < layer->dropout){
+			set_output = 0;
+		}
+		float x = layer->neurons[i].input;
+		layer->neurons[i].activation = set_output * ((exp(x) - exp(-x))/(exp(x) + exp(-x)));
+		layer->neurons[i].dActivation = set_output * (4/((exp(x) + exp(-x)) * (exp(x) + exp(-x))));
+	}
+ }
 
 /*
  * Description: Calculates the activation of a given neuron using softmax, and
@@ -31,7 +49,7 @@ static void sigmoid(void* layerptr){
  * layerptr: A pointer to the layer for which outputs will be calculated.
  * NOTE: potentially stable (dActivation tends toward 0 with very large/very negative inputs)
  */
-static void softmax(void* layerptr){
+void softmax(void* layerptr){
   Layer* layer = (Layer*)layerptr;
   double sum = 0;
   for(int i = 0; i < layer->size; i++){
