@@ -15,7 +15,7 @@ typedef struct Neuron{
 	float bias;
 	float activation;
 	float dActivation;	
-	float activationGradient;
+	float gradient;
 } Neuron;
 
 typedef struct Layer{
@@ -50,6 +50,13 @@ float descend(MLP *n, int label);
 float backpropagate(Layer *output_layer, int label, float plasticity);
 
 int bestGuess(MLP *n);
+
+//These are activation functions
+//You can set these by assigning layerptr->squish = hypertan/sigmoid/etc
+void hypertan(void* layerptr);
+void sigmoid(void* layerptr);
+void softmax(void* layerptr);
+//void relu(void* layerptr);
 
 void printOutputs(Layer *layer);
 void prettyprint(Layer *layer);
