@@ -9,6 +9,16 @@
 #include <math.h>
 #include <string.h>
 
+/* 
+ * [   ]   [   ]   
+ * [INP] x [ H ]
+ * [   ]   [   ]
+ * remember gate: sigmoid of inputs and previous hidden state
+ * candidate ltm: tanh of inputs and previous hidden state
+ * 
+ *
+ */
+
 /*
  * Description: Initializes a long short-term memory network object.
  */ 
