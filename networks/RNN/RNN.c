@@ -17,7 +17,7 @@
  * implementation are defined in MLP.c, like backpropagate. Instead of rewriting these
  * functions, I have elected to build on the basic multilayer perceptron and re-use 
  * these functions. As of 9/20/2018, this appears to be working in a somewhat stable fashion. 
- * If you get nans at any point, consider changing your n.plasticity. 
+ * If you get nans at any point, consider lowering your n.plasticity. 
  */
 
 #include "RNN.h"
