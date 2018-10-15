@@ -14,6 +14,12 @@ So far, I have implemented:
   * A recurrent neural network, which you can find under `/networks/RNN/`. 
   * Backpropagation.
   * Softmax activation and cross-entropy cost.
+    
+In the coming months, I intend to implement:
+  * A LSTM network.
+  * A convolutional neural network.
+    * Geoffrey Hinton's [Capsule network](https://en.wikipedia.org/wiki/Capsule_neural_network)
+  * Filip Pieknewski's [Predictive Vision Model](https://blog.piekniewski.info/2016/11/04/predictive-vision-in-a-nutshell/)
   
 Various demonstrations of how to use the networks can be found in `/examples/`. Currently, I am  using Shakespeare's sonnets to train a 512x512x512 recurrent network to compose a sonnet. 
 
@@ -24,9 +30,20 @@ git clone https://github.com/siekmanj/sieknet
 cd sieknet/build
 make recurrent_demo && ./recurrent_demo.out
 ```
-  
-In the coming months, I intend to implement:
-  * A LSTM network.
-  * A convolutional neural network.
-    * Geoffrey Hinton's [Capsule network](https://en.wikipedia.org/wiki/Capsule_neural_network)
-  * Filip Pieknewski's [Predictive Vision Model](https://blog.piekniewski.info/2016/11/04/predictive-vision-in-a-nutshell/)
+Below is a fairly typical sample you may get from running the demo. As you can see, the network is able to learn a variety of words, but likes to invent its own, just like Shakespeare ;)
+```
+  Cate' thou from my graving,
+  And so the raster fat hath my sine door heat a too lease lat the ware and self, ede boved and heat,
+  Cave all the bat that is now,
+  Mor my merpon thy live, woth live, aga me thy love, with seep love,
+  Coughts fall the beartare thee,
+  Aha leare the true ia por fore and fear,
+  Which thee and from thee how faul cate,
+  Chat for my me belf the winthe brackressall,
+  That hel fairied neap age byaur fae cans and beauty bear,  
+  Cire my love anged soe collare again therrent thou anl me borathe lais, and the waright,
+  Ar hadrence thee foace for where beat ore born, are 
+  Or hat all a and the pragalan,
+  And the the prayay forn with and woll, alater hook ore and heart
+```
+
