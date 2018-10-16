@@ -26,6 +26,54 @@ void sigmoid(void* layerptr){
 }
 
 /*
+ * Description: Calculates the activation of a given neuron using leaky ReLu, and
+ *              sets the partial derivative of the cost with respect to the 
+ *							activation.
+ * layerptr: A pointer to the layer for which outputs will be calculated.
+ * warning: this does not appear to be stable.
+ */
+void leaky_relu(void* layerptr){
+	Layer* layer = (Layer*)layerptr;
+	for(int i = 0; i < layer->size; i++){
+		uint8_t set_output = 1;
+		if(((float)(rand()%100))/100 < layer->dropout){
+			set_output = 0;
+		}
+		float x = layer->neurons[i].input;
+		float dX = 1;
+		if(x <= 0){
+			x = 0.001;
+			dX = 0.001;
+		}
+		layer->neurons[i].activation = set_output * x;
+		layer->neurons[i].dActivation = set_output * dX;
+	}
+}
+/*
+ * Description: Calculates the activation of a given neuron using ReLu, and
+ *              sets the partial derivative of the cost with respect to the 
+ *							activation.
+ * layerptr: A pointer to the layer for which outputs will be calculated.
+ * warning: this does not appear to be stable.
+ */
+void relu(void* layerptr){
+	Layer* layer = (Layer*)layerptr;
+	for(int i = 0; i < layer->size; i++){
+		uint8_t set_output = 1;
+		if(((float)(rand()%100))/100 < layer->dropout){
+			set_output = 0;
+		}
+		float x = layer->neurons[i].input;
+		float dX = 1;
+		if(x <= 0){
+			x = 0;
+			dX = 0;
+		}
+		layer->neurons[i].activation = set_output * x;
+		layer->neurons[i].dActivation = set_output * dX;
+	}
+}
+/*
  * Description: Calculates the activation of a given neuron using hyperbolic tangent, and
  *              sets the partial derivative of the cost with respect to the activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
