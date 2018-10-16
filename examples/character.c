@@ -48,10 +48,11 @@ int main(void){
 	n.plasticity = 0.1; //The network seems to perform best with a learning rate of around 0.1.
   Layer *current = n.input;
 
-	//This is an experimental dropout feature I am working on.	
+	//This is an experimental feature I am working on.	
 	while(current != NULL){
     if(!(current == n.input || current == n.output)){
-//      current->squish = hypertan;
+      current->squish = hypertan; //assigns this layer's squish function pointer to the tanh activation function
+			current->dropout = 0.05; //approximately 5% of this layer's neurons will randomly not fire (dropout)
     }
 		current = current->output_layer;
   }
@@ -77,6 +78,7 @@ int main(void){
 		epoch_cost += c/strlen(training);
 		avg_cost += c;
 		printf("%c", alphabet[bestGuess(&n)]);
+
 		if(i % strlen(training) == 0 && i != 0){
 			printf("\nEpoch finished, cost: %f, avgcost: %f\n", epoch_cost, avg_cost/i);
 //			printf("\n");

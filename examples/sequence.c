@@ -27,11 +27,19 @@ int data[] = {
 
 int main(void){
 	RNN n = createRNN(10, 15, 15, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
-	n.plasticity = 0.2;
+	n.plasticity = 0.05;
 
 	float cost = 0;
 	int count = 0;
 
+	//This is an experimental activation function I am testing.	
+	Layer *current = n.input;
+	while(current != NULL){
+    if(!(current == n.input || current == n.output)){
+      current->squish = relu; //assigns this layer's squish function pointer to the tanh activation function
+    }
+		current = current->output_layer;
+  }
 	for(int epoch = 0; epoch < 10000; epoch++){ //Train for 1000 epochs.
 		size_t len = sizeof(data)/sizeof(data[0]);
 
@@ -51,5 +59,6 @@ int main(void){
 		
 			printf("label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", label, data[i], bestGuess(&n), c, cost/count, bestGuess(&n) == label);
 		}
+		getchar();
 	}
 }
