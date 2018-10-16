@@ -13,8 +13,7 @@
  *              sets the partial derivative of the cost with respect to the activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
  */
-void sigmoid(void* layerptr){
-  Layer* layer = (Layer*)layerptr;
+void sigmoid(Layer* layer){
   for(int i = 0; i < layer->size; i++){
 		uint8_t set_output = 1;
 		if(((float)(rand()%100))/100 < layer->dropout){
@@ -32,8 +31,7 @@ void sigmoid(void* layerptr){
  * layerptr: A pointer to the layer for which outputs will be calculated.
  * warning: this does not appear to be stable.
  */
-void leaky_relu(void* layerptr){
-	Layer* layer = (Layer*)layerptr;
+void leaky_relu(Layer* layer){
 	for(int i = 0; i < layer->size; i++){
 		uint8_t set_output = 1;
 		if(((float)(rand()%100))/100 < layer->dropout){
@@ -56,8 +54,7 @@ void leaky_relu(void* layerptr){
  * layerptr: A pointer to the layer for which outputs will be calculated.
  * warning: this does not appear to be stable.
  */
-void relu(void* layerptr){
-	Layer* layer = (Layer*)layerptr;
+void relu(Layer* layer){
 	for(int i = 0; i < layer->size; i++){
 		uint8_t set_output = 1;
 		if(((float)(rand()%100))/100 < layer->dropout){
@@ -78,8 +75,7 @@ void relu(void* layerptr){
  *              sets the partial derivative of the cost with respect to the activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
  */
- void hypertan(void* layerptr){
-	Layer* layer = (Layer*)layerptr;
+ void hypertan(Layer* layer){
 	for(int i = 0; i < layer->size; i++){
 		uint8_t set_output = 1;
 		if(((float)(rand()%100))/100 < layer->dropout){
@@ -97,8 +93,7 @@ void relu(void* layerptr){
  * layerptr: A pointer to the layer for which outputs will be calculated.
  * NOTE: potentially stable (dActivation tends toward 0 with very large/very negative inputs)
  */
-void softmax(void* layerptr){
-  Layer* layer = (Layer*)layerptr;
+void softmax(Layer* layer){
   double sum = 0;
   for(int i = 0; i < layer->size; i++){
     sum += exp(layer->neurons[i].input);
@@ -117,7 +112,7 @@ void softmax(void* layerptr){
  * previousLayer: the preceding layer in the network (can be NULL).
  */
 static Layer *create_layer(size_t size, Layer *previousLayer){
-  Layer *layer = (Layer*)malloc(size*sizeof(Layer));
+  Layer *layer = malloc(size*sizeof(Layer));
   size_t previous_layer_size = 0;
   if(previousLayer != NULL){
     previous_layer_size = previousLayer->size;
@@ -217,7 +212,7 @@ float backpropagate(Layer *output_layer, int label, float plasticity){
 
   Layer *current = output_layer;
   while(current->input_layer != NULL){
-    Layer* input_layer = (Layer*)(current->input_layer);
+    Layer* input_layer = current->input_layer;
     for(int i = 0; i < input_layer->size; i++){
       //Calculate activation gradients in input layer BEFORE doing nudges to weights and biases in the current layer
       float sum = 0;
@@ -258,7 +253,7 @@ float backpropagate(Layer *output_layer, int label, float plasticity){
  * layer: the layer for which outputs will be calculated from inputs of the previous layer.
  */
 void calculate_outputs(Layer *layer){
-  Layer *input_layer = (Layer*)(layer->input_layer);
+  Layer *input_layer = layer->input_layer;
   for(int i = 0; i < layer->size; i++){
     float sum = 0;
     Neuron *current = &(layer->neurons[i]);
@@ -423,7 +418,7 @@ void saveMLPToFile(MLP *n, char* filename){
      writeToFile(fp, buff);
    }else{
      for(int j = 0; j < current->size; j++){
-       Layer* input_layer = (Layer*)current->input_layer;
+       Layer* input_layer = current->input_layer;
 
        strcat(buff, "neuron ");
        writeToFile(fp, buff);
@@ -481,7 +476,7 @@ MLP loadMLPFromFile(const char *filename){
       }
       getWord(fp, buff);
       size_t number_of_weights = strtol(buff, NULL, 10);
-      Layer *input_layer = (Layer*)n.output->input_layer;
+      Layer *input_layer = n.output->input_layer;
       for(int k = 0; k < number_of_weights; k++){
         getWord(fp, buff);
         float weight = strtod(buff, NULL);
@@ -501,7 +496,7 @@ MLP loadMLPFromFile(const char *filename){
  * Functions for debugging
  */
 void printWeights(Layer *layer){
-  Layer *previousLayer = (Layer*)layer->input_layer;
+  Layer *previousLayer = layer->input_layer;
 	for(int i = 0; i < layer->size; i++){
 		printf("Neuron %d: ", i);
 	}
