@@ -21,12 +21,15 @@ int main(void){
 
 	//Training data
 	{
-		printf("Training for %lu epochs.\n", epochs);
 		ImageSet training_set;
 		size_t height, width;
 		openImageSet(&training_set, 47040016, "../mnist/train-images-idx3-ubyte", "../mnist/train-labels-idx1-ubyte"); //You may need to provide your own mnist file
+		if(training_set.imgBuff == NULL){
+			printf("WARNING: mnist data set not loaded correctly. Check filenames.\n");
+			exit(1);
+		}
+		printf("Training for %lu epochs.\n", epochs);
 		float avgCost = 0;
-
 		for(size_t i = 0; i < training_set.numImages * epochs; i++){ //Run for the given number of epochs
 			size_t index = i % training_set.numImages;
 			float* img = img2floatArray(&training_set, index, &height, &width); //Image is returned as a float array (must have same dims as input layer)
