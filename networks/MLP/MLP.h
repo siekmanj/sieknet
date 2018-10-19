@@ -56,7 +56,8 @@ int bestGuess(MLP *n);
 void hypertan(void* layerptr);
 void sigmoid(void* layerptr);
 void softmax(void* layerptr);
-//void relu(void* layerptr);
+void relu(void* layerptr); //not stable, be careful
+void leaky_relu(void* layerptr); //not stable, be careful
 
 void printOutputs(Layer *layer);
 void prettyprint(Layer *layer);
