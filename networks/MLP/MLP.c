@@ -1,6 +1,7 @@
 /* Author: Jonah Siekmann
- * 7/24/2018
- * This is a basic multilayer perceptron implementation using backpropagation. I've tested it with mnist and a few trivial problems.
+ * Written 7/24/2018, updated 10/15/2018
+ * This is a multilayer perceptron implementation using backpropagation. I've tested it with mnist and a few trivial problems.
+ * It is intended to be a building block for more complex architectures. Currently I am attempting to build a genetic training algorithm.
  * Every function beginning with static is meant for internal use only. You may call any other function.
  */
 
@@ -29,7 +30,7 @@ void sigmoid(Layer* layer){
  *              sets the partial derivative of the cost with respect to the 
  *							activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
- * warning: this does not appear to be stable.
+ * warning: this does not appear to be stable with high learning rates.
  */
 void leaky_relu(Layer* layer){
 	for(int i = 0; i < layer->size; i++){
@@ -49,10 +50,10 @@ void leaky_relu(Layer* layer){
 }
 /*
  * Description: Calculates the activation of a given neuron using ReLu, and
- *              sets the partial derivative of the cost with respect to the 
+ )*              sets the partial derivative of the cost with respect to the 
  *							activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
- * warning: this does not appear to be stable.
+ * warning: this does not appear to be stable with high learning rates.
  */
 void relu(Layer* layer){
 	for(int i = 0; i < layer->size; i++){
@@ -91,7 +92,7 @@ void relu(Layer* layer){
  * Description: Calculates the activation of a given neuron using softmax, and
  *              sets the partial derivative of the cost with respect to the activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
- * NOTE: potentially stable (dActivation tends toward 0 with very large/very negative inputs)
+ * NOTE: potentially stable (dActivation tends toward 0 with very large/very negative inputs, keep learning rate low)
  */
 void softmax(Layer* layer){
   double sum = 0;
@@ -361,6 +362,23 @@ int bestGuess(MLP *n){
 }
 
 /*
+ * Description: Deallocates a network's memory from the heap
+ * n: the pointer to the MLP to be deallocated.
+ */
+void dealloc_network(MLP *n){
+	Layer* current = n->output;
+	while(current != NULL){
+		for(int i = 0; i < current->size; i++){
+			free(current->neurons[i].weights);
+		}
+		free(current->neurons);
+		Layer* temp = current->input_layer;
+		free(current);
+		current = temp;
+	}
+}
+
+ /*
  * IO FUNCTIONS FOR READING AND WRITING TO A FILE
  */
 
