@@ -11,10 +11,10 @@
  * load a .mlp file and run it on mnist.
  */
 
-void loadtest(){
+void main(){
 	srand(time(NULL));
 	printf("Testing:\n");
-	MLP n = loadMLPFromFile("../saves/mnist_trained.mlp");
+	MLP n = loadMLPFromFile("../saves/mnist_784_20_20_10.mlp");
 
 	ImageSet testing_set;
 	openImageSet(&testing_set, 7840016, "../mnist/t10k-images-idx3-ubyte", "../mnist/t10k-labels-idx1-ubyte");
