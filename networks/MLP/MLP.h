@@ -6,6 +6,15 @@
 #include <stdio.h>
 #include <time.h>
 
+#ifndef EVOLUTIONARY_POOL_SIZE
+#define EVOLUTIONARY_POOL_SIZE 0
+#endif
+
+#if EVOLUTIONARY_POOL_SIZE > 0
+	int IS_POOL_INITIALIZED = 0;
+	MLP pool[EVOLUTIONARY_POOL_SIZE];
+#endif
+
 // some magic
 #define createMLP(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
@@ -58,6 +67,8 @@ void sigmoid(Layer* layer);
 void softmax(Layer* layer);
 void relu(Layer* layer); //not stable, be careful
 void leaky_relu(Layer* layer); //not stable, be careful
+
+void dealloc_network(MLP *n);
 
 void printOutputs(Layer *layer);
 void prettyprint(Layer *layer);
