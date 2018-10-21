@@ -9,6 +9,11 @@
 #include <math.h>
 #include <string.h>
 
+#if EVOLUTIONARY_POOL_SIZE > 0
+	static MLP pool[EVOLUTIONARY_POOL_SIZE];
+	static int IS_POOL_INITIALIZED = 0;
+#endif
+
 /*
  * Description: Calculates the activation of a given neuron using sigmoid, and
  *              sets the partial derivative of the cost with respect to the activation.
@@ -378,9 +383,39 @@ void dealloc_network(MLP *n){
 	}
 }
 
- /*
- * IO FUNCTIONS FOR READING AND WRITING TO A FILE
+/*
+ * Description: Creates a pool of networks of the same size as n.
+ * n: the network which will be used as a template for all other networks in the pool.
  */
+void seed_pool(MLP *n){
+	for(int i = 0; i < EVOLUTIONARY_POOL_SIZE; i++){
+		pool[i] = initMLP();
+		Layer* current = n->input;
+		while(current != NULL){
+			addLayer(&pool[i], current->size);
+			current = current->output_layer;
+		}
+	}
+}
+
+/*
+ * Description: Uses a genetic algorithm to train a network
+ * n: An array of network objects
+ */
+void evolve(float (*fitness)(void* arg)){
+	for(int i = 0; i < EVOLUTIONARY_POOL_SIZE; i++){
+
+	}
+	//do crossbreed
+	//run forward prop
+	//calculate output gradient
+	//do mutations
+	//somehow return 
+
+}
+ /*
+  * IO FUNCTIONS FOR READING AND WRITING TO A FILE
+  */
 
 static void writeToFile(FILE *fp, char *ptr){
   fprintf(fp, "%s", ptr);
