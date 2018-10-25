@@ -258,7 +258,7 @@ float backpropagate(Layer *output_layer, int label, float plasticity){
  * Description: Calculates the outputs of each neuron in a layer based on the outputs & weights of the neurons in the preceding layer
  * layer: the layer for which outputs will be calculated from inputs of the previous layer.
  */
-void calculate_outputs(Layer *layer){
+void calculate_inputs(Layer *layer){
   Layer *input_layer = layer->input_layer;
   for(int i = 0; i < layer->size; i++){
     float sum = 0;
@@ -276,7 +276,6 @@ void calculate_outputs(Layer *layer){
       while(1);
     }
   }
-  layer->squish(layer);
 }
 
 /* 
@@ -346,8 +345,9 @@ float descend(MLP *n, int label){
 void feedforward(MLP *n){
   Layer *current = n->input->output_layer;
   while(current != NULL){
-    calculate_outputs(current);
-    current = current->output_layer;
+    calculate_inputs(current); //Calculate inputs from previous layer
+  	current->squish(current); //Squish current layer's inputs into non-linearity
+    current = current->output_layer; //Advance to the next layer
   }
 }
 
@@ -386,7 +386,7 @@ void dealloc_network(MLP *n){
 /*
  * Description: Creates a pool of networks of the same size as n.
  * n: the network which will be used as a template for all other networks in the pool.
- */
+ *
 void seed_pool(MLP *n){
 	for(int i = 0; i < EVOLUTIONARY_POOL_SIZE; i++){
 		pool[i] = initMLP();

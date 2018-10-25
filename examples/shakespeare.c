@@ -103,7 +103,7 @@ int main(void){
 				//Debug stuff
 				printf("\n\n****\nlatest cost: %f vs previous cost: %f vs epoch avg cost:%f, epoch %5.2f%% completed.\n", cost/count, lastavgcost, epochcost/epochcount, 100 * (float)epochcount/102892.0);
 				Neuron *output_neuron = &n.output->neurons[bestGuess(&n)];
-				printf("output neuron (%d) has gradient %f, dActivation %f, output %f, \'%c\'\n*****\n", bestGuess(&n), output_neuron->activationGradient, output_neuron->dActivation, output_neuron->activation, alphabet[bestGuess(&n)]);
+				printf("output neuron (%d) has gradient %f, dActivation %f, output %f, \'%c\'\n*****\n", bestGuess(&n), output_neuron->gradient, output_neuron->dActivation, output_neuron->activation, alphabet[bestGuess(&n)]);
 
 				lastavgcost = cost/count;
 		
