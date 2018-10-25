@@ -102,7 +102,9 @@ static void set_recurrent_inputs(Layer* layer){
 		for(int i = recurrent_offset; i < input_layer->size; i++){
 			Neuron *recurrent_neuron = &input_layer->neurons[i];
 			Neuron *old_neuron = &layer->neurons[i-recurrent_offset];
-
+			//I'm setting inputs instead of activations here because dropout would zero the activations (and dActivations)
+			//This means that the RNN would lose memory if a neuron were to drop out. This is not ideal, as the idea behind
+			//dropout is to regularize the network by treating all neurons the same, not to force the network to forget randomly.
 			recurrent_neuron->activation = old_neuron->activation;
 		}
 	}
