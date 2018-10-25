@@ -13,10 +13,15 @@
 int main(void){
   srand(time(NULL));
 
-	MLP n = createMLP(28*28, 15, 10);
-	n.plasticity = 0.2; //0.2 is a good starting learning rate - generally, the more layers/neurons, the lower your learning rate should be.
+	MLP n = loadMLPFromFile("../saves/mnist_784_20_20_10.mlp");
+//	MLP n = createMLP(784, 20, 20, 10);
+	n.plasticity = 0.03; //0.05 is a good starting learning rate - generally, the more layers/neurons, the lower your learning rate should be.
+	
+	//Set some interesting activation functions for variety
+	n.input->output_layer->squish = hypertan; 
+	n.output->input_layer->squish = leaky_relu;
 
-	size_t epochs = 30;
+	size_t epochs = 50;
 	int epoch = 0;
 
 	//Training data
@@ -44,7 +49,7 @@ int main(void){
 			//Save the state of the network at the end of each epoch.
 			if(i % training_set.numImages == 0 && i != 0){
 				printf("Epoch %d finished, cost %f.\n", epoch++, avgCost/i);
-				saveMLPToFile(&n, "../saves/mnist_784_25_10.mlp");
+				saveMLPToFile(&n, "../saves/mnist_784_20_20_10.mlp");
 			}
 		}
 	}
