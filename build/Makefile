@@ -4,6 +4,8 @@ CC = gcc
 MLP_INCLUDE = -I../mnist -I../networks/MLP
 RNN_INCLUDE = -I../networks/RNN
 C_FLAGS = -O3
+genetic:
+	gcc $(C_FLAGS) $(RNN_INCLUDE) $(MLP_INCLUDE) ../networks/MLP/MLP.c ../networks/RNN/RNN.c ../examples/recurrent_demo.c -o $@.out -lm
 recurrent_demo:
 	gcc $(C_FLAGS) $(RNN_INCLUDE) $(MLP_INCLUDE) ../networks/MLP/MLP.c ../networks/RNN/RNN.c ../examples/recurrent_demo.c -o $@.out -lm
 sequence:
