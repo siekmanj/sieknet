@@ -39,7 +39,7 @@ int main(void){
 	while(current != NULL){
     if(!(current == n.input || current == n.output)){
       current->squish = hypertan; //assigns this layer's squish function pointer to the tanh activation function
-			current->dropout = 0.4;
+			current->dropout = 0.3;
     }
 		current = current->output_layer;
   }
