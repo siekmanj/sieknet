@@ -13,12 +13,15 @@
 int main(void){
   srand(time(NULL));
 
-	MLP n = createMLP(28*28, 20, 20, 10);
-	n.plasticity = 0.2; //0.2 is a good starting learning rate - generally, the more layers/neurons, the lower your learning rate should be.
-	//n.input->output_layer->squish = hypertan;
-	//n.output->input_layer->squish = hypertan;
+	MLP n = loadMLPFromFile("../saves/mnist_784_20_20_10.mlp");
+//	MLP n = createMLP(784, 20, 20, 10);
+	n.plasticity = 0.03; //0.05 is a good starting learning rate - generally, the more layers/neurons, the lower your learning rate should be.
+	
+	//Set some interesting activation functions for variety
+	n.input->output_layer->squish = hypertan; 
+	n.output->input_layer->squish = leaky_relu;
 
-	size_t epochs = 30;
+	size_t epochs = 50;
 	int epoch = 0;
 
 	//Training data
