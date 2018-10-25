@@ -38,6 +38,7 @@ int main(void){
 	while(current != NULL){
     if(!(current == n.input || current == n.output)){
       current->squish = hypertan; //assigns this layer's squish function pointer to the tanh activation function
+			current->dropout = 0.3;
     }
 		current = current->output_layer;
   }
@@ -60,8 +61,8 @@ int main(void){
 		
 			printf("label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", label, data[i], bestGuess(&n), c, cost/count, bestGuess(&n) == label);
 		}
-	  if(cost/count < 0.5){
-			printf("Cost threshold 0.5 reached in %d iterations\n", count);
+	  if(cost/count < 1.0){
+			printf("Cost threshold 1.0 reached in %d iterations\n", count);
 			exit(0);
 		}
 	}
