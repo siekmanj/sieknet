@@ -60,7 +60,7 @@ int main(void){
 
 			count++;	
 		
-			printf("label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", label, data[i], bestGuess(&n), c, cost/count, bestGuess(&n) == label);
+//			printf("label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", label, data[i], bestGuess(&n), c, cost/count, bestGuess(&n) == label);
 		}
 		if(cost/count < 1.0){
 			printf("Cost threshold of 1.0 reached in %d iterations.\n", count);
