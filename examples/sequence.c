@@ -41,7 +41,7 @@ int main(void){
     }
 		current = current->output_layer;
   }
-	for(int epoch = 0; epoch < 10000; epoch++){ //Train for 1000 epochs.
+	for(int epoch = 0; epoch < 100000; epoch++){ //Train for 1000 epochs.
 		size_t len = sizeof(data)/sizeof(data[0]);
 
 		for(int i = 0; i < len; i++){ //Run through the entirety of the training data.
@@ -58,11 +58,19 @@ int main(void){
 
 			count++;	
 		
-			printf("label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", label, data[i], bestGuess(&n), c, cost/count, bestGuess(&n) == label);
+//			printf("label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", label, data[i], bestGuess(&n), c, cost/count, bestGuess(&n) == label);
 		}
+
+	  if(cost/count < 1.0){
+			printf("Cost threshold 1.0 reached in %d iterations\n", count);
+			exit(0);
+		}
+<<<<<<< HEAD
 		if(cost/count < 0.5){
 			printf("cost of 0.5 reached within %d iterations\n", count);
 			exit(0);
 		}	
+=======
+>>>>>>> d0d6590305e0351b4c170a35de2705a8d6d84ad9
 	}
 }

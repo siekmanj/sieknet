@@ -62,7 +62,8 @@ RNN rnn_from_arr(size_t arr[], size_t size){
  */
 static size_t recurrent_input_offset(Layer* layer){
   Layer* current = layer;
-	while(((Layer*)current->output_layer)->output_layer != NULL) current = current->output_layer;
+	if(current->output_layer == NULL) return layer->size;
+	while(current->output_layer->output_layer != NULL) current = current->output_layer;
 	
 	size_t recurrent_offset;
 	size_t temp = 0;
@@ -102,8 +103,10 @@ static void set_recurrent_inputs(Layer* layer){
 		for(int i = recurrent_offset; i < input_layer->size; i++){
 			Neuron *recurrent_neuron = &input_layer->neurons[i];
 			Neuron *old_neuron = &layer->neurons[i-recurrent_offset];
-
-			recurrent_neuron->activation = old_neuron->activation;
+	    //I'm setting inputs instead of activations here because dropout would zero the activations (and dActivations)
+			//This means that the RNN would lose memory if a neuron were to drop out. This is not ideal, as the idea behind
+			//dropout is to regularize the network by treating all neurons the same, not to force the network to forget randomly.
+			recurrent_neuron->input = old_neuron->input;
 		}
 	}
 }
@@ -121,6 +124,21 @@ float step(RNN *n, int label){
 }
 
 /*
+ * Description: Calculates the non-recurrent outputs and recurrent outputs
+ * note: This function is required because when recurrent inputs are set,
+ *       calculate_inputs would overwrite them for the entire layer, not just
+ *       for non-recurrent neurons.
+ */
+static void calculate_outputs_recurrent(Layer* layer){
+	size_t offset = recurrent_input_offset(layer);	
+	size_t temp = layer->size;
+	layer->size = offset; // Don't want to calculate inputs for recurrent neurons
+	calculate_inputs(layer); //Calculate inputs ONLY for non-recurrent neurons
+	layer->size = temp; //Restore original layer size
+	layer->squish(layer); //Calculate activations for recurrent and non-recurrent neurons
+}
+
+/*
  *
  * Description: Performs the feed-forward operation on the network and sets
  *              recurrent inputs from previous hidden state of layers.
@@ -130,8 +148,9 @@ float step(RNN *n, int label){
 void feedforward_recurrent(RNN *n){
 	Layer* current = n->input->output_layer;
 	while(current != NULL){
+		size_t offset = recurrent_input_offset(current);	
 		set_recurrent_inputs(current);
-		calculate_outputs(current);
+		calculate_outputs_recurrent(current);
 		current = current->output_layer;
 	}
 }
