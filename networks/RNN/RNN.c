@@ -168,7 +168,7 @@ static void writeToFile(FILE *fp, char *ptr){
 static void getWord(FILE *fp, char* dest){
   memset(dest, '\0', strlen(dest));
   //printf("bytes read: %lu\n", fread(dest, 1024, 1, fp));
-  fscanf(fp, " %1023s", dest);
+  int res = fscanf(fp, " %1023s", dest);
 }
 /* 
  * Description: Saves the network's state to a file that can be read later.
