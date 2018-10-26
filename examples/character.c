@@ -44,8 +44,8 @@ int label_from_char(char inpt, const char *alphabet){
 
 int main(void){
 
-	RNN n = createRNN(strlen(alphabet), 100, strlen(alphabet)); //Create a network with a sufficiently large input & output layer, and a 40-neuron hidden layer.
-	n.plasticity = 0.1; //The network seems to perform best with a learning rate of around 0.1.
+	RNN n = createRNN(strlen(alphabet), 50, 50, strlen(alphabet)); //Create a network with a sufficiently large input & output layer, and a 40-neuron hidden layer.
+	n.plasticity = 0.05; //The network seems to perform best with a learning rate of around 0.1.
   Layer *current = n.input;
 
 	//This is an experimental feature I am working on.	
@@ -80,8 +80,9 @@ int main(void){
 		printf("%c", alphabet[bestGuess(&n)]);
 
 		if(i % strlen(training) == 0 && i != 0){
-			printf("\nEpoch finished, cost: %f, avgcost: %f\n", epoch_cost, avg_cost/i);
+//			printf("\nEpoch finished, cost: %f, avgcost: %f\r", epoch_cost, avg_cost/i);
 //			printf("\n");
+			printf("\n");
 			if(cost_threshold > epoch_cost){
 				printf("Cost threshold of %f reached (%f) in %d examples.\n", cost_threshold, epoch_cost, i);
 				exit(0);
