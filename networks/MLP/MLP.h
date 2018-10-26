@@ -20,11 +20,11 @@ typedef struct Neuron{
 
 typedef struct Layer{
   Neuron *neurons;
-  void *input_layer;
-	void *output_layer;
-	void (*squish)(void*);
-	float dropout;
-	size_t size;
+  struct Layer *input_layer;
+  struct Layer *output_layer;
+  void (*squish)(void*);
+  float dropout;
+  size_t size;
 } Layer;
 
 
