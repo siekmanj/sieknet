@@ -6,6 +6,11 @@
 #include <stdio.h>
 #include <time.h>
 
+#ifndef EVOLUTIONARY_POOL_SIZE
+#define EVOLUTIONARY_POOL_SIZE 0
+#endif
+
+
 // some magic
 #define createMLP(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
@@ -19,12 +24,12 @@ typedef struct Neuron{
 } Neuron;
 
 typedef struct Layer{
-  Neuron *neurons;
-  struct Layer *input_layer;
-  struct Layer *output_layer;
-  void (*squish)(void*);
-  float dropout;
-  size_t size;
+	Neuron *neurons;
+	struct Layer *input_layer;
+	struct Layer *output_layer;
+	void (*squish)(struct Layer*);
+	float dropout;
+	size_t size;
 } Layer;
 
 
@@ -42,7 +47,7 @@ MLP loadMLPFromFile(const char *filename);
 
 void addLayer(MLP *n, size_t size);
 void setInputs(MLP *n, float* arr);
-void calculate_outputs(Layer*);
+void calculate_inputs(Layer*);
 void feedforward(MLP *n);
 void saveMLPToFile(MLP *n, char* filename);
 
@@ -52,12 +57,14 @@ float backpropagate(Layer *output_layer, int label, float plasticity);
 int bestGuess(MLP *n);
 
 //These are activation functions
-//You can set these by assigning layerptr->squish = hypertan/sigmoid/etc
-void hypertan(void* layerptr);
-void sigmoid(void* layerptr);
-void softmax(void* layerptr);
-void relu(void* layerptr); //not stable, be careful
-void leaky_relu(void* layerptr); //not stable, be careful
+//You can set these by assigning layer->squish = hypertan/sigmoid/etc
+void hypertan(Layer* layer);
+void sigmoid(Layer* layer);
+void softmax(Layer* layer);
+void relu(Layer* layer); //not stable, be careful
+void leaky_relu(Layer* layer); //not stable, be careful
+
+void dealloc_network(MLP *n);
 
 void printOutputs(Layer *layer);
 void prettyprint(Layer *layer);

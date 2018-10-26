@@ -13,20 +13,28 @@
 int main(void){
   srand(time(NULL));
 
-	MLP n = createMLP(28*28, 15, 10);
-	n.plasticity = 0.2; //0.2 is a good starting learning rate - generally, the more layers/neurons, the lower your learning rate should be.
+	MLP n = loadMLPFromFile("../saves/mnist_784_20_20_10.mlp");
+//	MLP n = createMLP(784, 20, 20, 10);
+	n.plasticity = 0.03; //0.05 is a good starting learning rate - generally, the more layers/neurons, the lower your learning rate should be.
+	
+	//Set some interesting activation functions for variety
+	n.input->output_layer->squish = hypertan; 
+	n.output->input_layer->squish = leaky_relu;
 
-	size_t epochs = 30;
+	size_t epochs = 50;
 	int epoch = 0;
 
 	//Training data
 	{
-		printf("Training for %lu epochs.\n", epochs);
 		ImageSet training_set;
 		size_t height, width;
 		openImageSet(&training_set, 47040016, "../mnist/train-images-idx3-ubyte", "../mnist/train-labels-idx1-ubyte"); //You may need to provide your own mnist file
+		if(training_set.imgBuff == NULL){
+			printf("WARNING: mnist data set not loaded correctly. Check filenames.\n");
+			exit(1);
+		}
+		printf("Training for %lu epochs.\n", epochs);
 		float avgCost = 0;
-
 		for(size_t i = 0; i < training_set.numImages * epochs; i++){ //Run for the given number of epochs
 			size_t index = i % training_set.numImages;
 			float* img = img2floatArray(&training_set, index, &height, &width); //Image is returned as a float array (must have same dims as input layer)
@@ -41,7 +49,7 @@ int main(void){
 			//Save the state of the network at the end of each epoch.
 			if(i % training_set.numImages == 0 && i != 0){
 				printf("Epoch %d finished, cost %f.\n", epoch++, avgCost/i);
-				saveMLPToFile(&n, "../saves/mnist_784_25_10.mlp");
+				saveMLPToFile(&n, "../saves/mnist_784_20_20_10.mlp");
 			}
 		}
 	}
