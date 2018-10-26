@@ -1,6 +1,7 @@
 /* Author: Jonah Siekmann
- * 7/24/2018
- * This is a basic multilayer perceptron implementation using backpropagation. I've tested it with mnist and a few trivial problems.
+ * Written 7/24/2018, updated 10/15/2018
+ * This is a multilayer perceptron implementation using backpropagation. I've tested it with mnist and a few trivial problems.
+ * It is intended to be a building block for more complex architectures. Currently I am attempting to build a genetic training algorithm.
  * Every function beginning with static is meant for internal use only. You may call any other function.
  */
 
@@ -8,13 +9,17 @@
 #include <math.h>
 #include <string.h>
 
+#if EVOLUTIONARY_POOL_SIZE > 0
+	static MLP pool[EVOLUTIONARY_POOL_SIZE];
+	static int IS_POOL_INITIALIZED = 0;
+#endif
+
 /*
  * Description: Calculates the activation of a given neuron using sigmoid, and
  *              sets the partial derivative of the cost with respect to the activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
  */
-void sigmoid(void* layerptr){
-  Layer* layer = (Layer*)layerptr;
+void sigmoid(Layer* layer){
   for(int i = 0; i < layer->size; i++){
 		uint8_t set_output = 1;
 		if(((float)(rand()%100))/100 < layer->dropout){
@@ -30,10 +35,9 @@ void sigmoid(void* layerptr){
  *              sets the partial derivative of the cost with respect to the 
  *							activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
- * warning: this does not appear to be stable.
+ * warning: this does not appear to be stable with high learning rates.
  */
-void leaky_relu(void* layerptr){
-	Layer* layer = (Layer*)layerptr;
+void leaky_relu(Layer* layer){
 	for(int i = 0; i < layer->size; i++){
 		uint8_t set_output = 1;
 		if(((float)(rand()%100))/100 < layer->dropout){
@@ -51,13 +55,12 @@ void leaky_relu(void* layerptr){
 }
 /*
  * Description: Calculates the activation of a given neuron using ReLu, and
- *              sets the partial derivative of the cost with respect to the 
+ )*              sets the partial derivative of the cost with respect to the 
  *							activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
- * warning: this does not appear to be stable.
+ * warning: this does not appear to be stable with high learning rates.
  */
-void relu(void* layerptr){
-	Layer* layer = (Layer*)layerptr;
+void relu(Layer* layer){
 	for(int i = 0; i < layer->size; i++){
 		uint8_t set_output = 1;
 		if(((float)(rand()%100))/100 < layer->dropout){
@@ -78,8 +81,7 @@ void relu(void* layerptr){
  *              sets the partial derivative of the cost with respect to the activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
  */
- void hypertan(void* layerptr){
-	Layer* layer = (Layer*)layerptr;
+ void hypertan(Layer* layer){
 	for(int i = 0; i < layer->size; i++){
 		uint8_t set_output = 1;
 		if(((float)(rand()%100))/100 < layer->dropout){
@@ -95,10 +97,9 @@ void relu(void* layerptr){
  * Description: Calculates the activation of a given neuron using softmax, and
  *              sets the partial derivative of the cost with respect to the activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
- * NOTE: potentially stable (dActivation tends toward 0 with very large/very negative inputs)
+ * NOTE: potentially stable (dActivation tends toward 0 with very large/very negative inputs, keep learning rate low)
  */
-void softmax(void* layerptr){
-  Layer* layer = (Layer*)layerptr;
+void softmax(Layer* layer){
   double sum = 0;
   for(int i = 0; i < layer->size; i++){
     sum += exp(layer->neurons[i].input);
@@ -117,7 +118,7 @@ void softmax(void* layerptr){
  * previousLayer: the preceding layer in the network (can be NULL).
  */
 static Layer *create_layer(size_t size, Layer *previousLayer){
-  Layer *layer = (Layer*)malloc(size*sizeof(Layer));
+  Layer *layer = malloc(size*sizeof(Layer));
   size_t previous_layer_size = 0;
   if(previousLayer != NULL){
     previous_layer_size = previousLayer->size;
@@ -217,7 +218,7 @@ float backpropagate(Layer *output_layer, int label, float plasticity){
 
   Layer *current = output_layer;
   while(current->input_layer != NULL){
-    Layer* input_layer = (Layer*)(current->input_layer);
+    Layer* input_layer = current->input_layer;
     for(int i = 0; i < input_layer->size; i++){
       //Calculate activation gradients in input layer BEFORE doing nudges to weights and biases in the current layer
       float sum = 0;
@@ -257,8 +258,8 @@ float backpropagate(Layer *output_layer, int label, float plasticity){
  * Description: Calculates the outputs of each neuron in a layer based on the outputs & weights of the neurons in the preceding layer
  * layer: the layer for which outputs will be calculated from inputs of the previous layer.
  */
-void calculate_outputs(Layer *layer){
-  Layer *input_layer = (Layer*)(layer->input_layer);
+void calculate_inputs(Layer *layer){
+  Layer *input_layer = layer->input_layer;
   for(int i = 0; i < layer->size; i++){
     float sum = 0;
     Neuron *current = &(layer->neurons[i]);
@@ -275,7 +276,6 @@ void calculate_outputs(Layer *layer){
       while(1);
     }
   }
-  layer->squish(layer);
 }
 
 /* 
@@ -345,8 +345,9 @@ float descend(MLP *n, int label){
 void feedforward(MLP *n){
   Layer *current = n->input->output_layer;
   while(current != NULL){
-    calculate_outputs(current);
-    current = current->output_layer;
+    calculate_inputs(current); //Calculate inputs from previous layer
+  	current->squish(current); //Squish current layer's inputs into non-linearity
+    current = current->output_layer; //Advance to the next layer
   }
 }
 
@@ -366,8 +367,55 @@ int bestGuess(MLP *n){
 }
 
 /*
- * IO FUNCTIONS FOR READING AND WRITING TO A FILE
+ * Description: Deallocates a network's memory from the heap
+ * n: the pointer to the MLP to be deallocated.
  */
+void dealloc_network(MLP *n){
+	Layer* current = n->output;
+	while(current != NULL){
+		for(int i = 0; i < current->size; i++){
+			free(current->neurons[i].weights);
+		}
+		free(current->neurons);
+		Layer* temp = current->input_layer;
+		free(current);
+		current = temp;
+	}
+}
+
+/*
+ * Description: Creates a pool of networks of the same size as n.
+ * n: the network which will be used as a template for all other networks in the pool.
+ *
+void seed_pool(MLP *n){
+	for(int i = 0; i < EVOLUTIONARY_POOL_SIZE; i++){
+		pool[i] = initMLP();
+		Layer* current = n->input;
+		while(current != NULL){
+			addLayer(&pool[i], current->size);
+			current = current->output_layer;
+		}
+	}
+}
+
+/*
+ * Description: Uses a genetic algorithm to train a network
+ * n: An array of network objects
+ */
+void evolve(float (*fitness)(void* arg)){
+	for(int i = 0; i < EVOLUTIONARY_POOL_SIZE; i++){
+
+	}
+	//do crossbreed
+	//run forward prop
+	//calculate output gradient
+	//do mutations
+	//somehow return 
+
+}
+ /*
+  * IO FUNCTIONS FOR READING AND WRITING TO A FILE
+  */
 
 static void writeToFile(FILE *fp, char *ptr){
   fprintf(fp, "%s", ptr);
@@ -423,7 +471,7 @@ void saveMLPToFile(MLP *n, char* filename){
      writeToFile(fp, buff);
    }else{
      for(int j = 0; j < current->size; j++){
-       Layer* input_layer = (Layer*)current->input_layer;
+       Layer* input_layer = current->input_layer;
 
        strcat(buff, "neuron ");
        writeToFile(fp, buff);
@@ -481,7 +529,7 @@ MLP loadMLPFromFile(const char *filename){
       }
       getWord(fp, buff);
       size_t number_of_weights = strtol(buff, NULL, 10);
-      Layer *input_layer = (Layer*)n.output->input_layer;
+      Layer *input_layer = n.output->input_layer;
       for(int k = 0; k < number_of_weights; k++){
         getWord(fp, buff);
         float weight = strtod(buff, NULL);
@@ -501,7 +549,7 @@ MLP loadMLPFromFile(const char *filename){
  * Functions for debugging
  */
 void printWeights(Layer *layer){
-  Layer *previousLayer = (Layer*)layer->input_layer;
+  Layer *previousLayer = layer->input_layer;
 	for(int i = 0; i < layer->size; i++){
 		printf("Neuron %d: ", i);
 	}
