@@ -15,6 +15,8 @@ typedef MLP RNN;
 RNN rnn_from_arr(size_t arr[], size_t size);
 RNN loadRNNFromFile(const char *filename);
 
+size_t recurrent_input_offset(Layer *layer);
+
 void setOneHotInput(RNN *n, float* arr);
 void feedforward_recurrent(RNN *n);
 void saveRNNToFile(RNN *n, char* filename);
