@@ -9,8 +9,10 @@
  * SRN (Simple Recurrent Network), since the network only has access 
  * to the previous timestep's state, and thus only needs to do one 
  * feedforward and one backprop operation per timestep - most descriptions 
- * of RNN's seem to mention multiple feedforward/backprops per timestep. 
- * It is possible this implementation is more similar to an Elman network 
+ * of RNN's seem to mention multiple feedforward/backprops per timestep.
+ * However, this could be due to the fact that I don't do training in batches,
+ * and instead do everything online.
+ * Nevertheless, it is possible this implementation is more similar to an Elman network 
  * than a true RNN. If anyone can clarify or offer insight, I would be very grateful.
  * 
  * Some confusion may arise from the fact that many of the functions used in this 
@@ -60,7 +62,7 @@ RNN rnn_from_arr(size_t arr[], size_t size){
  * Description: Calculates the offset at which the hidden state of the next layer starts. 
  * layer: A pointer to the layer for which the recurrent input offset will be calculated.
  */
-static size_t recurrent_input_offset(Layer* layer){
+size_t recurrent_input_offset(Layer* layer){
   Layer* current = layer;
 	if(current->output_layer == NULL) return layer->size;
 	while(current->output_layer->output_layer != NULL) current = current->output_layer;
@@ -146,11 +148,43 @@ static void calculate_outputs_recurrent(Layer* layer){
  * NOTE: setInputs should be used before calling feedforward_recurrent().
  */
 void feedforward_recurrent(RNN *n){
-	Layer* current = n->input->output_layer;
+	//start at input layer
+	//Get inputs in output layer, assign them to recurrent neurons
+	//Move neuron pointer to recurrent offset, change size to match
+	//Squish recurrent portion of layer using output layer squish fp
+	//Move neuron pointer back, change size to recurrent offset
+	//Call calculate_inputs() if not input layer
+	//squish regular neurons if not input layer
+	//set size back to full size
+	//In a nutshell: squish recurrent portion of layer, then normal portion of layer
+	Layer *current = n->input;
 	while(current != NULL){
-		size_t offset = recurrent_input_offset(current);	
-		set_recurrent_inputs(current);
-		calculate_outputs_recurrent(current);
+		Layer *output_layer = current->output_layer;
+		size_t r_offset = recurrent_input_offset(current);
+		size_t tmp = current->size;
+
+		if(output_layer){
+			//get recurrent neuron vals for this layer
+			for(int i = r_offset; i < current->size; i++){
+				current->neurons[i].input = output_layer->neurons[i-r_offset].input;
+			}
+			//squish recurrent neuron vals for this layer
+			Neuron *tmp_ptr = current->neurons;
+			current->neurons = &current->neurons[r_offset];
+			current->size = tmp - r_offset;
+			output_layer->squish(current);
+
+			//restore old neuron state
+			current->neurons = tmp_ptr;
+			current->size = tmp;
+		}
+		//calculate non-recurrent activations
+		current->size = r_offset;
+		if(current != n->input){
+			calculate_inputs(current);
+			current->squish(current);
+		}
+		current->size = tmp;
 		current = current->output_layer;
 	}
 }
