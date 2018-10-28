@@ -50,7 +50,7 @@ int main(void){
 	srand(time(NULL));
 	setbuf(stdout, NULL);
 
-	char* filename = "../saves/rnn_sonnets_600x900x500.rnn"; //This is the network file that will be loaded, and the one that will be saved to.
+	char* filename = "../saves/rnn_sonnets_600x900x500_hypertan.rnn"; //This is the network file that will be loaded, and the one that will be saved to.
 
 	printf("Press ENTER to load %s (may take a while to load)\n", filename);
 	RNN n;
@@ -60,6 +60,14 @@ int main(void){
 	}else{
 		printf("loading network from %s...\n", filename);
 		n = loadRNNFromFile(filename);
+	}
+	Layer *current = n.input;
+	while(current != NULL){
+		if(current != n.input && current != n.output)
+				current->dropout = 0.2;
+//			current->squish = hypertan;
+
+		current = current->output_layer;	
 	}
 	
 	n.plasticity = 0.015; //I've found that the larger the network, the lower the initial learning rate should be.	
