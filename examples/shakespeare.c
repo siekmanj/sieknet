@@ -14,6 +14,8 @@
 
 char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!-()[]'\"\n ";
 
+char *modelfile = "../saves/rnn_shakespeare_2x800.rnn";
+char *datafile = "../shakespeare/complete_works.txt";
 
 /*
  * Description: This is a function that uses an input character to create a one-hot input vector.
@@ -50,26 +52,28 @@ int main(void){
 	srand(time(NULL));
 	setbuf(stdout, NULL);
 
-	char* filename = "../saves/rnn_sonnets_3x350.rnn"; //This is the network file that will be loaded, and the one that will be saved to.
-
-	printf("Press ENTER to load %s (may take a while to load)\n", filename);
+	printf("Press ENTER to load %s (may take a while to load)\n", modelfile);
 	RNN n;
 	if(getchar() == 'n'){
 		printf("creating network...\n");
-		n = createRNN(strlen(alphabet), 600, 900, 500, strlen(alphabet));//loadRNNFromFile(filename);
+		n = createRNN(strlen(alphabet), 800, 800, strlen(alphabet));//loadRNNFromFile(modelfile);
 	}else{
-		printf("loading network from %s...\n", filename);
-		n = loadRNNFromFile(filename);
+		printf("loading network from %s...\n", modelfile);
+		n = loadRNNFromFile(modelfile);
 	}
 	
 	n.plasticity = 0.006; //I've found that the larger the network, the lower the initial learning rate should be.	
 
 	int count = 0;
 	int epochs = 1000;
-	float previousepochavgcost = 1.90; 
+	float previousepochavgcost = 100; 
 
 	for(int i = 0; i < epochs; i++){ //Run for a large number of epochs
-		FILE *fp = fopen("../shakespeare/sonnets.txt", "rb"); //This is the dataset
+		FILE *fp = fopen(datafile, "rb"); //This is the dataset
+		if(!fp){
+			printf("%s COULD NOT BE OPENED!\n", datafile);
+			exit(1);
+		}
 	
 		char input_character = ' '; //Start the network off with a character
 		char label = label_from_char(fgetc(fp), alphabet); //Get the first letter from the dataset as a label
@@ -78,7 +82,7 @@ int main(void){
 		float lastavgcost = 10000000;
 		float epochcost = 0;
 		float epochcount = 0;
-
+		printf("avgcost: %5.3f, epoch %d, completion %2.2f%%, current line:", cost/count, i, 100*(float)count/5338134.0);
 		do {
 			float input_one_hot[strlen(alphabet)];
 			make_one_hot(input_character, alphabet, input_one_hot);	
@@ -88,20 +92,23 @@ int main(void){
 
 			cost += cost_local;
 
-			if(alphabet[bestGuess(&n)] == alphabet[label]) printf("%c", alphabet[label]);
-			else if(alphabet[label] == '\n') printf("\n");
+			if(alphabet[label] == '\n'){
+				printf("\r                                                                                                                                     ");
+				printf("\ravgcost: %5.3f, epoch %d, completion %2.2f%%, current line:", cost/count, i, 100*(float)count/5338134.0);
+			}
+			else if(alphabet[bestGuess(&n)] == alphabet[label]) printf("%c", alphabet[label]);
 			else printf("_");
 			input_character = alphabet[label];
 			count++;
 		
 			label = label_from_char(fgetc(fp), alphabet);
-
+/*
 			if(count % 1000 == 0){
 				epochcount += count;
 				epochcost += cost;
 			
 				//Debug stuff
-				printf("\n\n****\nlatest cost: %f vs previous cost: %f vs epoch avg cost:%f, epoch %5.2f%% completed.\n", cost/count, lastavgcost, epochcost/epochcount, 100 * (float)epochcount/102892.0);
+				printf("\n\n****\nlatest cost: %f vs previous cost: %f vs epoch avg cost:%f, epoch %5.2f%% completed.\n", cost/count, lastavgcost, epochcost/epochcount, 100 * (float)epochcount/5338134.0);
 				Neuron *output_neuron = &n.output->neurons[bestGuess(&n)];
 				printf("output neuron (%d) has gradient %f, dActivation %f, output %f, \'%c\'\n*****\n", bestGuess(&n), output_neuron->gradient, output_neuron->dActivation, output_neuron->activation, alphabet[bestGuess(&n)]);
 
@@ -111,6 +118,7 @@ int main(void){
 				cost = 0;
 				count = 0;
 			}
+*/
 		}
 	
 		while(label != EOF);
@@ -123,14 +131,14 @@ int main(void){
 			printf("performance this epoch was worse than the one before. Plasticity next epoch will be %f.\n", n.plasticity * 0.999);
 			n.plasticity *= 0.999;
 		}else{
-		  saveRNNToFile(&n, filename); 
-    }
+		  saveRNNToFile(&n, modelfile); 
+		}
 		previousepochavgcost = epochcost/epochcount;
 
 		//Get a sample sonnet by feeding the network its own output, starting with a random letter.
 		char input = alphabet[rand()%(strlen(alphabet)-1)];
 		printf("Sample from input '%c':\n", input);
-		for(int i = 0; i < 2000; i++){
+		for(int i = 0; i < 1000; i++){
 			float input_vector[strlen(alphabet)];		
 			make_one_hot(input, alphabet, input_vector);
 			
