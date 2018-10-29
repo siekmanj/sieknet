@@ -28,9 +28,10 @@ int data[] = {
 int main(void){
 	srand(time(NULL));
 	RNN n = createRNN(10, 15, 15, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
-	n.plasticity = 0.05;
+	n.plasticity = 0.005;
 
 	float cost = 0;
+	float cost_threshold = 0.5;
 	int count = 0;
 
 	//This is an experimental activation function I am testing.	
@@ -45,6 +46,7 @@ int main(void){
 		size_t len = sizeof(data)/sizeof(data[0]);
 
 		for(int i = 0; i < len; i++){ //Run through the entirety of the training data.
+			printf("\r");
 
 			//Make a one-hot vector and use it to set the activations of the input layer
 			float one_hot[10];
@@ -58,11 +60,11 @@ int main(void){
 
 			count++;	
 		
-//			printf("label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", label, data[i], bestGuess(&n), c, cost/count, bestGuess(&n) == label);
+			printf("label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d", label, data[i], bestGuess(&n), c, cost/count, bestGuess(&n) == label);
 		}
 
-	  if(cost/count < 1.0){
-			printf("Cost threshold 1.0 reached in %d iterations\n", count);
+	  if(cost/count < cost_threshold){
+			printf("\nCost threshold %1.2f reached in %d iterations\n", cost_threshold, count);
 			exit(0);
 		}
 <<<<<<< HEAD
