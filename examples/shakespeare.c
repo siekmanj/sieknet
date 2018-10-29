@@ -50,7 +50,7 @@ int main(void){
 	srand(time(NULL));
 	setbuf(stdout, NULL);
 
-	char* filename = "../saves/rnn_sonnets_600x900x500.rnn"; //This is the network file that will be loaded, and the one that will be saved to.
+	char* filename = "../saves/rnn_sonnets_600x900x500_FR.rnn"; //This is the network file that will be loaded, and the one that will be saved to.
 
 	printf("Press ENTER to load %s (may take a while to load)\n", filename);
 	RNN n;
@@ -62,11 +62,21 @@ int main(void){
 		n = loadRNNFromFile(filename);
 	}
 	
-	n.plasticity = 0.015; //I've found that the larger the network, the lower the initial learning rate should be.	
+	
+	Layer *current = n.input;
+	while(current != NULL){
+    if(!(current == n.input || current == n.output)){
+//      current->squish = hypertan; //assigns this layer's squish function pointer to the tanh activation function
+//			current->dropout = 0.3;
+    }
+		current = current->output_layer;
+  }
+	
+	n.plasticity = 0.05; //I've found that the larger the network, the lower the initial learning rate should be.	
 
 	int count = 0;
 	int epochs = 1000;
-	float previousepochavgcost = 2.013922; 
+	float previousepochavgcost = 100; 
 
 	for(int i = 0; i < epochs; i++){ //Run for a large number of epochs
 		FILE *fp = fopen("../shakespeare/sonnets.txt", "rb"); //This is the dataset
@@ -120,8 +130,8 @@ int main(void){
 
 		//If the network did worse this epoch than the last, don't save the state and lower the learning rate.
 		if(previousepochavgcost < epochcost/epochcount){
-			printf("performance this epoch was worse than the one before. Plasticity next epoch will be %f.\n", n.plasticity * 1.0);
-			n.plasticity *= 1.0;
+			printf("performance this epoch was worse than the one before. Plasticity next epoch will be %f.\n", n.plasticity * 0.97);
+			n.plasticity *= .97;
 		}else{
 		  saveRNNToFile(&n, filename); 
     }
@@ -141,6 +151,5 @@ int main(void){
 			input = alphabet[bestGuess(&n)];
 			printf("%c", input);
 		}
-		if(i % 30 == 0 && i != 0) getchar(); //wait for user input to continue after 30 epochs
 	}
 }
