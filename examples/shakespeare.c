@@ -12,7 +12,7 @@
  * At some point I will be writing a GPU kernel in CUDA or OpenCL so that this training can be done more quickly. 
  */
 
-char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!-()[]<>/'\"\n ";
+char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!-()[]<>/'\"\n_ ";
 
 char *modelfile = "../saves/rnn_shakespeare_2x800.rnn";
 char *datafile = "../shakespeare/complete_works.txt";
@@ -68,7 +68,7 @@ int main(void){
 	Layer *current = n.input;
 	while(current != NULL){
     if(!(current == n.input || current == n.output)){
-      current->squish = hypertan; //assigns this layer's squish function pointer to the tanh activation function
+//      current->squish = hypertan; //assigns this layer's squish function pointer to the tanh activation function
 //			current->dropout = 0.3;
     }
 		current = current->output_layer;
