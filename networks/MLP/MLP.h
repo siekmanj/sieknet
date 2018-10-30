@@ -24,8 +24,8 @@ typedef struct Neuron{
 } Neuron;
 
 typedef struct Layer{
-  Neuron *neurons;
-  struct Layer *input_layer;
+	Neuron *neurons;
+	struct Layer *input_layer;
 	struct Layer *output_layer;
 	void (*squish)(struct Layer*);
 	float dropout;
