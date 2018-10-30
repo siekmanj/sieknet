@@ -12,10 +12,11 @@
  * At some point I will be writing a GPU kernel in CUDA or OpenCL so that this training can be done more quickly. 
  */
 
-char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!-()[]'\"\n ";
+char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!-()[]<>/'\"_\n ";
 
-char *modelfile = "../saves/rnn_shakespeare_2x800.rnn";
+char *modelfile = "../saves/rnn_shakespeare_3x350.rnn";
 char *datafile = "../shakespeare/complete_works.txt";
+size_t datafilelen = 5447092;
 
 /*
  * Description: This is a function that uses an input character to create a one-hot input vector.
@@ -44,7 +45,8 @@ int label_from_char(char inpt, const char *alphabet){
 	for(int i = 0; i < strlen(alphabet); i++){
 		if(alphabet[i] == inpt) return i;
 	}
-	return EOF;
+	if(inpt == EOF) return EOF;
+	return strlen(alphabet)-1;
 }
 
 
@@ -56,7 +58,7 @@ int main(void){
 	RNN n;
 	if(getchar() == 'n'){
 		printf("creating network...\n");
-		n = createRNN(strlen(alphabet), 800, 800, strlen(alphabet));//loadRNNFromFile(modelfile);
+		n = createRNN(strlen(alphabet), 350, 350, 350, strlen(alphabet));//loadRNNFromFile(modelfile);
 	}else{
 		printf("loading network from %s...\n", modelfile);
 		n = loadRNNFromFile(modelfile);
@@ -70,9 +72,17 @@ int main(void){
 		current = current->output_layer;	
 	}
 	
-	n.plasticity = 0.015; //I've found that the larger the network, the lower the initial learning rate should be.	
+	
+	Layer *current = n.input;
+	while(current != NULL){
+		if(!(current == n.input || current == n.output)){
+//			current->squish = hypertan; //assigns this layer's squish function pointer to the tanh activation function
+		}
+		current = current->output_layer;
+	}
+	
+	n.plasticity = 0.0005; //I've found that the larger the network, the lower the initial learning rate should be.	
 
-	int count = 0;
 	int epochs = 1000;
 	float previousepochavgcost = 100; 
 
@@ -87,10 +97,11 @@ int main(void){
 		char label = label_from_char(fgetc(fp), alphabet); //Get the first letter from the dataset as a label
 
 		float cost = 0;
+		float linecost = 0;
+		float linecount = 1;
+		int count = 0;
 		float lastavgcost = 10000000;
-		float epochcost = 0;
-		float epochcount = 0;
-		printf("avgcost: %5.3f, epoch %d, completion %2.2f%%, current line:", cost/count, i, 100*(float)count/5338134.0);
+		printf("avgcost: %5.3f, epoch %d, completion %2.2f%%, current line:", cost/count, i, 100*(float)count/datafilelen);
 		do {
 			float input_one_hot[strlen(alphabet)];
 			make_one_hot(input_character, alphabet, input_one_hot);	
@@ -99,18 +110,21 @@ int main(void){
 			float cost_local = step(&n, label);
 
 			cost += cost_local;
-
+			linecost += cost_local;
 			if(alphabet[label] == '\n'){
+				linecost /= linecount;
+				linecount = 0;
 				printf("\r                                                                                                                                     ");
-				printf("\ravgcost: %5.3f, epoch %d, completion %2.2f%%, current line:", cost/count, i, 100*(float)count/5338134.0);
+				printf("\ravgcost: %5.3f, linecost: %5.3f, epoch %d, completion %2.2f%%, current line:", cost/count, linecost, i, 100*(float)count/datafilelen);
+				linecost = 0;
 			}
 			else if(alphabet[bestGuess(&n)] == alphabet[label]) printf("%c", alphabet[label]);
 			else printf("_");
 			input_character = alphabet[label];
 			count++;
-		
+			linecount++;
 			label = label_from_char(fgetc(fp), alphabet);
-/*
+/*	
 			if(count % 1000 == 0){
 				epochcount += count;
 				epochcost += cost;
@@ -131,17 +145,15 @@ int main(void){
 	
 		while(label != EOF);
 		fclose(fp);
-
-		printf("\n\n***********\nepoch %d concluded, avgcost: %f (vs previous %f).\n************\n\n", i, epochcost/epochcount, previousepochavgcost);
-
+		printf("Epoch completed, cost was %f vs previous cost of %f\n", cost/count, lastavgcost);
 		//If the network did worse this epoch than the last, don't save the state and lower the learning rate.
-		if(previousepochavgcost < epochcost/epochcount){
-			printf("performance this epoch was worse than the one before. Plasticity next epoch will be %f.\n", n.plasticity * 1.0);
-			n.plasticity *= 1.0;
+		if(lastavgcost < cost/count){
+			printf("performance this epoch was worse than the one before. Plasticity next epoch will be %f.\n", n.plasticity * 0.97);
+			n.plasticity *= .97;
 		}else{
 		  saveRNNToFile(&n, modelfile); 
 		}
-		previousepochavgcost = epochcost/epochcount;
+		lastavgcost = cost/count;
 
 		//Get a sample sonnet by feeding the network its own output, starting with a random letter.
 		char input = alphabet[rand()%(strlen(alphabet)-1)];
