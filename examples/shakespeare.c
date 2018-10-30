@@ -12,7 +12,7 @@
  * At some point I will be writing a GPU kernel in CUDA or OpenCL so that this training can be done more quickly. 
  */
 
-char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!-()[]<>/'\"_\n| ";
+char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!-()[]<>/'\"_\n ";
 
 char *modelfile = "../saves/rnn_shakespeare_3x350.rnn";
 char *datafile = "../shakespeare/complete_works.txt";
@@ -45,8 +45,8 @@ int label_from_char(char inpt, const char *alphabet){
 	for(int i = 0; i < strlen(alphabet); i++){
 		if(alphabet[i] == inpt) return i;
 	}
-	printf("Warning %c (%d) not in alphabet!\n", inpt, inpt);
-	return EOF;
+	if(inpt == EOF) return EOF;
+	return strlen(alphabet)-1;
 }
 
 
@@ -89,6 +89,8 @@ int main(void){
 		char label = label_from_char(fgetc(fp), alphabet); //Get the first letter from the dataset as a label
 
 		float cost = 0;
+		float linecost = 0;
+		float linecount = 1;
 		int count = 0;
 		float lastavgcost = 10000000;
 		printf("avgcost: %5.3f, epoch %d, completion %2.2f%%, current line:", cost/count, i, 100*(float)count/datafilelen);
@@ -100,18 +102,21 @@ int main(void){
 			float cost_local = step(&n, label);
 
 			cost += cost_local;
-
+			linecost += cost_local;
 			if(alphabet[label] == '\n'){
+				linecost /= linecount;
+				linecount = 0;
 				printf("\r                                                                                                                                     ");
-				printf("\ravgcost: %5.3f, epoch %d, completion %2.2f%%, current line:", cost/count, i, 100*(float)count/datafilelen);
+				printf("\ravgcost: %5.3f, linecost: %5.3f, epoch %d, completion %2.2f%%, current line:", cost/count, linecost, i, 100*(float)count/datafilelen);
+				linecost = 0;
 			}
 			else if(alphabet[bestGuess(&n)] == alphabet[label]) printf("%c", alphabet[label]);
 			else printf("_");
 			input_character = alphabet[label];
 			count++;
-		
+			linecount++;
 			label = label_from_char(fgetc(fp), alphabet);
-/*
+/*	
 			if(count % 1000 == 0){
 				epochcount += count;
 				epochcost += cost;
