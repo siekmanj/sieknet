@@ -63,15 +63,6 @@ int main(void){
 		printf("loading network from %s...\n", modelfile);
 		n = loadRNNFromFile(modelfile);
 	}
-	Layer *current = n.input;
-	while(current != NULL){
-		if(current != n.input && current != n.output)
-				current->dropout = 0.2;
-//			current->squish = hypertan;
-
-		current = current->output_layer;	
-	}
-	
 	
 	Layer *current = n.input;
 	while(current != NULL){
@@ -81,7 +72,7 @@ int main(void){
 		current = current->output_layer;
 	}
 	
-	n.plasticity = 0.0005; //I've found that the larger the network, the lower the initial learning rate should be.	
+	n.plasticity = 0.04; //I've found that the larger the network, the lower the initial learning rate should be.	
 
 	int epochs = 1000;
 	float previousepochavgcost = 100; 
