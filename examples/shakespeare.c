@@ -67,17 +67,17 @@ int main(void){
 	
 	Layer *current = n.input;
 	while(current != NULL){
-		if(!(current == n.input || current == n.output)){
-//			current->squish = hypertan; //assigns this layer's squish function pointer to the tanh activation function
-		}
+    if(!(current == n.input || current == n.output)){
+//      current->squish = hypertan; //assigns this layer's squish function pointer to the tanh activation function
+//			current->dropout = 0.3;
+    }
 		current = current->output_layer;
 	}
 	
-	n.plasticity = 0.01; //I've found that the larger the network, the lower the initial learning rate should be.	
+	n.plasticity = 0.05; //I've found that the larger the network, the lower the initial learning rate should be.	
 
 	int epochs = 1000;
-	float previousepochavgcost = 100; 
-
+  	float previousepochavgcost = 4.5;
 	for(int i = 0; i < epochs; i++){ //Run for a large number of epochs
 		FILE *fp = fopen(datafile, "rb"); //This is the dataset
 		if(!fp){
@@ -91,29 +91,23 @@ int main(void){
 		float cost = 0;
 		float linecost = 0;
 		size_t linecount = 1;
-		float epochcost = 0;
-		size_t epochcount = 1;
 		int count = 0;
-		//printf("avgcost: %5.3f, epoch %d, completion %2.2f%%, current line:", cost/count, i, 100*(float)count/datafilelen);
+		float lastavgcost = previousepochavgcost;
+		size_t epochcount = 1;
+		float epochcost = 0;
 		do {
+			//The below is all the code needed for training - the rest is just debug.
+			/****************************************************/
 			float input_one_hot[strlen(alphabet)];
 			make_one_hot(input_character, alphabet, input_one_hot);	
 			setOneHotInput(&n, input_one_hot);
 			
 			float cost_local = step(&n, label);
+			/****************************************************/
 
 			cost += cost_local;
 			linecost += cost_local;
-			if(alphabet[label] == '\n'){
-				/*
-				linecost /= linecount;
-				linecount = 0;
-				printf("\r                                                                                                                                     ");
-				printf("\ravgcost: %5.3f, linecost: %5.3f, epoch %d, completion %2.2f%%, current line:", cost/count, linecost, i, 100*(float)count/datafilelen);
-				linecost = 0;
-				*/
-				printf("\n");
-			}
+			if(alphabet[label] == '\n') printf("\n");
 			else if(alphabet[bestGuess(&n)] == alphabet[label]) printf("%c", alphabet[label]);
 			else printf("_");
 			input_character = alphabet[label];
@@ -125,7 +119,12 @@ int main(void){
 				epochcost += cost;
 			
 				//Debug stuff
-				printf("\n\n****\nlatest cost: %f vs epoch (%d) avg cost:%f, epoch %5.2f%% completed.\n", cost/count, i, epochcost/epochcount, 100 * (float)epochcount/5338134.0);
+				printf("\n\n****\nlatest cost: %f vs epoch avg cost:%f, epoch %5.2f%% completed.\n", cost/count, epochcost/epochcount, 100 * (float)epochcount/datafilelen);
+
+				float percentchange = 100 * ((lastavgcost / (cost/count)) - 1);
+				float percentchange_epoch = 100 * ((previousepochavgcost / (epochcost/epochcount)) - 1);
+				printf("%5.2f%% improvement over last 1000 chars, %5.3f%% since last epoch.\n", percentchange, percentchange_epoch);
+
 				Neuron *output_neuron = &n.output->neurons[bestGuess(&n)];
 				printf("output neuron (%d) has gradient %f, dActivation %f, output %f, \'%c\'\n*****\n", bestGuess(&n), output_neuron->gradient, output_neuron->dActivation, output_neuron->activation, alphabet[bestGuess(&n)]);
 
@@ -137,14 +136,8 @@ int main(void){
 	
 		while(label != EOF);
 		fclose(fp);
-		printf("Epoch completed, cost was %f vs previous cost of %f\n", cost/count, previousepochavgcost);
-		//If the network did worse this epoch than the last, don't save the state and lower the learning rate.
-		if(previousepochavgcost < cost/count){
-			printf("performance this epoch was worse than the one before. Plasticity next epoch will be %f.\n", n.plasticity * 0.97);
-			n.plasticity *= .97;
-		}else{
-		  saveRNNToFile(&n, modelfile); 
-		}
+		printf("Epoch completed, cost was %f vs previous cost of %f\n", cost/count, lastavgcost);
+		saveRNNToFile(&n, modelfile); 
 		previousepochavgcost = epochcost/epochcount;
 
 		//Get a sample sonnet by feeding the network its own output, starting with a random letter.
