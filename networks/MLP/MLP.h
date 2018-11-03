@@ -49,6 +49,8 @@ void addLayer(MLP *n, size_t size);
 void setInputs(MLP *n, float* arr);
 void calculate_inputs(Layer*);
 void feedforward(MLP *n);
+void gradients_wrt_outputs(Layer *);
+
 void saveMLPToFile(MLP *n, char* filename);
 
 float descend(MLP *n, int label);

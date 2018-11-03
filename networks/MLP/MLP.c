@@ -9,11 +9,6 @@
 #include <math.h>
 #include <string.h>
 
-#if EVOLUTIONARY_POOL_SIZE > 0
-	static MLP pool[EVOLUTIONARY_POOL_SIZE];
-	static int IS_POOL_INITIALIZED = 0;
-#endif
-
 /*
  * Description: Calculates the activation of a given neuron using sigmoid, and
  *              sets the partial derivative of the cost with respect to the activation.
@@ -207,6 +202,60 @@ static float cost(Layer *output_layer, int label){
   return sum;
 }
 
+static void propagate_gradients(Layer *output_layer){
+	Layer *current = output_layer;
+	while(current->input_layer != NULL){
+		Layer* input_layer = current->input_layer;
+
+		for(int i = 0; i < input_layer->size; i++){
+			float sum = 0;
+			for(int j = 0; j < current->size; j++){
+				float Wij = current->neurons[j].weights[i];
+				float dActivation = current->neurons[j].dActivation;
+				float gradient = current->neurons[j].gradient;
+				sum += Wij * dActivation * gradient;
+			}
+			input_layer->neurons[i].gradient = sum;
+		}
+		current = input_layer;
+	}
+}
+
+/* Description: Calculates the gradients of the output layer with respect to the activation of each neuron.
+ *              This function is intended to be used when learning via genetic algorithm.
+ * output_layer: the last layer in the network.
+ */
+void gradients_wrt_outputs(Layer *output_layer){
+	for(int i = 0; i < output_layer->size; i++){
+		output_layer->neurons[i].gradient = output_layer->neurons[i].dActivation;
+	}
+	propagate_gradients(output_layer);
+/*
+	Layer *current = output_layer;
+	while(current->input_layer != NULL){
+		Layer* input_layer = current->input_layer;
+		if(current == output_layer){
+			//The gradients for the output layer of the network are just derivates of softmax activation
+			for(int i = 0; i < output_layer->size; i++){
+				output_layer->neurons[i].gradient = output_layer->neurons[i].dActivation;
+			}
+		}
+		for(int i = 0; i < input_layer->size; i++){
+			float sum = 0;
+			for(int j = 0; j < current->size; j++){
+				float Wij = current->neurons[j].weights[i];
+				float dActivation = current->neurons[j].dActivation;
+				float gradient = current->neurons[j].gradient;
+				sum += Wij * dActivation * gradient;
+			}
+			input_layer->neurons[i].gradient = sum;
+		}
+		current = input_layer;
+	}
+*/
+}
+
+
 /* 
  * Description: Performs backpropagation algorithm on the network.
  * output_layer: The last layer in the network.
@@ -215,11 +264,12 @@ static float cost(Layer *output_layer, int label){
  */
 float backpropagate(Layer *output_layer, int label, float plasticity){
   float c = cost(output_layer, label); //Calculate cost & set activation gradients in output layer
-
+	propagate_gradients(output_layer);
   Layer *current = output_layer;
   while(current->input_layer != NULL){
     Layer* input_layer = current->input_layer;
-    for(int i = 0; i < input_layer->size; i++){
+    /*
+		for(int i = 0; i < input_layer->size; i++){
       //Calculate activation gradients in input layer BEFORE doing nudges to weights and biases in the current layer
       float sum = 0;
       for(int j = 0; j < current->size; j++){
@@ -232,8 +282,9 @@ float backpropagate(Layer *output_layer, int label, float plasticity){
           while(1);
         }
       }
-      input_layer->neurons[i].gradient = sum*plasticity;
+      input_layer->neurons[i].gradient = sum;
     }
+		*/
     for(int i = 0; i < current->size; i++){
       Neuron *currentNeuron = &current->neurons[i];
       float dSig = currentNeuron->dActivation;
@@ -242,7 +293,6 @@ float backpropagate(Layer *output_layer, int label, float plasticity){
       //Calculate weight nudges
       for(int j = 0; j < input_layer->size; j++){
         float a = input_layer->neurons[j].activation;
-        float in = input_layer->neurons[j].input;
         currentNeuron->weights[j] += a*dSig*gradient*plasticity;
       }
       //Calculate bias nudge
@@ -337,6 +387,33 @@ float descend(MLP *n, int label){
   return backpropagate(n->output, label, n->plasticity);
 }
 
+/* Description: Calculates gradients with respect to cost, then uses those gradients
+ *              to decide how much to randomly change a parameter by. This was described
+ *              in a 2017 Uber paper and this is my implementation of it.
+ * n: The pointer to the network.
+ * mutation_rate: The proportion of neurons which will mutate
+ */
+void mutate(Layer *output_layer, float mutation_rate){
+	gradients_wrt_outputs(output_layer); //Calculate gradients with respect to outputs of output layer for every neuron in network.
+	Layer *current = output_layer;
+	while(current->input_layer != NULL){
+		Layer *input_layer = current->input_layer;
+		for(int i = 0; i < current->size; i++){
+			Neuron *neuron = &current->neurons[i];
+			float dActivation = neuron->dActivation;
+
+			for(int j = 0; j < input_layer->size; j++){
+				int random_mutation = mutation_rate > (rand()%1000)/1000.0;
+				float gradient = input_layer->neurons[j].gradient;
+
+				neuron->weights[j] += random_mutation * gradient;
+			}
+			int random_mutation = mutation_rate > (rand()%1000)/1000.0;
+			neuron->bias += random_mutation ;
+		}
+	}
+}
+
 /*
  * Description: Performs the feed-forward operation on the network.
  * NOTE: setInputs should be used before calling feedforward.
@@ -397,6 +474,7 @@ void seed_pool(MLP *n){
 		}
 	}
 }
+*/
 
 /*
  * Description: Uses a genetic algorithm to train a network
