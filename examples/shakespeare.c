@@ -17,10 +17,11 @@
 char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!-()[]<>/'\"_\n ";
 
 #if DROPOUT
-char *modelfile = "../saves/rnn_shakespeare_3x550_DROPOUT.rnn";
+char *modelfile = "../saves/rnn_shakespeare_3x600_DROPOUT.rnn";
 #else
-char *modelfile = "../saves/rnn_shakespeare_3x550.rnn";
+char *modelfile = "../saves/rnn_shakespeare_3x600.rnn";
 #endif
+
 char *datafile = "../shakespeare/complete_works.txt";
 size_t datafilelen = 5447092;
 
@@ -64,7 +65,7 @@ int main(void){
 	RNN n;
 	if(getchar() == 'n'){
 		printf("creating network...\n");
-		n = createRNN(strlen(alphabet), 550, 550, 550, strlen(alphabet));//loadRNNFromFile(modelfile);
+		n = createRNN(strlen(alphabet), 600, 600, 600, strlen(alphabet));//loadRNNFromFile(modelfile);
 	}else{
 		printf("loading network from %s...\n", modelfile);
 		n = loadRNNFromFile(modelfile);
@@ -85,7 +86,7 @@ int main(void){
 	n.plasticity = 0.05; //I've found that the larger the network, the lower the initial learning rate should be.	
 
 	int epochs = 1000;
-  float previousepochavgcost = 3.0;
+  float previousepochavgcost = 4.5;
 	for(int i = 0; i < epochs; i++){ //Run for a large number of epochs
 		FILE *fp = fopen(datafile, "rb"); //This is the dataset
 		if(!fp){
@@ -98,7 +99,7 @@ int main(void){
 
 		float cost = 0;
 		float linecost = 0;
-		float linecount = 1;
+		size_t linecount = 1;
 		int count = 0;
 		float lastavgcost = previousepochavgcost;
 		size_t epochcount = 1;
@@ -122,7 +123,6 @@ int main(void){
 			count++;
 			linecount++;
 			label = label_from_char(fgetc(fp), alphabet);
-	
 			if(count % 1000 == 0){
 				epochcount += count;
 				epochcost += cost;
@@ -143,13 +143,10 @@ int main(void){
 				Neuron *output_neuron = &n.output->neurons[bestGuess(&n)];
 				printf("output neuron (%d) has gradient %f, dActivation %f, output %f, \'%c\'\n*****\n", bestGuess(&n), output_neuron->gradient, output_neuron->dActivation, output_neuron->activation, alphabet[bestGuess(&n)]);
 
-				lastavgcost = cost/count;
-		
 				//Reset short-term cost statistic
 				cost = 0;
 				count = 0;
 			}
-
 		}
 	
 		while(label != EOF);
