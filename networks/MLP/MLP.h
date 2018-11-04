@@ -44,12 +44,15 @@ typedef struct MLP{
 
 MLP mlp_from_arr(size_t arr[], size_t size);
 MLP loadMLPFromFile(const char *filename);
+MLP initMLP();
 
-void addLayer(MLP *n, size_t size);
-void setInputs(MLP *n, float* arr);
+void addLayer(MLP *, size_t);
+void setInputs(MLP *, float*);
 void calculate_inputs(Layer*);
-void feedforward(MLP *n);
+void feedforward(MLP *);
+
 void gradients_wrt_outputs(Layer *);
+void mutate(Layer *, float, float);
 
 void saveMLPToFile(MLP *n, char* filename);
 
