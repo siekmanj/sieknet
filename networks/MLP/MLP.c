@@ -230,29 +230,6 @@ void gradients_wrt_outputs(Layer *output_layer){
 		output_layer->neurons[i].gradient = output_layer->neurons[i].dActivation;
 	}
 	propagate_gradients(output_layer);
-/*
-	Layer *current = output_layer;
-	while(current->input_layer != NULL){
-		Layer* input_layer = current->input_layer;
-		if(current == output_layer){
-			//The gradients for the output layer of the network are just derivates of softmax activation
-			for(int i = 0; i < output_layer->size; i++){
-				output_layer->neurons[i].gradient = output_layer->neurons[i].dActivation;
-			}
-		}
-		for(int i = 0; i < input_layer->size; i++){
-			float sum = 0;
-			for(int j = 0; j < current->size; j++){
-				float Wij = current->neurons[j].weights[i];
-				float dActivation = current->neurons[j].dActivation;
-				float gradient = current->neurons[j].gradient;
-				sum += Wij * dActivation * gradient;
-			}
-			input_layer->neurons[i].gradient = sum;
-		}
-		current = input_layer;
-	}
-*/
 }
 
 
@@ -264,39 +241,24 @@ void gradients_wrt_outputs(Layer *output_layer){
  */
 float backpropagate(Layer *output_layer, int label, float plasticity){
   float c = cost(output_layer, label); //Calculate cost & set activation gradients in output layer
-	propagate_gradients(output_layer);
+	propagate_gradients(output_layer); //Calculate gradients for every other neuron in the network
+
   Layer *current = output_layer;
   while(current->input_layer != NULL){
     Layer* input_layer = current->input_layer;
-    /*
-		for(int i = 0; i < input_layer->size; i++){
-      //Calculate activation gradients in input layer BEFORE doing nudges to weights and biases in the current layer
-      float sum = 0;
-      for(int j = 0; j < current->size; j++){
-        float dSig = current->neurons[j].dActivation;
-        float weight = current->neurons[j].weights[i];
-        float gradient = current->neurons[j].gradient;
-        sum += weight*dSig*gradient;
-        if(isnan(sum)){
-          printf("NAN DURING BACKPROP: %f, %f, %f\n", dSig, weight, gradient);
-          while(1);
-        }
-      }
-      input_layer->neurons[i].gradient = sum;
-    }
-		*/
+
     for(int i = 0; i < current->size; i++){
       Neuron *currentNeuron = &current->neurons[i];
-      float dSig = currentNeuron->dActivation;
+      float dActivation = currentNeuron->dActivation;
       float gradient = currentNeuron->gradient;
 
       //Calculate weight nudges
       for(int j = 0; j < input_layer->size; j++){
         float a = input_layer->neurons[j].activation;
-        currentNeuron->weights[j] += a*dSig*gradient*plasticity;
+        currentNeuron->weights[j] += a * dActivation * gradient * plasticity;
       }
       //Calculate bias nudge
-      currentNeuron->bias += dSig*gradient*plasticity;
+      currentNeuron->bias += dActivation * gradient * plasticity;
     }
     current = current->input_layer;
   }
@@ -331,7 +293,7 @@ void calculate_inputs(Layer *layer){
 /* 
  * Description: Initializes an multilayer perceptron object.
  */
-static MLP initMLP(){
+MLP initMLP(){
   MLP n;
 	//n.setInputs = 
   n.input = NULL;
@@ -393,23 +355,30 @@ float descend(MLP *n, int label){
  * n: The pointer to the network.
  * mutation_rate: The proportion of neurons which will mutate
  */
-void mutate(Layer *output_layer, float mutation_rate){
+void mutate(Layer *output_layer, float plasticity, float mutation_rate){
 	gradients_wrt_outputs(output_layer); //Calculate gradients with respect to outputs of output layer for every neuron in network.
+
 	Layer *current = output_layer;
 	while(current->input_layer != NULL){
 		Layer *input_layer = current->input_layer;
+
 		for(int i = 0; i < current->size; i++){
 			Neuron *neuron = &current->neurons[i];
 			float dActivation = neuron->dActivation;
+			float gradient = neuron->gradient;
 
 			for(int j = 0; j < input_layer->size; j++){
-				int random_mutation = mutation_rate > (rand()%1000)/1000.0;
-				float gradient = input_layer->neurons[j].gradient;
+				if(mutation_rate > (rand()%1000)/1000.0){
+					Neuron *input_neuron = &input_layer->neurons[j];
+					float a = input_neuron->activation;
+					float weight_gradient = a * dActivation * gradient;
 
-				neuron->weights[j] += random_mutation * gradient;
+					neuron->weights[j] += weight_gradient * plasticity;
+				}
 			}
-			int random_mutation = mutation_rate > (rand()%1000)/1000.0;
-			neuron->bias += random_mutation ;
+			if(mutation_rate > (rand()%1000)/1000.0){
+				neuron->bias += dActivation * gradient * plasticity;
+			}
 		}
 	}
 }
