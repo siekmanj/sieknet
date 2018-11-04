@@ -227,7 +227,7 @@ static void propagate_gradients(Layer *output_layer){
  */
 void gradients_wrt_outputs(Layer *output_layer){
 	for(int i = 0; i < output_layer->size; i++){
-		output_layer->neurons[i].gradient = output_layer->neurons[i].dActivation;
+		output_layer->neurons[i].gradient = -1 * output_layer->neurons[i].dActivation;
 	}
 	propagate_gradients(output_layer);
 }
@@ -357,13 +357,13 @@ float descend(MLP *n, int label){
  */
 void mutate(Layer *output_layer, float plasticity, float mutation_rate){
 	gradients_wrt_outputs(output_layer); //Calculate gradients with respect to outputs of output layer for every neuron in network.
-
 	Layer *current = output_layer;
 	while(current->input_layer != NULL){
 		Layer *input_layer = current->input_layer;
 
 		for(int i = 0; i < current->size; i++){
 			Neuron *neuron = &current->neurons[i];
+//			printf("Considering mutating %p weights\n.", neuron);
 			float dActivation = neuron->dActivation;
 			float gradient = neuron->gradient;
 
@@ -372,14 +372,17 @@ void mutate(Layer *output_layer, float plasticity, float mutation_rate){
 					Neuron *input_neuron = &input_layer->neurons[j];
 					float a = input_neuron->activation;
 					float weight_gradient = a * dActivation * gradient;
+//					printf("Mutating! Weight %d of %p incrementing by %f\n", j, neuron, weight_gradient * plasticity);
 
 					neuron->weights[j] += weight_gradient * plasticity;
 				}
 			}
 			if(mutation_rate > (rand()%1000)/1000.0){
 				neuron->bias += dActivation * gradient * plasticity;
+//				printf("Mutating! Bias of %p incrementing by %f\n", neuron, dActivation * gradient * plasticity);
 			}
 		}
+		current = input_layer;
 	}
 }
 
