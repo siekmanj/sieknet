@@ -11,7 +11,7 @@
 
 
 char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!-()[]'\"\n ";
-char *modelname = "../saves/rnn_shakespeare_3x600.rnn"; //This is the network file that will be loaded, and the one that will be saved to.
+char* modelfile = "../saves/rnn_shakespeare_3x600.rnn"; //This is the network file that will be loaded, and the one that will be saved to.
 
 /*
  * Description: This is a function that uses an input character to create a one-hot input vector.
@@ -48,11 +48,11 @@ int main(void){
 	setbuf(stdout, NULL);
 
 
-	printf("Press ENTER to load %s (may take a while to load)\n", modelname);
+	printf("Press ENTER to load %s (may take a while to load)\n", modelfile);
 	getchar();
 
-	printf("loading network from %s...\n", modelname);
-	RNN n = loadRNNFromFile(modelname);
+	printf("loading network from %s...\n", modelfile);
+	RNN n = loadRNNFromFile(modelfile);
 
 	char input = alphabet[rand()%(strlen(alphabet)-1)]; //Give the network a random character to start with.
 	printf("Sample from input '%c':\n", input);
