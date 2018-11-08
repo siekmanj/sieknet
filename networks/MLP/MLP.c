@@ -373,12 +373,14 @@ void mutate(Layer *output_layer, float plasticity, float mutation_rate){
 					float a = input_neuron->activation;
 					float weight_gradient = a * dActivation * gradient;
 //					printf("Mutating! Weight %d of %p incrementing by %f\n", j, neuron, weight_gradient * plasticity);
-
+					if(rand()&1) weight_gradient *= -1;
 					neuron->weights[j] += weight_gradient * plasticity;
 				}
 			}
 			if(mutation_rate > (rand()%1000)/1000.0){
-				neuron->bias += dActivation * gradient * plasticity;
+				float bias_gradient = dActivation * gradient;
+				if(rand()&1) bias_gradient *= -1;
+				neuron->bias += bias_gradient * plasticity;
 //				printf("Mutating! Bias of %p incrementing by %f\n", neuron, dActivation * gradient * plasticity);
 			}
 		}
@@ -417,19 +419,23 @@ int bestGuess(MLP *n){
 
 /*
  * Description: Deallocates a network's memory from the heap
- * n: the pointer to the MLP to be deallocated.
+ * n: the pointer to the output layer of the MLP
  */
 void dealloc_network(MLP *n){
+	int counter = 0;
 	Layer* current = n->output;
 	while(current != NULL){
 		for(int i = 0; i < current->size; i++){
 			free(current->neurons[i].weights);
 		}
+		counter++;
 		free(current->neurons);
 		Layer* temp = current->input_layer;
 		free(current);
 		current = temp;
 	}
+	n->input = NULL;
+	n->output = NULL;
 }
 
 /*

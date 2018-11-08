@@ -9,10 +9,11 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define POOL_SIZE 50
+#define POOL_SIZE 4
 #define INPUT_DIMENSIONS 4
 #define OUTPUT_DIMENSIONS 16
 #define TRIALS 10
+
 MLP pool[POOL_SIZE];
 
 float fit_calc(MLP *n, int label){
@@ -29,13 +30,10 @@ float fit_calc(MLP *n, int label){
 }
 
 Neuron *neuron_lookup(MLP *n, int layer_idx, int neuron_idx){
-	printf("  starting neuron lookup, %d, %d\n", layer_idx, neuron_idx);
 	Layer *current = n->input;
 	for(int i = 0; i < layer_idx; i++){
-		printf("	cycling thru %p\n", current->output_layer);
 		current = current->output_layer;
 	}
-	printf("  returning neuron %d (size %lu)\n", neuron_idx, current->size);
 	return &current->neurons[neuron_idx];
 }
 
@@ -46,15 +44,8 @@ MLP copy_mlp(MLP *n){
 	while(current != NULL){
 		addLayer(&ret, current->size);
 		ret.output->squish = current->squish;
-		for(int i = 0; i < current->size; i++){
-			/*
-			ret.output->neurons[i].activation = current->neurons[i].activation;
-			ret.output->neurons[i].dActivation = current->neurons[i].dActivation;
-			ret.output->neurons[i].gradient = current->neurons[i].gradient;
-			ret.output->neurons[i].input = current->neurons[i].input;
-			*/
-
-			if(current->input_layer != NULL){
+		if(current->input_layer != NULL){
+			for(int i = 0; i < current->size; i++){
 				for(int j = 0; j < current->input_layer->size; j++){
 					ret.output->neurons[i].weights[j] = current->neurons[i].weights[j];
 				}
@@ -77,34 +68,21 @@ void print_layers(MLP *n){
 	printf("]\n");
 }
 MLP crossbreed(MLP *partner1, MLP *partner2){
-	printf("starting crossbreed...\n");
 	MLP ret = copy_mlp(partner1);
-	printf("copied partner1\n");
-
 	Layer *current = ret.input;
 	int layer_idx = 0;
 	while(current != NULL){
-		printf("doing layer %d...\n", layer_idx);
 		if(current->input_layer != NULL){
-			printf("	Considering %p\n", current);
 			for(int i = 0; i < current->size; i++){
 				Neuron *partner_neuron = neuron_lookup(partner2, layer_idx, i);
-				printf("got neuron %p (%d of %d), input layer %p\n", partner_neuron, i, current->size, current->input_layer);
 				for(int j = 0; j < current->input_layer->size; j++){
-					printf("considering weight %d\n", j);
-					printf("	%p, %p, ", ret.output, ret.output->neurons);
-					printf("	%p\n", partner_neuron);
-					if(0) ret.output->neurons[i].weights[j] = partner_neuron->weights[j];
-					printf("done with weight %d\n", j);
+					if(!(rand()%2)) current->neurons[i].weights[j] = partner_neuron->weights[j];
 				}
-				printf("done with loop\n");
-				ret.output->neurons[i].bias = current->neurons[i].bias;
-				if(0) ret.output->neurons[i].bias = partner_neuron->bias;
+				if(!(rand()%2)) current->neurons[i].bias = partner_neuron->bias;
 			}
 		}
 		layer_idx++;
 		current = current->output_layer;
-		printf("moving on to %p\n", current);
 	}
 	return ret;
 }
@@ -157,13 +135,25 @@ void print_pool(MLP *pool, size_t len){
 }
 int main(void){	
 	srand(time(NULL));
+	/*
+	MLP a = createMLP(INPUT_DIMENSIONS, 30, OUTPUT_DIMENSIONS);
+	MLP b = createMLP(INPUT_DIMENSIONS, 30, OUTPUT_DIMENSIONS);
+	MLP c = crossbreed(&a, &b);
+	dealloc_network(&a);
+	dealloc_network(&b);
+	dealloc_network(&c);
+	//print_layers(&c);
+	*/
 	// Create a pool of NN's with randomly initialized weights
+	
 	for(int i = 0; i < POOL_SIZE; i++){
-		pool[i] = createMLP(INPUT_DIMENSIONS, 30, OUTPUT_DIMENSIONS);
+		pool[i] = createMLP(INPUT_DIMENSIONS, 15, OUTPUT_DIMENSIONS);
 	}
 	float avg_fitness = 0;
 	float last_fitness = 0;
+	
 	for(int i = 0; /* forever */; i++){ 
+	
 		for(int j = 0; j < POOL_SIZE; j++){
 			MLP *n = &pool[j];
 			n->performance = 0;
@@ -182,30 +172,23 @@ int main(void){
 			}
 		}
 		qsort(pool, POOL_SIZE, sizeof(MLP), comp); //Order pool by highest fitness
-		for(int j = 0; j < POOL_SIZE && (!(i%10000)); j++){
+		for(int j = 0; j < POOL_SIZE && (!(i%1000)); j++){
 			printf("%d: %f\n", j, pool[j].performance);
 		}
-//		printf("Pool before cull:\n");
-//		print_pool(pool, POOL_SIZE);
 		for(int j = POOL_SIZE/2; j < POOL_SIZE; j++){
-			printf("Killing %f due to subpar performance (%f)\n", sumweights(pool[j].output), pool[j].performance);
+//			printf("Killing %f due to subpar performance (%f)\n", sumweights(pool[j].output), pool[j].performance);
 			dealloc_network(&pool[j]);
-			printf("Dealloc done. now choosing parents\n");
 			MLP *parent1 = &pool[rand()%(POOL_SIZE/2)];
 			MLP *parent2 = &pool[rand()%(POOL_SIZE/2)];
-			printf("crossbreeding...\n");
 			pool[j] = crossbreed(parent1, parent2);
-			printf("crossbred. now mutating...\n");
-			mutate(pool[j].output, 0.05, 0.01);
-			printf("done\n");
+			mutate(pool[j].output, 0.01, 0.01);
+//			printf("done\n");
 		}
-//		printf("Pool after cull:\n");
-//		print_pool(pool, POOL_SIZE);
 		float fitness = pool[0].performance;
 		avg_fitness += fitness;
 //		float improvement = 100 * ((last_fitness/fitness) - 1);
 		//Debug stuff
-		if(!(i % 1)){
+		if(!(i % 1000)){
 			float similarity = similarity_score(&pool[0], &pool[POOL_SIZE-1]);
 			printf("CURRENTLY ON GENERATION %d, best fitness: %f, avg %f, similarity between best and worst network: %f\n", i, pool[0].performance, avg_fitness/i, similarity);
 			getchar();
