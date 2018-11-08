@@ -69,7 +69,7 @@ void softmax(Layer* layer);
 void relu(Layer* layer); //not stable, be careful
 void leaky_relu(Layer* layer); //not stable, be careful
 
-void dealloc_network(MLP *n);
+void dealloc_network(MLP *);
 
 void printOutputs(Layer *layer);
 void prettyprint(Layer *layer);
