@@ -371,14 +371,14 @@ void mutate(Layer *output_layer, float plasticity, float mutation_rate){
 				if(mutation_rate > (rand()%1000)/1000.0){
 					Neuron *input_neuron = &input_layer->neurons[j];
 					float a = input_neuron->activation;
-					float weight_gradient = a * dActivation * gradient;
+					float weight_gradient = 1/exp(a * dActivation * gradient);
 //					printf("Mutating! Weight %d of %p incrementing by %f\n", j, neuron, weight_gradient * plasticity);
 					if(rand()&1) weight_gradient *= -1;
 					neuron->weights[j] += weight_gradient * plasticity;
 				}
 			}
 			if(mutation_rate > (rand()%1000)/1000.0){
-				float bias_gradient = dActivation * gradient;
+				float bias_gradient = 1/exp(dActivation * gradient);
 				if(rand()&1) bias_gradient *= -1;
 				neuron->bias += bias_gradient * plasticity;
 //				printf("Mutating! Bias of %p incrementing by %f\n", neuron, dActivation * gradient * plasticity);
