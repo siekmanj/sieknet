@@ -9,10 +9,13 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define POOL_SIZE 4
+#define POOL_SIZE 75
 #define INPUT_DIMENSIONS 4
 #define OUTPUT_DIMENSIONS 16
-#define TRIALS 10
+#define TRIALS 30
+
+#define MUTATION_RATE 0.09
+#define LEARNING_RATE 0.05
 
 MLP pool[POOL_SIZE];
 
@@ -147,11 +150,11 @@ int main(void){
 	// Create a pool of NN's with randomly initialized weights
 	
 	for(int i = 0; i < POOL_SIZE; i++){
-		pool[i] = createMLP(INPUT_DIMENSIONS, 15, OUTPUT_DIMENSIONS);
+		pool[i] = createMLP(INPUT_DIMENSIONS, 15, 10, OUTPUT_DIMENSIONS);
 	}
 	float avg_fitness = 0;
 	float last_fitness = 0;
-	
+	size_t pause = 1;	
 	for(int i = 0; /* forever */; i++){ 
 	
 		for(int j = 0; j < POOL_SIZE; j++){
@@ -172,8 +175,8 @@ int main(void){
 			}
 		}
 		qsort(pool, POOL_SIZE, sizeof(MLP), comp); //Order pool by highest fitness
-		for(int j = 0; j < POOL_SIZE && (!(i%1000)); j++){
-			printf("%d: %f\n", j, pool[j].performance);
+		for(int j = 0; j < POOL_SIZE && (!(i%pause)); j++){
+//			printf("%d: %f\n", j, pool[j].performance);
 		}
 		for(int j = POOL_SIZE/2; j < POOL_SIZE; j++){
 //			printf("Killing %f due to subpar performance (%f)\n", sumweights(pool[j].output), pool[j].performance);
@@ -181,17 +184,17 @@ int main(void){
 			MLP *parent1 = &pool[rand()%(POOL_SIZE/2)];
 			MLP *parent2 = &pool[rand()%(POOL_SIZE/2)];
 			pool[j] = crossbreed(parent1, parent2);
-			mutate(pool[j].output, 0.01, 0.01);
+			mutate(pool[j].output, LEARNING_RATE, MUTATION_RATE);
 //			printf("done\n");
 		}
 		float fitness = pool[0].performance;
 		avg_fitness += fitness;
 //		float improvement = 100 * ((last_fitness/fitness) - 1);
 		//Debug stuff
-		if(!(i % 1000)){
+		if(!(i % pause)){
 			float similarity = similarity_score(&pool[0], &pool[POOL_SIZE-1]);
-			printf("CURRENTLY ON GENERATION %d, best fitness: %f, avg %f, similarity between best and worst network: %f\n", i, pool[0].performance, avg_fitness/i, similarity);
-			getchar();
+			printf("CURRENTLY ON GENERATION %d, best fitness: %f, avg %f, similarity between best and worst network: %f\r", i, pool[0].performance, avg_fitness/i, similarity);
+//			getchar();
 		}	
 	}
 }
