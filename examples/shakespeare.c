@@ -71,7 +71,6 @@ int main(void){
 		n = loadRNNFromFile(modelfile);
 	}
 	
-	
 	Layer *current = n.input;
 	while(current != NULL){
     if(!(current == n.input || current == n.output)){
@@ -83,7 +82,7 @@ int main(void){
 		current = current->output_layer;
 	}
 	
-	n.plasticity = 0.05; //I've found that the larger the network, the lower the initial learning rate should be.	
+	n.plasticity = 0.04; //I've found that the larger the network, the lower the initial learning rate should be.	
 
 	int epochs = 1000;
   float previousepochavgcost = 4.5;

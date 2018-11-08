@@ -9,11 +9,6 @@
 #include <math.h>
 #include <string.h>
 
-#if EVOLUTIONARY_POOL_SIZE > 0
-	static MLP pool[EVOLUTIONARY_POOL_SIZE];
-	static int IS_POOL_INITIALIZED = 0;
-#endif
-
 /*
  * Description: Calculates the activation of a given neuron using sigmoid, and
  *              sets the partial derivative of the cost with respect to the activation.
@@ -207,6 +202,37 @@ static float cost(Layer *output_layer, int label){
   return sum;
 }
 
+static void propagate_gradients(Layer *output_layer){
+	Layer *current = output_layer;
+	while(current->input_layer != NULL){
+		Layer* input_layer = current->input_layer;
+
+		for(int i = 0; i < input_layer->size; i++){
+			float sum = 0;
+			for(int j = 0; j < current->size; j++){
+				float Wij = current->neurons[j].weights[i];
+				float dActivation = current->neurons[j].dActivation;
+				float gradient = current->neurons[j].gradient;
+				sum += Wij * dActivation * gradient;
+			}
+			input_layer->neurons[i].gradient = sum;
+		}
+		current = input_layer;
+	}
+}
+
+/* Description: Calculates the gradients of the output layer with respect to the activation of each neuron.
+ *              This function is intended to be used when learning via genetic algorithm.
+ * output_layer: the last layer in the network.
+ */
+void gradients_wrt_outputs(Layer *output_layer){
+	for(int i = 0; i < output_layer->size; i++){
+		output_layer->neurons[i].gradient = -1 * output_layer->neurons[i].dActivation;
+	}
+	propagate_gradients(output_layer);
+}
+
+
 /* 
  * Description: Performs backpropagation algorithm on the network.
  * output_layer: The last layer in the network.
@@ -215,38 +241,24 @@ static float cost(Layer *output_layer, int label){
  */
 float backpropagate(Layer *output_layer, int label, float plasticity){
   float c = cost(output_layer, label); //Calculate cost & set activation gradients in output layer
+	propagate_gradients(output_layer); //Calculate gradients for every other neuron in the network
 
   Layer *current = output_layer;
   while(current->input_layer != NULL){
     Layer* input_layer = current->input_layer;
-    for(int i = 0; i < input_layer->size; i++){
-      //Calculate activation gradients in input layer BEFORE doing nudges to weights and biases in the current layer
-      float sum = 0;
-      for(int j = 0; j < current->size; j++){
-        float dSig = current->neurons[j].dActivation;
-        float weight = current->neurons[j].weights[i];
-        float gradient = current->neurons[j].gradient;
-        sum += weight*dSig*gradient;
-        if(isnan(sum)){
-          printf("NAN DURING BACKPROP: %f, %f, %f\n", dSig, weight, gradient);
-          while(1);
-        }
-      }
-      input_layer->neurons[i].gradient = sum*plasticity;
-    }
+
     for(int i = 0; i < current->size; i++){
       Neuron *currentNeuron = &current->neurons[i];
-      float dSig = currentNeuron->dActivation;
+      float dActivation = currentNeuron->dActivation;
       float gradient = currentNeuron->gradient;
 
       //Calculate weight nudges
       for(int j = 0; j < input_layer->size; j++){
         float a = input_layer->neurons[j].activation;
-        float in = input_layer->neurons[j].input;
-        currentNeuron->weights[j] += a*dSig*gradient*plasticity;
+        currentNeuron->weights[j] += a * dActivation * gradient * plasticity;
       }
       //Calculate bias nudge
-      currentNeuron->bias += dSig*gradient*plasticity;
+      currentNeuron->bias += dActivation * gradient * plasticity;
     }
     current = current->input_layer;
   }
@@ -281,7 +293,7 @@ void calculate_inputs(Layer *layer){
 /* 
  * Description: Initializes an multilayer perceptron object.
  */
-static MLP initMLP(){
+MLP initMLP(){
   MLP n;
 	//n.setInputs = 
   n.input = NULL;
@@ -337,6 +349,45 @@ float descend(MLP *n, int label){
   return backpropagate(n->output, label, n->plasticity);
 }
 
+/* Description: Calculates gradients with respect to cost, then uses those gradients
+ *              to decide how much to randomly change a parameter by. This was described
+ *              in a 2017 Uber paper and this is my implementation of it.
+ * n: The pointer to the network.
+ * mutation_rate: The proportion of neurons which will mutate
+ */
+void mutate(Layer *output_layer, float plasticity, float mutation_rate){
+	gradients_wrt_outputs(output_layer); //Calculate gradients with respect to outputs of output layer for every neuron in network.
+	Layer *current = output_layer;
+	while(current->input_layer != NULL){
+		Layer *input_layer = current->input_layer;
+
+		for(int i = 0; i < current->size; i++){
+			Neuron *neuron = &current->neurons[i];
+//			printf("Considering mutating %p weights\n.", neuron);
+			float dActivation = neuron->dActivation;
+			float gradient = neuron->gradient;
+
+			for(int j = 0; j < input_layer->size; j++){
+				if(mutation_rate > (rand()%1000)/1000.0){
+					Neuron *input_neuron = &input_layer->neurons[j];
+					float a = input_neuron->activation;
+					float weight_gradient = 1/exp(a * dActivation * gradient);
+//					printf("Mutating! Weight %d of %p incrementing by %f\n", j, neuron, weight_gradient * plasticity);
+					if(rand()&1) weight_gradient *= -1;
+					neuron->weights[j] += weight_gradient * plasticity;
+				}
+			}
+			if(mutation_rate > (rand()%1000)/1000.0){
+				float bias_gradient = 1/exp(dActivation * gradient);
+				if(rand()&1) bias_gradient *= -1;
+				neuron->bias += bias_gradient * plasticity;
+//				printf("Mutating! Bias of %p incrementing by %f\n", neuron, dActivation * gradient * plasticity);
+			}
+		}
+		current = input_layer;
+	}
+}
+
 /*
  * Description: Performs the feed-forward operation on the network.
  * NOTE: setInputs should be used before calling feedforward.
@@ -368,19 +419,23 @@ int bestGuess(MLP *n){
 
 /*
  * Description: Deallocates a network's memory from the heap
- * n: the pointer to the MLP to be deallocated.
+ * n: the pointer to the output layer of the MLP
  */
 void dealloc_network(MLP *n){
+	int counter = 0;
 	Layer* current = n->output;
 	while(current != NULL){
 		for(int i = 0; i < current->size; i++){
 			free(current->neurons[i].weights);
 		}
+		counter++;
 		free(current->neurons);
 		Layer* temp = current->input_layer;
 		free(current);
 		current = temp;
 	}
+	n->input = NULL;
+	n->output = NULL;
 }
 
 /*
@@ -397,6 +452,7 @@ void seed_pool(MLP *n){
 		}
 	}
 }
+*/
 
 /*
  * Description: Uses a genetic algorithm to train a network
