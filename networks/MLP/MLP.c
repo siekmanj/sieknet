@@ -327,6 +327,7 @@ void addLayer(MLP *n, size_t size){
   n->output = newLayer;
   n->output->squish = softmax; //Set the new output layer to a softmax layer.
   if(n->input == NULL) n->input = newLayer;
+	n->output->output_layer = NULL;
 
 }
 
