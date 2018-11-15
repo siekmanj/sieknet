@@ -9,10 +9,10 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define POOL_SIZE 5
+#define POOL_SIZE 65
 #define INPUT_DIMENSIONS 4
 #define OUTPUT_DIMENSIONS 16
-#define TRIALS 30
+#define TRIALS 10
 
 //Mutation rate of 0.09 and learning rate of 0.05 seem to work well.
 #define MUTATION_RATE 0.1
@@ -51,6 +51,7 @@ void print_layers(MLP *n){
 	}
 	printf("]\n");
 }
+
 MLP copy_mlp(MLP *n){
 	MLP ret = initMLP();
 	Layer *current = n->input;
@@ -206,11 +207,11 @@ int main(void){
 		//Debug stuff
 		if(!(i % pause)){
 			float similarity = similarity_score(&pool[0], &pool[POOL_SIZE-1]);
-			printf("CURRENTLY ON GENERATION %d, best fitness: %5.3f, avg %6.4f, similarity between best and worst network: %3.2f%%\r", i, pool[0].performance, avg_fitness/i, 100*similarity);
+			printf("CURRENTLY ON GENERATION %d, best fitness: %5.3f, avg %6.4f, similarity between best and worst network: %3.2f%%       \r", i, pool[0].performance, avg_fitness/i, 100*similarity);
 //			getchar();
 		}	
 		if(avg_fitness/i > 0){
-			printf("Fitness threshold reached at %f after %d iterations.\n", avg_fitness/i, i);
+			printf("\nFitness threshold reached at %f after %d iterations.\n", avg_fitness/i, i);
 			exit(0);
 		}
 	}
