@@ -112,8 +112,8 @@ void softmax(Layer* layer){
  * size: the size of the layer currently being build
  * previousLayer: the preceding layer in the network (can be NULL).
  */
-static Layer *create_layer(size_t size, Layer *previousLayer){
-  Layer *layer = malloc(size*sizeof(Layer));
+Layer *create_layer(size_t size, Layer *previousLayer){
+  Layer *layer = malloc(sizeof(Layer));
   size_t previous_layer_size = 0;
   if(previousLayer != NULL){
     previous_layer_size = previousLayer->size;
