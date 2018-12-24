@@ -4,10 +4,13 @@ CC = gcc
 MLP_INCLUDE = -I../mnist -I../networks/MLP
 RNN_INCLUDE = -I../networks/RNN
 MJ_INCLUDE = -I$(HOME)/.mujoco/mjpro150/include/ -L$(HOME)/.mujoco/mjpro150/bin -mavx
+LSTM_INCLUDE = -I../networks/LSTM
 
 C_FLAGS = -O0 
 #C_FLAGS = -O3
 
+lstm_test:
+	gcc $(C_FLAGS) $(LSTM_INCLUDE) $(MLP_INCLUDE) ../networks/LSTM/LSTM.c ../networks/MLP/MLP.c ../examples/lstm_test.c -o $@.out -lm
 sanity:
 	gcc $(C_FLAGS) $(RNN_INCLUDE) $(MLP_INCLUDE) ../networks/MLP/MLP.c ../networks/RNN/RNN.c ../examples/sanitycheck.c -o $@.out -lm
 walking:
