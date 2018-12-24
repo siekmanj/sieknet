@@ -37,6 +37,8 @@ typedef struct MLP{
 	unsigned long age;
 } MLP;
 
+Layer *create_layer(size_t, Layer*);
+
 MLP mlp_from_arr(size_t arr[], size_t size);
 MLP loadMLPFromFile(const char *filename);
 MLP initMLP();
