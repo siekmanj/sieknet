@@ -44,8 +44,9 @@ int main(){
 
 			int label = data[(i+1) % len]; //Use the next character in the sequence as the label	
 			feedforward_forget(&n, one_hot);
+			float c = backpropagate_cells(&n, label);
 
-			printf("output: [");
+			printf("output (label %d, cost %5.3f): [", label, c);
 			for(int j = 0; j < INPUT_DIM; j++){
 				printf("%4.3f", n.cells[j].output);
 				if(j < INPUT_DIM-1) printf(", ");
