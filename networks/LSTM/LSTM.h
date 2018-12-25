@@ -12,14 +12,17 @@ typedef struct cell{
 	Neuron input_gate;
 	Neuron forget_gate;
 	Neuron output_gate;
-	float state;
 	float output;
-	float dActivation;
+	float state;
+	float dstate;
+	float lstate;
+	float ldstate;
 	float gradient;
 } Cell;
 
 typedef struct lstm_layer{
 	Cell *cells;
+	float *inputs;
 	float *last_out;
 	size_t input_dimension;
 	size_t size;
@@ -33,6 +36,7 @@ LSTM createLSTM(size_t input_dimension, size_t cells);
 //LSTM loadLSTMFromFile(const char *filename);
 
 void feedforward_forget(LSTM *n, float *);
+float backpropagate_cells(LSTM *, int);
 void process_cell(Cell *c);
 //float step(LSTM *n, int label;
 
