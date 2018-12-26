@@ -42,12 +42,11 @@ typedef struct lstm_layer{
 	double plasticity;
 } LSTM_layer;
 
-LSTM createLSTM(size_t input_dimension, size_t cells);
+
+LSTM_layer createLSTM_layer(size_t input_dimension, size_t cells);
 //LSTM loadLSTMFromFile(const char *filename);
 
-void feedforward_forget(LSTM *n, float *);
-float backpropagate_cells(LSTM *, int);
-float step(LSTM *, float *, float *);
+float step(LSTM_layer *, float *, float *);
 void process_cell(Cell *c);
 //float step(LSTM *n, int label;
 

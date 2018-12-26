@@ -3,7 +3,7 @@
  * This is an attempt to write a simple Long Short-Term Memory network (LSTM_layer) implementation. 
  */
 
-#include "LSTM_layer.h"
+#include "LSTM.h"
 #include <math.h>
 #include <string.h>
 
@@ -210,6 +210,7 @@ float step(LSTM_layer *n, float *input, float *desired){
 		//end bptt
 		n->t = 0;
 		reset_inputs(n->inputs, UNROLL_LENGTH, n->input_dimension);
+		reset_inputs(n->input_gradients, UNROLL_LENGTH, n->input_dimension);
 	}
 	size_t t = n->t;
 	for(int i = 0; i < n->input_dimension - n->size; i++){
