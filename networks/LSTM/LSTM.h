@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 #ifndef UNROLL_LENGTH
-#define UNROLL_LENGTH 2
+#define UNROLL_LENGTH 50
 #endif
 
 typedef struct gate{
@@ -13,7 +13,9 @@ typedef struct gate{
 	float *dOutput;
 	float *gradient;
 	float *weights;
-	float *bias;
+	float bias;
+	float *weight_updates;
+	float bias_update;
 
 } Gate;
 
@@ -23,6 +25,7 @@ typedef struct cell{
 	Gate forget_gate;
 	Gate output_gate;
 	float *output;
+	float *dOutput;
 	float *state;
 	float *dstate;
 	float *gradient;
@@ -32,18 +35,19 @@ typedef struct lstm_layer{
 	Cell *cells;
 	float *hidden;
 	float **inputs;
+	float **input_gradients;
 	size_t input_dimension;
 	size_t size;
 	size_t t;
 	double plasticity;
-} LSTM;
+} LSTM_layer;
 
 LSTM createLSTM(size_t input_dimension, size_t cells);
 //LSTM loadLSTMFromFile(const char *filename);
 
 void feedforward_forget(LSTM *n, float *);
 float backpropagate_cells(LSTM *, int);
-void step(LSTM *, float *, float *);
+float step(LSTM *, float *, float *);
 void process_cell(Cell *c);
 //float step(LSTM *n, int label;
 
