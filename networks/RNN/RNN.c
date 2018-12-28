@@ -5,16 +5,6 @@
  *  Every function beginning with static is meant for internal use only. 
  *  You may call any other function.
  *
- * I am uncertain whether this is 'full' RNN or just an 
- * SRN (Simple Recurrent Network), since the network only has access 
- * to the previous timestep's state, and thus only needs to do one 
- * feedforward and one backprop operation per timestep - most descriptions 
- * of RNN's seem to mention multiple feedforward/backprops per timestep.
- * However, this could be due to the fact that I don't do training in batches,
- * and instead do everything online.
- * Nevertheless, it is possible this implementation is more similar to an Elman network 
- * than a true RNN. If anyone can clarify or offer insight, I would be very grateful.
- * 
  * Some confusion may arise from the fact that many of the functions used in this 
  * implementation are defined in MLP.c, like backpropagate. Instead of rewriting these
  * functions, I have elected to build on the basic multilayer perceptron and re-use 

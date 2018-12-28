@@ -9,13 +9,14 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define POOL_SIZE 75
+#define POOL_SIZE 65
 #define INPUT_DIMENSIONS 4
 #define OUTPUT_DIMENSIONS 16
-#define TRIALS 30
+#define TRIALS 10
 
-#define MUTATION_RATE 0.09
-#define LEARNING_RATE 0.05
+//Mutation rate of 0.09 and learning rate of 0.05 seem to work well.
+#define MUTATION_RATE 0.1
+#define LEARNING_RATE 0.25
 
 MLP pool[POOL_SIZE];
 
@@ -40,6 +41,17 @@ Neuron *neuron_lookup(MLP *n, int layer_idx, int neuron_idx){
 	return &current->neurons[neuron_idx];
 }
 
+void print_layers(MLP *n){
+	printf("network %p: [", n);
+	Layer *pr = n->input;
+	while(pr != NULL){
+		printf("%p (%lu)", pr, pr->size);
+		pr = pr->output_layer;
+		if(pr) printf(", ");
+	}
+	printf("]\n");
+}
+
 MLP copy_mlp(MLP *n){
 	MLP ret = initMLP();
 	Layer *current = n->input;
@@ -60,33 +72,32 @@ MLP copy_mlp(MLP *n){
 	return ret;
 }
 
-void print_layers(MLP *n){
-	printf("Layers & sizes for network %p: [", n);
-	Layer *pr = n->input;
-	while(pr != NULL){
-		printf("%p (%lu)", pr, pr->size);
-		pr = pr->output_layer;
-		if(pr) printf(", ");
-	}
-	printf("]\n");
-}
 MLP crossbreed(MLP *partner1, MLP *partner2){
+//	printf("copying...\n");
 	MLP ret = copy_mlp(partner1);
+//	printf("copy done,\n");
+//	print_layers(&ret);
 	Layer *current = ret.input;
 	int layer_idx = 0;
 	while(current != NULL){
+//		printf("Starting layer %d, pointer: %p, inpt: %p\n", layer_idx, current, current->input_layer);
 		if(current->input_layer != NULL){
 			for(int i = 0; i < current->size; i++){
 				Neuron *partner_neuron = neuron_lookup(partner2, layer_idx, i);
 				for(int j = 0; j < current->input_layer->size; j++){
+//					printf("	Doing layer %d, neuron %d, weight %d\n", layer_idx, i, j);
 					if(!(rand()%2)) current->neurons[i].weights[j] = partner_neuron->weights[j];
 				}
 				if(!(rand()%2)) current->neurons[i].bias = partner_neuron->bias;
+//				printf("	Done with neuron %d\n", i);
 			}
 		}
+//		printf("	Done with layer %d\n", layer_idx);
 		layer_idx++;
 		current = current->output_layer;
+//		printf("	Moving on to layer %d\n", layer_idx);
 	}
+//	printf("Exiting crossbreed\n");
 	return ret;
 }
 
@@ -138,6 +149,7 @@ void print_pool(MLP *pool, size_t len){
 }
 int main(void){	
 	srand(time(NULL));
+	setbuf(stdout, NULL);
 	/*
 	MLP a = createMLP(INPUT_DIMENSIONS, 30, OUTPUT_DIMENSIONS);
 	MLP b = createMLP(INPUT_DIMENSIONS, 30, OUTPUT_DIMENSIONS);
@@ -150,7 +162,7 @@ int main(void){
 	// Create a pool of NN's with randomly initialized weights
 	
 	for(int i = 0; i < POOL_SIZE; i++){
-		pool[i] = createMLP(INPUT_DIMENSIONS, 15, 10, OUTPUT_DIMENSIONS);
+		pool[i] = createMLP(INPUT_DIMENSIONS, 20, 10, OUTPUT_DIMENSIONS);
 	}
 	float avg_fitness = 0;
 	float last_fitness = 0;
@@ -183,7 +195,9 @@ int main(void){
 			dealloc_network(&pool[j]);
 			MLP *parent1 = &pool[rand()%(POOL_SIZE/2)];
 			MLP *parent2 = &pool[rand()%(POOL_SIZE/2)];
+//			printf("crossbreed start\n");
 			pool[j] = crossbreed(parent1, parent2);
+//			printf("crossbreed done\n");
 			mutate(pool[j].output, LEARNING_RATE, MUTATION_RATE);
 //			printf("done\n");
 		}
@@ -193,8 +207,12 @@ int main(void){
 		//Debug stuff
 		if(!(i % pause)){
 			float similarity = similarity_score(&pool[0], &pool[POOL_SIZE-1]);
-			printf("CURRENTLY ON GENERATION %d, best fitness: %f, avg %f, similarity between best and worst network: %f\r", i, pool[0].performance, avg_fitness/i, similarity);
+			printf("CURRENTLY ON GENERATION %d, best fitness: %5.3f, avg %6.4f, similarity between best and worst network: %3.2f%%       \r", i, pool[0].performance, avg_fitness/i, 100*similarity);
 //			getchar();
 		}	
+		if(avg_fitness/i > 0){
+			printf("\nFitness threshold reached at %f after %d iterations.\n", avg_fitness/i, i);
+			exit(0);
+		}
 	}
 }
