@@ -5,8 +5,10 @@
 #include <stdio.h>
 
 #ifndef UNROLL_LENGTH
-#define UNROLL_LENGTH 50
+#define UNROLL_LENGTH 75
 #endif
+
+#define createLSTM(...) lstm_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
 typedef struct gate{
 	float *output;
@@ -34,20 +36,37 @@ typedef struct cell{
 typedef struct lstm_layer{
 	Cell *cells;
 	float *hidden;
+	float *output;
 	float **inputs;
 	float **input_gradients;
+	struct lstm_layer *input_layer;
+	struct lstm_layer *output_layer;
 	size_t input_dimension;
 	size_t size;
 	size_t t;
 	double plasticity;
 } LSTM_layer;
 
+typedef struct lstm{
+//	float *input;
+//	float *output;
+	float **cost_gradients;
+	LSTM_layer *head;
+	LSTM_layer *tail;
+	size_t t;
+	int collapse;
+	double plasticity;
+	
+} LSTM;
 
-LSTM_layer createLSTM_layer(size_t input_dimension, size_t cells);
+LSTM_layer *createLSTM_layer(size_t input_dimension, size_t cells);
+LSTM lstm_from_arr(size_t *arr, size_t len);
 //LSTM loadLSTMFromFile(const char *filename);
 
-float step(LSTM_layer *, float *, float *);
-void process_cell(Cell *c);
+//float step(LSTM_layer *, float *, float *);
+void forward(LSTM *, float *);
+void backward(LSTM *);
+float quadratic_cost(LSTM *, float *);
 //float step(LSTM *n, int label;
 
 #endif
