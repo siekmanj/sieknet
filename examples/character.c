@@ -47,23 +47,12 @@ int label_from_char(char inpt, const char *alphabet){
 
 int main(void){
 
-//	RNN n = createRNN(strlen(alphabet), 50, 50, strlen(alphabet)); //Create a network with a sufficiently large input & output layer, and a 40-neuron hidden layer.
-	LSTM n = createLSTM(strlen(alphabet), 50, strlen(alphabet), 0);
+	LSTM n = createLSTM(strlen(alphabet), 50, strlen(alphabet));
+	saveLSTMToFile(&n, "../saves/lstmtest.lstm");
 	RNN x = createRNN(strlen(alphabet), 50, strlen(alphabet));
 	n.plasticity = 0.05; //The network seems to perform best with a learning rate of around 0.1.
 	x.plasticity = 0.05;
-	/*
-  Layer *current = n.input;
 
-	//This is an experimental feature I am working on.	
-	while(current != NULL){
-    if(!(current == n.input || current == n.output)){
-      current->squish = hypertan; //assigns this layer's squish function pointer to the tanh activation function
-			current->dropout = 0.05; //approximately 5% of this layer's neurons will randomly not fire (dropout)
-    }
-		current = current->output_layer;
-  }
-	*/
 	int epochs = 1000;
 	float cost_threshold = 0.01;
 	float epoch_cost_lstm = 0;
@@ -71,6 +60,9 @@ int main(void){
 
 	float epoch_cost_rnn = 0;
 	float avg_cost_rnn = 0;
+
+	size_t rnn_correct = 0;
+	size_t lstm_correct = 0;
 
 	for(int i = 0; i < epochs*strlen(training); i++){ //Run the network for 1000 epochs.
 		int input_idx = i % strlen(training);
@@ -98,15 +90,22 @@ int main(void){
 		avg_cost_lstm += c;
 		epoch_cost_rnn += cx/strlen(training);
 		avg_cost_rnn += cx;
-		int guess = 0;
+		int lstm_guess = 0;
 		for(int i = 0; i < strlen(alphabet); i++){
-			if(n.tail->output[i] > n.tail->output[guess]) guess = i;
+			if(n.tail->output[i] > n.tail->output[lstm_guess]) lstm_guess = i;
 		}
+		int rnn_guess = bestGuess(&x);
 
 //		printf("%c", alphabet[guess]);
+//		printf("	lstm guess: %d, rnn guess: %d, label: %d, correct: ", lstm_guess, rnn_guess, label);
+//		if(rnn_guess == label && lstm_guess == label) printf("both\n");
+		if(rnn_guess == label) rnn_correct++;
+		if(lstm_guess == label) lstm_correct++;
 
 		if(i % strlen(training) == 0 && i != 0){
-			printf("\nLSTM cost: %f, avgcost: %f. RNN cost: %f, avgcost %f\r", epoch_cost_lstm, avg_cost_lstm/i, epoch_cost_rnn, avg_cost_rnn/i);
+			printf("LSTM cost: %f, avgcost: %f. RNN cost: %f, avgcost %f, rnn correct: %d, lstm correct: %d", epoch_cost_lstm, avg_cost_lstm/i, epoch_cost_rnn, avg_cost_rnn/i, rnn_correct, lstm_correct);
+			if(rnn_correct > lstm_correct) printf(", rnn up by %d\n", rnn_correct - lstm_correct);
+			else printf(", lstm up by %d\n", lstm_correct - rnn_correct);
 			if(cost_threshold > epoch_cost_lstm){
 				printf("Cost threshold of %f reached (%f) in %d examples.\n", cost_threshold, epoch_cost_lstm, i);
 				exit(0);
