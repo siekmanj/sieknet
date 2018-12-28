@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 #define INPUT_DIM 10
-#define NUMCELLS 10
+#define NUMCELLS 15
 
 int data[] = {
 	1,
@@ -22,11 +22,18 @@ int data[] = {
 
 
 int main(){
-	LSTM_layer n = createLSTM_layer(INPUT_DIM, NUMCELLS);
+	LSTM n = createLSTM(INPUT_DIM, NUMCELLS, NUMCELLS, INPUT_DIM, 0);
+	/*
+	for(int i = 0; i < 3; i++){
+		float x1[] = {0.1, 1.5};
+		forward(&n, x1);
+		cost(&n, x1);
+		backward(&n);
+	}
+	*/
 	float cost = 0;
 	float cost_threshold = 0.5;
 	size_t count = 0;
-
 	for(int epoch = 0; epoch < 100000; epoch++){ //Train for 1000 epochs.
 		size_t len = sizeof(data)/sizeof(data[0]);
 
@@ -45,19 +52,29 @@ int main(){
 			expected[label] = 1.0;
 
 			
-			float c = step(&n, one_hot, expected);
+//			float c = step(&n, one_hot, expected);
+			forward(&n, one_hot);
+			float c = quadratic_cost(&n, expected);
+			backward(&n);
 			
 			cost += c;
 
 			count++;	
-			if(count%45 == 0){
+			if(count%100 == 0){
 				printf("%d: cost: %3.2f, avg: %5.4f\n", count, c, cost/count);
-				printf("desired output: [");
+				printf("desired output (label %d): [", label);
 				for(int j = 0; j < INPUT_DIM; j++){
 					printf("%4.3f", expected[j]);
 					if(j < INPUT_DIM-1) printf(", ");
 					else printf("]\n");
 				}
+				printf("actual output: [");
+				for(int j = 0; j < INPUT_DIM; j++){
+					printf("%4.3f", n.tail->output[j]);
+					if(j < INPUT_DIM-1) printf(", ");
+					else printf("]\n");
+				}
+
 
 				getchar();
 			}
