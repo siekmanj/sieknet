@@ -196,8 +196,8 @@ static float cost(Layer *output_layer, int label){
 
     Neuron *neuron = &output_layer->neurons[i];
 	  //Calculate the cost from the desired value and actual neuron output
-		sum += cross_entropy_cost(neuron, y);
-		//sum += quadratic_cost(neuron, y);
+		//sum += cross_entropy_cost(neuron, y);
+		sum += quadratic_cost(neuron, y);
   }
   return sum;
 }

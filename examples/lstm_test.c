@@ -22,7 +22,7 @@ int data[] = {
 
 
 int main(){
-	LSTM n = createLSTM(INPUT_DIM, NUMCELLS, NUMCELLS, INPUT_DIM, 0);
+	LSTM n = createLSTM(INPUT_DIM, NUMCELLS, NUMCELLS, INPUT_DIM);
 	/*
 	for(int i = 0; i < 3; i++){
 		float x1[] = {0.1, 1.5};
