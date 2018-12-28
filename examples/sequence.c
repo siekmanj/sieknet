@@ -67,12 +67,5 @@ int main(void){
 			printf("\nCost threshold %1.2f reached in %d iterations\n", cost_threshold, count);
 			exit(0);
 		}
-<<<<<<< HEAD
-		if(cost/count < 0.5){
-			printf("cost of 0.5 reached within %d iterations\n", count);
-			exit(0);
-		}	
-=======
->>>>>>> d0d6590305e0351b4c170a35de2705a8d6d84ad9
 	}
 }

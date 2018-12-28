@@ -112,8 +112,8 @@ void softmax(Layer* layer){
  * size: the size of the layer currently being build
  * previousLayer: the preceding layer in the network (can be NULL).
  */
-static Layer *create_layer(size_t size, Layer *previousLayer){
-  Layer *layer = malloc(size*sizeof(Layer));
+Layer *create_layer(size_t size, Layer *previousLayer){
+  Layer *layer = malloc(sizeof(Layer));
   size_t previous_layer_size = 0;
   if(previousLayer != NULL){
     previous_layer_size = previousLayer->size;
@@ -221,18 +221,6 @@ static void propagate_gradients(Layer *output_layer){
 	}
 }
 
-/* Description: Calculates the gradients of the output layer with respect to the activation of each neuron.
- *              This function is intended to be used when learning via genetic algorithm.
- * output_layer: the last layer in the network.
- */
-void gradients_wrt_outputs(Layer *output_layer){
-	for(int i = 0; i < output_layer->size; i++){
-		output_layer->neurons[i].gradient = -1 * output_layer->neurons[i].dActivation;
-	}
-	propagate_gradients(output_layer);
-}
-
-
 /* 
  * Description: Performs backpropagation algorithm on the network.
  * output_layer: The last layer in the network.
@@ -327,6 +315,7 @@ void addLayer(MLP *n, size_t size){
   n->output = newLayer;
   n->output->squish = softmax; //Set the new output layer to a softmax layer.
   if(n->input == NULL) n->input = newLayer;
+	n->output->output_layer = NULL;
 
 }
 
@@ -349,44 +338,6 @@ float descend(MLP *n, int label){
   return backpropagate(n->output, label, n->plasticity);
 }
 
-/* Description: Calculates gradients with respect to cost, then uses those gradients
- *              to decide how much to randomly change a parameter by. This was described
- *              in a 2017 Uber paper and this is my implementation of it.
- * n: The pointer to the network.
- * mutation_rate: The proportion of neurons which will mutate
- */
-void mutate(Layer *output_layer, float plasticity, float mutation_rate){
-	gradients_wrt_outputs(output_layer); //Calculate gradients with respect to outputs of output layer for every neuron in network.
-	Layer *current = output_layer;
-	while(current->input_layer != NULL){
-		Layer *input_layer = current->input_layer;
-
-		for(int i = 0; i < current->size; i++){
-			Neuron *neuron = &current->neurons[i];
-//			printf("Considering mutating %p weights\n.", neuron);
-			float dActivation = neuron->dActivation;
-			float gradient = neuron->gradient;
-
-			for(int j = 0; j < input_layer->size; j++){
-				if(mutation_rate > (rand()%1000)/1000.0){
-					Neuron *input_neuron = &input_layer->neurons[j];
-					float a = input_neuron->activation;
-					float weight_gradient = 1/exp(a * dActivation * gradient);
-//					printf("Mutating! Weight %d of %p incrementing by %f\n", j, neuron, weight_gradient * plasticity);
-					if(rand()&1) weight_gradient *= -1;
-					neuron->weights[j] += weight_gradient * plasticity;
-				}
-			}
-			if(mutation_rate > (rand()%1000)/1000.0){
-				float bias_gradient = 1/exp(dActivation * gradient);
-				if(rand()&1) bias_gradient *= -1;
-				neuron->bias += bias_gradient * plasticity;
-//				printf("Mutating! Bias of %p incrementing by %f\n", neuron, dActivation * gradient * plasticity);
-			}
-		}
-		current = input_layer;
-	}
-}
 
 /*
  * Description: Performs the feed-forward operation on the network.
@@ -438,37 +389,7 @@ void dealloc_network(MLP *n){
 	n->output = NULL;
 }
 
-/*
- * Description: Creates a pool of networks of the same size as n.
- * n: the network which will be used as a template for all other networks in the pool.
- *
-void seed_pool(MLP *n){
-	for(int i = 0; i < EVOLUTIONARY_POOL_SIZE; i++){
-		pool[i] = initMLP();
-		Layer* current = n->input;
-		while(current != NULL){
-			addLayer(&pool[i], current->size);
-			current = current->output_layer;
-		}
-	}
-}
-*/
 
-/*
- * Description: Uses a genetic algorithm to train a network
- * n: An array of network objects
- */
-void evolve(float (*fitness)(void* arg)){
-	for(int i = 0; i < EVOLUTIONARY_POOL_SIZE; i++){
-
-	}
-	//do crossbreed
-	//run forward prop
-	//calculate output gradient
-	//do mutations
-	//somehow return 
-
-}
  /*
   * IO FUNCTIONS FOR READING AND WRITING TO A FILE
   */

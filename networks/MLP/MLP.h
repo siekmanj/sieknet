@@ -6,11 +6,6 @@
 #include <stdio.h>
 #include <time.h>
 
-#ifndef EVOLUTIONARY_POOL_SIZE
-#define EVOLUTIONARY_POOL_SIZE 0
-#endif
-
-
 // some magic
 #define createMLP(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
@@ -42,6 +37,8 @@ typedef struct MLP{
 	unsigned long age;
 } MLP;
 
+Layer *create_layer(size_t, Layer*);
+
 MLP mlp_from_arr(size_t arr[], size_t size);
 MLP loadMLPFromFile(const char *filename);
 MLP initMLP();
@@ -63,7 +60,7 @@ int bestGuess(MLP *n);
 
 //These are activation functions
 //You can set these by assigning layer->squish = hypertan/sigmoid/etc
-void hypertan(Layer* layer);
+void hypertan(Layer* layer); //Sometimes unstable
 void sigmoid(Layer* layer);
 void softmax(Layer* layer);
 void relu(Layer* layer); //not stable, be careful
