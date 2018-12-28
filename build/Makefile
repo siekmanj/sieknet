@@ -24,7 +24,7 @@ sequence:
 shakespeare:
 	gcc $(C_FLAGS) $(RNN_INCLUDE) $(MLP_INCLUDE) ../networks/MLP/MLP.c ../networks/RNN/RNN.c ../examples/shakespeare.c -o $@.out -lm
 character:
-	gcc $(C_FLAGS) $(RNN_INCLUDE) $(MLP_INCLUDE) ../networks/MLP/MLP.c ../networks/RNN/RNN.c ../examples/character.c -o $@.out -lm
+	gcc $(C_FLAGS) $(MLP_INCLUDE) $(RNN_INCLUDE) $(LSTM_INCLUDE) ../networks/MLP/MLP.c ../networks/RNN/RNN.c ../networks/LSTM/LSTM.c ../examples/character.c -o $@.out -lm
 filesave:
 	gcc $(C_FLAGS) $(MLP_INCLUDE) ../mnist/mnist.c ../networks/MLP/MLP.c ../examples/filesave.c -o $@.out -lm
 fileload:

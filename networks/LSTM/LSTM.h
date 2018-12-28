@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 #ifndef UNROLL_LENGTH
-#define UNROLL_LENGTH 75
+#define UNROLL_LENGTH 25
 #endif
 
 #define createLSTM(...) lstm_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
@@ -59,7 +59,6 @@ typedef struct lstm{
 	
 } LSTM;
 
-LSTM_layer *createLSTM_layer(size_t input_dimension, size_t cells);
 LSTM lstm_from_arr(size_t *arr, size_t len);
 //LSTM loadLSTMFromFile(const char *filename);
 
