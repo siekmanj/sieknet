@@ -16,7 +16,7 @@
 
 char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!-()[]<>/'\"_\n ";
 
-char *modelfile = "../saves/shakespeare.lstm";
+char *modelfile = "../model/shakespeare.lstm";
 
 char *datafile = "../data/shakespeare/complete_works.txt";
 
