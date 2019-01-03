@@ -22,7 +22,7 @@ recurrent_demo:
 sequence:
 	gcc $(C_FLAGS) $(RNN_INCLUDE) $(MLP_INCLUDE) ../networks/MLP/MLP.c ../networks/RNN/RNN.c ../examples/sequence.c -o $@.out -lm
 shakespeare:
-	gcc $(C_FLAGS) $(RNN_INCLUDE) $(MLP_INCLUDE) ../networks/MLP/MLP.c ../networks/RNN/RNN.c ../examples/shakespeare.c -o $@.out -lm
+	gcc $(C_FLAGS) $(LSTM_INCLUDE) ../networks/LSTM/LSTM.c ../examples/shakespeare.c -o $@.out -lm
 character:
 	gcc $(C_FLAGS) $(MLP_INCLUDE) $(RNN_INCLUDE) $(LSTM_INCLUDE) ../networks/MLP/MLP.c ../networks/RNN/RNN.c ../networks/LSTM/LSTM.c ../examples/character.c -o $@.out -lm
 filesave:
