@@ -42,14 +42,14 @@ int main(void){
 	LSTM n;
 	if(getchar() == 'n'){
 		printf("creating network...\n");
-		n = createLSTM(strlen(alphabet), 100, strlen(alphabet));//loadLSTMFromFile(modelfile);
+		n = createLSTM(strlen(alphabet), 200, strlen(alphabet));//loadLSTMFromFile(modelfile);
 //		n = createLSTM(3, 3, 1);
 	}else{
 		printf("loading network from %s...\nenter 's' to sample.", modelfile);
 		n = loadLSTMFromFile(modelfile);
 		if(getchar() == 's'){
-				printf("small sample:\n");
-				int in = rand() % strlen(alphabet);
+				int in = rand() % strlen(alphabet) - 1;
+				printf("small sample from char '%c'\n", alphabet[in]);
 				for(int k = 0; k < 500; k++){
 //					printf("beginning feedforward:\n");
 					//float input[strlen(alphabet)]; memset(input, '\0', strlen(alphabet) * sizeof(float)); input[in] = 1.0;
@@ -65,7 +65,6 @@ int main(void){
 			exit(0);
 		}
 	}
-	wipe(&n);
 	
 	n.plasticity = 0.01; //I've found that the larger the network, the lower the initial learning rate should be.	
 
@@ -73,6 +72,7 @@ int main(void){
   float previousepochavgcost = 4.5;
 	for(int i = 0; i < epochs; i++){ //Run for a large number of epochs
 		printf("beginning epoch %d\n", i);
+		wipe(&n);
 		FILE *fp = fopen(datafile, "rb"); //This is the dataset
 		if(!fp){
 			printf("%s COULD NOT BE OPENED!\n", datafile);
@@ -92,11 +92,11 @@ int main(void){
 		do {
 			//The below is all the code needed for training - the rest is just debug stuff.
 			/****************************************************/
-			float input_one_hot[strlen(alphabet)]; memset(input_one_hot, '\0', strlen(alphabet) * sizeof(float)); input_one_hot[input_character] = 1.0;
+//			float input_one_hot[strlen(alphabet)]; memset(input_one_hot, '\0', strlen(alphabet) * sizeof(float)); input_one_hot[input_character] = 1.0;
 			//make_one_hot(input_character, alphabet, input_one_hot);	
-			float expected[strlen(alphabet)]; memset(expected, '\0', strlen(alphabet)*sizeof(float)); expected[label] = 1.0;
-//			CREATEONEHOT(input_one_hot, strlen(alphabet), input_character);
-//			CREATEONEHOT(expected, strlen(alphabet), label);
+///			float expected[strlen(alphabet)]; memset(expected, '\0', strlen(alphabet)*sizeof(float)); expected[label] = 1.0;
+			CREATEONEHOT(input_one_hot, strlen(alphabet), input_character);
+			CREATEONEHOT(expected, strlen(alphabet), label);
 
 			forward(&n, input_one_hot);
 			float cost_local = quadratic_cost(&n, expected);
