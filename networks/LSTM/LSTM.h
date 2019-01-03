@@ -16,9 +16,6 @@ typedef struct gate{
 	float *gradient;
 	float *weights;
 	float bias;
-	float *weight_updates;
-	float bias_update;
-
 } Gate;
 
 typedef struct cell{
@@ -35,8 +32,8 @@ typedef struct cell{
 
 typedef struct lstm_layer{
 	Cell *cells;
-	float *hidden;
 	float *output;
+	float *hidden;
 	float **inputs;
 	float **input_gradients;
 	struct lstm_layer *input_layer;
@@ -48,24 +45,25 @@ typedef struct lstm_layer{
 } LSTM_layer;
 
 typedef struct lstm{
-//	float *input;
-//	float *output;
 	float **cost_gradients;
+	double plasticity;
+	int collapse;
+	size_t t;
+
 	LSTM_layer *head;
 	LSTM_layer *tail;
-	size_t t;
-	int collapse;
-	double plasticity;
 	
 } LSTM;
 
 LSTM lstm_from_arr(size_t *arr, size_t len);
-//LSTM loadLSTMFromFile(const char *filename);
+LSTM loadLSTMFromFile(const char *filename);
+void saveLSTMToFile(LSTM *n, char *filename);
 
-//float step(LSTM_layer *, float *, float *);
 void forward(LSTM *, float *);
 void backward(LSTM *);
 float quadratic_cost(LSTM *, float *);
-//float step(LSTM *n, int label;
+float cross_entropy_cost(LSTM *, float *);
+
+void wipe(LSTM *);
 
 #endif
