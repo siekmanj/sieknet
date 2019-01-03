@@ -15,7 +15,9 @@
  * Handy function for zeroing out a 2d array
  */
 void zero_2d_arr(float **arr, size_t sequence_length, size_t input_dimension){
+//	printf("2d arr wipe (%p):\n", arr);
 	for(int i = 0; i < sequence_length; i++){
+//		printf("	accessing %p\n", arr[i]);
 		for(int j = 0; j < input_dimension; j++){
 			arr[i][j] = 0.0;
 		}
@@ -38,11 +40,35 @@ static Gate createGate(float *weights, float bias, size_t sequence_length, size_
 }
 
 /*
+ * Used to reset the hidden state of the lstm
+ */ 
+void wipe(LSTM *n){
+	LSTM_layer *l = n->head;
+	while(l){
+		for(int t = 0; t < UNROLL_LENGTH; t++){
+			for(int i = 0; i < l->size; i++){
+				l->cells[i].output[t] = 0;
+				l->output[i] = 0;
+			}
+		}
+		printf("done zeroing hidden state\n");
+		zero_2d_arr(l->inputs, UNROLL_LENGTH, l->input_dimension);
+		zero_2d_arr(l->input_gradients, UNROLL_LENGTH, l->input_dimension);
+		l->t = 0;
+		l = l->output_layer;
+	}
+	printf("about to zero cost gradients, %lu\n", n->tail->size);
+//	zero_2d_arr(n->cost_gradients, UNROLL_LENGTH, n->tail->size);
+	n->t = 0;
+	printf("done with wipe\n");
+}	
+
+/*
  * Used to initialize & allocate memory for a layer of LSTM cells
  */
 LSTM_layer *createLSTM_layer(size_t input_dim, size_t size, float plasticity){
 	LSTM_layer *l = (LSTM_layer*)malloc(sizeof(LSTM_layer));
-	plasticity = plasticity;
+	l->plasticity = plasticity;
 	l->input_dimension = input_dim + size;
 	l->input_layer = NULL;
 	l->output_layer = NULL;
@@ -89,6 +115,7 @@ LSTM_layer *createLSTM_layer(size_t input_dim, size_t size, float plasticity){
 	l->size = size;
 
 	l->output = ALLOCATE(float, l->size);
+	l->hidden = ALLOCATE(float, l->size);
 	
 	//allocate the 2d array used to store inputs over timesteps
 	l->inputs = ALLOCATE(float*, UNROLL_LENGTH);
@@ -132,6 +159,7 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 	n.cost_gradients = (float**)malloc(UNROLL_LENGTH * sizeof(float*));
 	for(int i = 0; i < UNROLL_LENGTH; i++) n.cost_gradients[i] = (float*)malloc(arr[len-1] * sizeof(float));
 
+	printf("ZEROING COST GRADS IN CREATELSTM\n");
 	zero_2d_arr(n.cost_gradients, UNROLL_LENGTH, arr[len-1]);
 	return n;
 }
@@ -240,13 +268,18 @@ void layer_backward(LSTM_layer *l, float **gradients, float plasticity){
  * Computes the forward pass of a single cell layer
  */
 void layer_forward(LSTM_layer *l, float *input){
+	size_t MAX_TIME = l->t-1;
 	size_t t = l->t;
 	for(int i = 0; i < l->input_dimension - l->size; i++){
 		l->inputs[t][i] = input[i];
 	}
+//	printf("recurrent inputs layer %p, t %lu: [", l, l->t);
 	for(int i = l->input_dimension - l->size; i < l->input_dimension; i++){
 		if(t) l->inputs[t][i] = l->cells[i - (l->input_dimension - l->size)].output[t-1]; //recurrent input
-		else  l->inputs[t][i] = l->cells[i - (l->input_dimension - l->size)].output[UNROLL_LENGTH-1];
+		else  l->inputs[t][i] = l->output[i - (l->input_dimension - l->size)];
+//		printf("%6.5f", l->inputs[t][i]);
+//		if(i < l->input_dimension - 1) printf(", ");
+//		else printf("]\n");
 	}
 
 	for(int j = 0; j < l->size; j++){
@@ -270,8 +303,12 @@ void layer_forward(LSTM_layer *l, float *input){
 		else c->state[t] = a->output[t] * i->output[t];
 		c->output[t] = hypertan_element(c->state[t]) * o->output[t];
 	}
+//	printf("	layer outputs: [");
 	for(int i = 0; i < l->size; i++){
 		l->output[i] = l->cells[i].output[t];
+//		printf("%6.5f", l->output[i]);
+//		if(i < l->size-1) printf(", ");
+//		else printf("]\n");
 	}
 }
 
@@ -289,12 +326,32 @@ float quadratic_cost(LSTM *n, float *desired){
 }
 
 /*
+ * Calculates simple quadratic cost of network output.
+ */
+float cross_entropy_cost(LSTM *n, float *desired){
+	size_t t = n->t;
+	float cost = 0;
+	for(int i = 0; i < n->tail->size; i++){
+		if(n->tail->cells[i].output[t] < 0.00001) n->tail->cells[i].output[t] = 0.00001;
+		if(n->tail->cells[i].output[t] > 0.9999) n->tail->cells[i].output[t] = .9999;
+		n->cost_gradients[t][i] = desired[i]/n->tail->cells[i].output[t] - (1 - desired[i])/(1 - n->tail->cells[i].output[t]);
+		cost += -(desired[i] * log(n->tail->cells[i].output[t]) + (1 - desired[i]) * log(1 - n->tail->cells[i].output[t]));
+		if(isnan(cost)){
+			printf("cost was NAN on output %d, t %lu, desired %6.5f and actual %6.5f\n", i, t, desired[i], n->tail->cells[i].output[t]);
+			exit(0);
+		}
+	}
+	return cost;
+}
+
+/*
  * Performs a backward pass if the network unroll has been reached.
  */
 void backward(LSTM *n){
-	int weight_update = n->t == UNROLL_LENGTH-1 || n->collapse;
+	int weight_update = (n->t == UNROLL_LENGTH-1) || n->collapse;
 	float **grads = n->cost_gradients;
 	LSTM_layer *l = n->tail;
+//	printf("weight update: %d from %d == %d || %d, grads: %p, l: %p\n", weight_update, n->t, UNROLL_LENGTH-1, n->collapse, grads, l);
 	while(l){
 		if(weight_update){
 			layer_backward(l, grads, n->plasticity);
@@ -314,6 +371,7 @@ void backward(LSTM *n){
 	if(weight_update){
 		n->t = 0;
 		n->collapse = 0;
+//		zero_2d_arr(n->cost_gradients, UNROLL_LENGTH, n->tail->size);
 	}
 	else n->t++;
 	
@@ -332,7 +390,99 @@ void forward(LSTM *n, float *x){
 	}
 }
 
+ /*
+  * IO FUNCTIONS FOR READING AND WRITING TO A FILE
+  */
+
+static void writeToFile(FILE *fp, char *ptr){
+  fprintf(fp, "%s", ptr);
+  memset(ptr, '\0', strlen(ptr));
+}
+
+static void getWord(FILE *fp, char* dest){
+  memset(dest, '\0', strlen(dest));
+  int res = fscanf(fp, " %1023s", dest);
+}
+
 /*
+ * Load the network's state from a file
+ */
+LSTM loadLSTMFromFile(const char *filename){
+	FILE *fp = fopen(filename, "rb");
+	char buff[1024];
+	memset(buff, '\0', 1024);
+
+	LSTM n;
+	n.t = 0;
+	n.collapse = 0;
+	n.plasticity = 0.01;
+	n.head = NULL;
+	n.tail = NULL;
+
+	getWord(fp, buff);
+	if(strcmp(buff, "LSTM") != 0){
+		printf("ERROR: [%s] is not an LSTM.\n", buff);
+		exit(1);
+	}
+	getWord(fp, buff);
+	size_t size = strtol(buff, NULL, 10);
+
+	getWord(fp, buff);
+	size_t input_dimension = strtol(buff, NULL, 10);
+
+	for(int i = 0; i < size; i++){
+		getWord(fp, buff);
+		if(strcmp(buff, "layer") == 0){
+			getWord(fp, buff);
+			size_t layersize = strtol(buff, NULL, 10);
+			LSTM_layer *l = createLSTM_layer(input_dimension, layersize, n.plasticity);
+
+			for(int j = 0; j < layersize; j++){
+				getWord(fp, buff);
+				size_t numweights = strtol(buff, NULL, 10);
+				for(int k = 0; k < numweights; k++){
+					getWord(fp, buff);
+					l->cells[j].input_nonl.weights[k] = strtod(buff, NULL);
+				}	
+				getWord(fp, buff);
+				l->cells[j].input_nonl.bias = strtod(buff, NULL);
+				for(int k = 0; k < numweights; k++){
+					getWord(fp, buff);
+					l->cells[j].input_gate.weights[k] = strtod(buff, NULL);
+				}	
+				getWord(fp, buff);
+				l->cells[j].input_gate.bias = strtod(buff, NULL);
+				for(int k = 0; k < numweights; k++){
+					getWord(fp, buff);
+					l->cells[j].forget_gate.weights[k] = strtod(buff, NULL);
+				}	
+				getWord(fp, buff);
+				l->cells[j].forget_gate.bias = strtod(buff, NULL);
+				for(int k = 0; k < numweights; k++){
+					getWord(fp, buff);
+					l->cells[j].output_gate.weights[k] = strtod(buff, NULL);
+				}	
+				getWord(fp, buff);
+				l->cells[j].output_gate.bias = strtod(buff, NULL);
+			}
+			if(!n.head){
+				n.head = l;
+				n.tail = l;
+			}else{ 
+				n.tail->output_layer = l;
+				l->input_layer = n.tail;
+				n.tail = l;
+			}
+		}
+	}
+	n.cost_gradients = (float**)malloc(UNROLL_LENGTH * sizeof(float*));
+	for(int i = 0; i < UNROLL_LENGTH; i++) n.cost_gradients[i] = (float*)malloc(n.tail->size * sizeof(float));
+	return n;
+}
+
+/*
+ * Saves the network's state to a file that can be read later.
+ */
 void saveLSTMToFile(LSTM *n, char *filename){
 	FILE *fp;
 	char buff[1024];
@@ -349,11 +499,60 @@ void saveLSTMToFile(LSTM *n, char *filename){
 		size++;
 		current = current->output_layer;
 	}
-	printf("save lstm of size %lu\n", size);
+
+	//Write header info to file
+	strcat(buff, "LSTM ");
+	writeToFile(fp, buff);
+	snprintf(buff, 100, "%lu ", size);
+	writeToFile(fp, buff);
+	snprintf(buff, 100, "%lu ", n->head->input_dimension - n->head->size);
+	writeToFile(fp, buff);
+
+	current = n->head;
+	for(int i = 0; i < size; i++){
+		strcat(buff, "layer ");
+		writeToFile(fp, buff);
+		snprintf(buff, 100, "%lu ", current->size);
+		writeToFile(fp, buff);
+		for(int j = 0; j < current->size; j++){
+
+			snprintf(buff, 100, "%lu ", current->input_dimension);
+			writeToFile(fp, buff);
+			for(int k = 0; k < current->input_dimension; k++){
+				snprintf(buff, 100, "%f ", current->cells[j].input_nonl.weights[k]);
+				writeToFile(fp, buff);
+			}
+			snprintf(buff, 100, "%f ", current->cells[j].input_nonl.bias);
+			writeToFile(fp, buff);
+
+			for(int k = 0; k < current->input_dimension; k++){
+				snprintf(buff, 100, "%f ", current->cells[j].input_gate.weights[k]);
+				writeToFile(fp, buff);
+			}
+			snprintf(buff, 100, "%f ", current->cells[j].input_gate.bias);
+			writeToFile(fp, buff);
+
+			for(int k = 0; k < current->input_dimension; k++){
+				snprintf(buff, 100, "%f ", current->cells[j].forget_gate.weights[k]);
+				writeToFile(fp, buff);
+			}
+			snprintf(buff, 100, "%f ", current->cells[j].forget_gate.bias);
+			writeToFile(fp, buff);
+
+			for(int k = 0; k < current->input_dimension; k++){
+				snprintf(buff, 100, "%f ", current->cells[j].output_gate.weights[k]);
+				writeToFile(fp, buff);
+			}
+			snprintf(buff, 100, "%f ", current->cells[j].output_gate.bias);
+			writeToFile(fp, buff);
+		}
+		current = current->output_layer;
+	}
+
+	fclose(fp);
 
 
 }
-*/
 /*	
 float step(LSTM_layer *l, float *input, float *desired){
 	if(l->t >= UNROLL_LENGTH || desired == NULL){ //We've reached the max unroll length, so time to do bptt
