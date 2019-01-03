@@ -1,10 +1,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#include <math.h>
 #include <string.h>
-#include "RNN.h"
+#define UNROLL_LENGTH 50
+#include "LSTM.h"
 
-#define DROPOUT 0
+
+#define CREATEONEHOT(name, size, index) memset(name, '\0', size*sizeof(float)); name[index] = 1.0;
 
 /*
  * This is a demonstration of the network I am currently training on my home computer.
@@ -16,14 +19,9 @@
 
 char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!-()[]<>/'\"_\n ";
 
-#if DROPOUT
-char *modelfile = "../saves/rnn_shakespeare_3x600_DROPOUT.rnn";
-#else
-char *modelfile = "../saves/rnn_shakespeare_3x600.rnn";
-#endif
+char *modelfile = "../saves/shakespeare.lstm";
 
 char *datafile = "../shakespeare/complete_works.txt";
-size_t datafilelen = 5447092;
 
 /*
  * Description: This is a function that uses an input character to create a one-hot input vector.
@@ -62,85 +60,95 @@ int main(void){
 	setbuf(stdout, NULL);
 
 	printf("Press ENTER to load %s (may take a while to load)\n", modelfile);
-	RNN n;
+	LSTM n;
 	if(getchar() == 'n'){
 		printf("creating network...\n");
-		n = createRNN(strlen(alphabet), 600, 600, 600, strlen(alphabet));//loadRNNFromFile(modelfile);
+		n = createLSTM(strlen(alphabet), 100, strlen(alphabet));//loadLSTMFromFile(modelfile);
+//		n = createLSTM(3, 3, 1);
 	}else{
-		printf("loading network from %s...\n", modelfile);
-		n = loadRNNFromFile(modelfile);
+		printf("loading network from %s...\nenter 's' to sample.", modelfile);
+		n = loadLSTMFromFile(modelfile);
+		if(getchar() == 's'){
+				printf("small sample:\n");
+				int in = rand() % strlen(alphabet);
+				for(int k = 0; k < 500; k++){
+//					printf("beginning feedforward:\n");
+					float input[strlen(alphabet)]; memset(input, '\0', strlen(alphabet) * sizeof(float)); input[in] = 1.0;
+					forward(&n, input);
+					int guess = 0;
+					for(int k = 0; k < strlen(alphabet); k++) if(n.tail->output[k] > n.tail->output[guess]) guess = k;
+//					printf("	guessed: %c from input %c\n", alphabet[guess], alphabet[in]);
+					in = guess;
+					printf("%c", alphabet[guess]);
+//					printf("	finished forward\n");
+			}
+			exit(0);
+		}
 	}
+	wipe(&n);
 	
-	Layer *current = n.input;
-	while(current != NULL){
-    if(!(current == n.input || current == n.output)){
-#if DROPOUT
-			current->dropout = 0.3;
-#endif
-//      current->squish = hypertan; //assigns this layer's squish function pointer to the tanh activation function
-    }
-		current = current->output_layer;
-	}
-	
-	n.plasticity = 0.04; //I've found that the larger the network, the lower the initial learning rate should be.	
+	n.plasticity = 0.01; //I've found that the larger the network, the lower the initial learning rate should be.	
 
 	int epochs = 1000;
   float previousepochavgcost = 4.5;
 	for(int i = 0; i < epochs; i++){ //Run for a large number of epochs
+		printf("beginning epoch %d\n", i);
 		FILE *fp = fopen(datafile, "rb"); //This is the dataset
 		if(!fp){
 			printf("%s COULD NOT BE OPENED!\n", datafile);
 			exit(1);
 		}
 	
-		char input_character = ' '; //Start the network off with a character
-		char label = label_from_char(fgetc(fp), alphabet); //Get the first letter from the dataset as a label
+		int input_character = label_from_char(' ', alphabet); //Start the network off with a character
+		int label = label_from_char(fgetc(fp), alphabet); //Get the first letter from the dataset as a label
 
 		float cost = 0;
-		float linecost = 0;
-		size_t linecount = 1;
+		float lastcost = 0;
 		int count = 0;
 		float lastavgcost = previousepochavgcost;
 		size_t epochcount = 1;
+		size_t datafilelen = 5447092;
 		float epochcost = 0;
 		do {
 			//The below is all the code needed for training - the rest is just debug stuff.
 			/****************************************************/
-			float input_one_hot[strlen(alphabet)];
-			make_one_hot(input_character, alphabet, input_one_hot);	
-			setOneHotInput(&n, input_one_hot);
+			float input_one_hot[strlen(alphabet)]; memset(input_one_hot, '\0', strlen(alphabet) * sizeof(float)); input_one_hot[input_character] = 1.0;
+			//make_one_hot(input_character, alphabet, input_one_hot);	
+			float expected[strlen(alphabet)]; memset(expected, '\0', strlen(alphabet)*sizeof(float)); expected[label] = 1.0;
+
+			forward(&n, input_one_hot);
+			float cost_local = quadratic_cost(&n, expected);
+			backward(&n);
 			
-			float cost_local = step(&n, label);
 			/****************************************************/
+			if(isnan(cost_local)) { printf("COST NAN! STOPPING...\n"); exit(1); }
 
 			cost += cost_local;
-			linecost += cost_local;
+
+			int guess = 0;
+			for(int k = 0; k < strlen(alphabet); k++) if(n.tail->output[k] > n.tail->output[guess]) guess = k;
+
 			if(alphabet[label] == '\n') printf("\n");
-			else if(alphabet[bestGuess(&n)] == alphabet[label]) printf("%c", alphabet[label]);
+			else if(alphabet[guess] == alphabet[label]) printf("%c", alphabet[label]);
 			else printf("_");
-			input_character = alphabet[label];
+
+			input_character = label;
 			count++;
-			linecount++;
 			label = label_from_char(fgetc(fp), alphabet);
+			
 			if(count % 1000 == 0){
 				epochcount += count;
 				epochcost += cost;
 			
 				//Debug stuff
 				float completion = 100 * (float)epochcount/datafilelen;
-				float percentchange = 100 * ((lastavgcost / (cost/count)) - 1);
-				float percentchange_epoch = 100 * ((previousepochavgcost / (epochcost/epochcount)) - 1);
-				printf("\n\n****\nlatest cost: %f vs epoch avg cost:%f, epoch %5.2f%% completed.\n", cost/count, epochcost/epochcount, completion);
-				printf("%5.2f%% improvement over last 1000 chars, %5.3f%% since last epoch.\n", percentchange, percentchange_epoch);
+				if(lastcost == 0) lastcost = cost/count;
+				lastcost = (lastcost * 10 + cost/count)/11.0;
+				printf("\n\n****\nlatest cost: %6.5f (avg %6.5f) vs epoch avg cost:%f, epoch %5.2f%% completed.\n", cost/count, lastcost, epochcost/epochcount, completion);
 
-				if(epochcount % 15000 == 0 && percentchange_epoch > 0){
-					printf("\n\n***************\nAUTOSAVING MODEL FILE!\n");
-					saveRNNToFile(&n, modelfile);
-					printf("***************\n\n");
-				}
-
-				Neuron *output_neuron = &n.output->neurons[bestGuess(&n)];
-				printf("output neuron (%d) has gradient %f, dActivation %f, output %f, \'%c\'\n*****\n", bestGuess(&n), output_neuron->gradient, output_neuron->dActivation, output_neuron->activation, alphabet[bestGuess(&n)]);
+				printf("\nAUTOSAVING MODEL FILE!\n");
+				saveLSTMToFile(&n, modelfile);
+				printf("****\n\n");
 
 				//Reset short-term cost statistic
 				cost = 0;
@@ -151,10 +159,12 @@ int main(void){
 		while(label != EOF);
 		fclose(fp);
 		printf("Epoch completed, cost was %f vs previous cost of %f\n", cost/count, lastavgcost);
-		saveRNNToFile(&n, modelfile); 
+//		saveLSTMToFile(&n, modelfile); 
 		previousepochavgcost = epochcost/epochcount;
+		getchar();
 
 		//Get a sample sonnet by feeding the network its own output, starting with a random letter.
+		/*
 		char input = alphabet[rand()%(strlen(alphabet)-1)];
 		printf("Sample from input '%c':\n", input);
 		for(int i = 0; i < 1000; i++){
@@ -168,5 +178,6 @@ int main(void){
 			input = alphabet[bestGuess(&n)];
 			printf("%c", input);
 		}
+		*/
 	}
 }
