@@ -48,7 +48,6 @@ int label_from_char(char inpt, const char *alphabet){
 int main(void){
 
 	LSTM n = createLSTM(strlen(alphabet), 50, strlen(alphabet));
-	saveLSTMToFile(&n, "../saves/lstmtest.lstm");
 	RNN x = createRNN(strlen(alphabet), 50, strlen(alphabet));
 	n.plasticity = 0.05; //The network seems to perform best with a learning rate of around 0.1.
 	x.plasticity = 0.05;
