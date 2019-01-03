@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 #define INPUT_DIM 10
-#define NUMCELLS 15
+#define NUMCELLS 2
 
 int data[] = {
 	1,
@@ -22,7 +22,7 @@ int data[] = {
 
 
 int main(){
-	LSTM n = createLSTM(INPUT_DIM, NUMCELLS, NUMCELLS, INPUT_DIM);
+	LSTM n = createLSTM(INPUT_DIM, NUMCELLS, INPUT_DIM);
 	/*
 	for(int i = 0; i < 3; i++){
 		float x1[] = {0.1, 1.5};
@@ -51,14 +51,17 @@ int main(){
 			memset(expected, '\0', INPUT_DIM*sizeof(float));
 			expected[label] = 1.0;
 
+			int guess = 0;
+			for(int k = 0; k < INPUT_DIM; k++) if(n.tail->output[k] > n.tail->output[guess]) guess = k;
+			printf("guess: %d\n", guess);
 			
 //			float c = step(&n, one_hot, expected);
 			forward(&n, one_hot);
-			float c = quadratic_cost(&n, expected);
-			backward(&n);
+//			float c = quadratic_cost(&n, expected);
+//			backward(&n);
 			
-			cost += c;
-
+//			cost += c;
+/*
 			count++;	
 			if(count%100 == 0){
 				printf("%d: cost: %3.2f, avg: %5.4f\n", count, c, cost/count);
@@ -75,10 +78,10 @@ int main(){
 					else printf("]\n");
 				}
 
-
-				getchar();
 			}
 		
+*/
+				getchar();
 //			printf("label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d", label, data[i], bestGuess(&n), c, cost/count, bestGuess(&n) == label);
 		}
 
