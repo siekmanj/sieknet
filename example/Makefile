@@ -8,7 +8,7 @@ DAT_DIR=../data
 
 INCLUDE=-I../include
 LIBS=-lm
-CFLAGS=-O3
+CFLAGS=-O2
 
 LSTM_SRC=$(SRC_DIR)/LSTM.c
 MLP_SRC=$(SRC_DIR)/MLP.c
