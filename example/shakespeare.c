@@ -3,7 +3,7 @@
 #include <time.h>
 #include <math.h>
 #include <string.h>
-#define UNROLL_LENGTH 50
+#define UNROLL_LENGTH 25
 #include "LSTM.h"
 
 
@@ -14,7 +14,7 @@
  * The end goal is that the network writes its own plays.
  */
 
-char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!-()[]<>/'\"_\n ";
+char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!'\"_\n ";
 
 char *modelfile = "../model/shakespeare.lstm";
 
@@ -42,8 +42,7 @@ int main(void){
 	LSTM n;
 	if(getchar() == 'n'){
 		printf("creating network...\n");
-		n = createLSTM(strlen(alphabet), 200, strlen(alphabet));//loadLSTMFromFile(modelfile);
-//		n = createLSTM(3, 3, 1);
+		n = createLSTM(strlen(alphabet), 300, strlen(alphabet));//loadLSTMFromFile(modelfile);
 	}else{
 		printf("loading network from %s...\nenter 's' to sample.", modelfile);
 		n = loadLSTMFromFile(modelfile);
@@ -66,7 +65,7 @@ int main(void){
 		}
 	}
 	
-	n.plasticity = 0.01; //I've found that the larger the network, the lower the initial learning rate should be.	
+	n.plasticity = 0.05; //I've found that the larger the network, the lower the initial learning rate should be.	
 
 	int epochs = 1000;
   float previousepochavgcost = 4.5;
@@ -98,6 +97,14 @@ int main(void){
 			CREATEONEHOT(input_one_hot, strlen(alphabet), input_character);
 			CREATEONEHOT(expected, strlen(alphabet), label);
 
+/*
+					printf("expected: [");
+					for(int i = 0; i < strlen(alphabet); i++){
+						printf("%6.5f", expected[i]);
+						if(i < strlen(alphabet)-1) printf(", ");
+						else printf("]\n");
+					}
+					*/
 			forward(&n, input_one_hot);
 			float cost_local = quadratic_cost(&n, expected);
 			backward(&n);
@@ -126,7 +133,7 @@ int main(void){
 				float completion = 100 * (float)epochcount/datafilelen;
 				if(lastcost == 0) lastcost = cost/count;
 				lastcost = (lastcost * 10 + cost/count)/11.0;
-				printf("\n\n****\nlatest cost: %6.5f (avg %6.5f) vs epoch avg cost:%f, epoch %5.2f%% completed.\n", cost/count, lastcost, epochcost/epochcount, completion);
+				printf("\n\n****\nlatest cost: %6.5f (avg %6.5f) vs epoch avg cost:%f, epoch (%d) %5.2f%% completed.\n", cost/count, lastcost, epochcost/epochcount, i, completion);
 
 				printf("\nAUTOSAVING MODEL FILE!\n");
 				saveLSTMToFile(&n, modelfile);
@@ -143,7 +150,7 @@ int main(void){
 		printf("Epoch completed, cost was %f vs previous cost of %f\n", cost/count, lastavgcost);
 //		saveLSTMToFile(&n, modelfile); 
 		previousepochavgcost = epochcost/epochcount;
-		getchar();
+//		getchar();
 
 		//Get a sample sonnet by feeding the network its own output, starting with a random letter.
 		/*
