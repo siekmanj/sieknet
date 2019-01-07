@@ -255,10 +255,6 @@ void layer_backward(LSTM_layer *l, float **gradients, float plasticity){
 				i->weights[k] += i->gradient[t] * l->inputs[t][k] * plasticity;
 				f->weights[k] += f->gradient[t] * l->inputs[t][k] * plasticity;
 				o->weights[k] += o->gradient[t] * l->inputs[t][k] * plasticity;
-				if(a->weights[k] > 100 || a->weights[k] < -100){
-					printf("made an unusually large parameter (%6.5f) from %6.5f * %6.5f * %6.5f\n", a->weights[k], a->gradient[t], l->inputs[t][k], plasticity);
-					exit(1);
-				}
 			}
 			if(t < MAX_TIME){
 				for(long k = recurrent_offset; k < l->input_dimension; k++){
@@ -277,24 +273,19 @@ void layer_backward(LSTM_layer *l, float **gradients, float plasticity){
 }
 
 /*
- * Computes the forward pass of a single cell layer
+ * Computes the forward pass of a single layer
  */
 void layer_forward(LSTM_layer *l, float *input){
-	size_t MAX_TIME = l->t-1;
-	size_t t = l->t;
+	size_t t = l->t; //The current layer time
+
 	for(long i = 0; i < l->input_dimension - l->size; i++){
-		l->inputs[t][i] = input[i];
+		l->inputs[t][i] = input[i]; //Copy input for this timestep 
 	}
-//	printf("recurrent inputs layer %p, t %lu: [", l, l->t);
 	for(long i = l->input_dimension - l->size; i < l->input_dimension; i++){
-//	if(t) l->inputs[t][i] = l->cells[i - (l->input_dimension - l->size)].output[t-1]; //recurrent input
-//	else  l->inputs[t][i] = l->output[i - (l->input_dimension - l->size)];
-		l->inputs[t][i] = l->output[i - (l->input_dimension - l->size)];
-//	printf("%6.5f", l->inputs[t][i]);
-//	if(i < l->input_dimension - 1) printf(", ");
-//	else printf("]\n");
+		l->inputs[t][i] = l->output[i - (l->input_dimension - l->size)]; //Concatenate last timestep's outputs into our input vector
 	}
 
+	//Do output calculations for every cell in this layer
 	for(long j = 0; j < l->size; j++){
 		Cell *c = &l->cells[j];
 		Gate *a = &c->input_nonl;
@@ -302,23 +293,21 @@ void layer_forward(LSTM_layer *l, float *input){
 		Gate *f = &c->forget_gate;
 		Gate *o = &c->output_gate;
 
-		a->output[t] = hypertan_element(inner_product(a->weights, l->inputs[t], l->input_dimension) + a->bias);
-		i->output[t] = sigmoid_element(inner_product(i->weights, l->inputs[t], l->input_dimension) + i->bias);
+		a->output[t] = hypertan_element(inner_product(a->weights, l->inputs[t], l->input_dimension) + a->bias); //input nonlinearity uses hypertangent
+		i->output[t] = sigmoid_element(inner_product(i->weights, l->inputs[t], l->input_dimension) + i->bias); //all of the gates use sigmoid
 		f->output[t] = sigmoid_element(inner_product(f->weights, l->inputs[t], l->input_dimension) + f->bias);
 		o->output[t] = sigmoid_element(inner_product(o->weights, l->inputs[t], l->input_dimension) + o->bias);
 
-		//not used
+		//not used, may delete
 		a->dOutput[t] = 1 - a->output[t] * a->output[t];
 		i->dOutput[t] = i->output[t] * (1 - i->output[t]);
 		f->dOutput[t] = f->output[t] * (1 - f->output[t]);
 		o->dOutput[t] = o->output[t] * (1 - o->output[t]);
 
-//		if(t) c->state[t] = a->output[t] * i->output[t] + f->output[t] * c->state[t-1];
-//		else c->state[t] = a->output[t] * i->output[t];
-		c->state[t] = a->output[t] * i->output[t] + f->output[t] * c->lstate;
-//		printf("making state (%6.5f) from %6.5f * %6.5f + %6.5f * %6.5f\n", a->output[t], i->output[t], f->output[t], c->lstate);
-		c->output[t] = hypertan_element(c->state[t]) * o->output[t];
-		c->lstate = c->state[t];
+		c->state[t] = a->output[t] * i->output[t] + f->output[t] * c->lstate; //Calculate the internal cell state
+		c->output[t] = hypertan_element(c->state[t]) * o->output[t]; //Calculate the output of the cell
+		c->lstate = c->state[t]; //Set the last timestep's cell state to the current one for the next timestep
+
 #if DEBUG
 		if(isnan(a->output[t])){
 			printf("ERROR: layer_forward(): a->output[%d] is nan from tanh(%6.5f + %6.5f)\n", t, inner_product(a->weights, l->inputs[t], l->input_dimension), a->bias);
@@ -330,12 +319,8 @@ void layer_forward(LSTM_layer *l, float *input){
 		}
 #endif
 	}
-//	printf("	layer outputs: [");
 	for(long i = 0; i < l->size; i++){
-		l->output[i] = l->cells[i].output[t];
-//		printf("%6.5f", l->output[i]);
-//		if(i < l->size-1) printf(", ");
-//		else printf("]\n");
+		l->output[i] = l->cells[i].output[t]; //copy cell outputs to the layer output vector (for use in inner_product)
 	}
 }
 
