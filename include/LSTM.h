@@ -23,10 +23,11 @@ typedef struct cell{
 	Gate input_gate;
 	Gate forget_gate;
 	Gate output_gate;
-	float *output;
-	float *dOutput;
+	float lstate;
 	float *state;
 	float *dstate;
+	float *output;
+	float *dOutput;
 	float *gradient;
 } Cell;
 
