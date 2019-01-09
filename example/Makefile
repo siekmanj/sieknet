@@ -20,6 +20,10 @@ shakespeare:
 mlp_mnist:
 	$(CC) $(CFLAGS) $(INCLUDE) $(MNIST_SRC) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 
+sequence:
+	$(CC) $(CFLAGS) $(INCLUDE) $(LSTM_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
+
+
 
 $(shell mkdir -p $(DIRS))
 
