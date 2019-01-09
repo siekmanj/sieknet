@@ -1,9 +1,10 @@
 #include <stdlib.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <time.h>
 #include <math.h>
 #include <string.h>
-#define UNROLL_LENGTH 25
+#define UNROLL_LENGTH 45
 #include "LSTM.h"
 
 
@@ -14,7 +15,7 @@
  * The end goal is that the network writes its own plays.
  */
 
-char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!'\"_\n ";
+char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!'\"[]{}<>/-_*&|\\\n ";
 
 char *modelfile = "../model/shakespeare.lstm";
 
@@ -50,22 +51,18 @@ int main(void){
 				int in = rand() % strlen(alphabet) - 1;
 				printf("small sample from char '%c'\n", alphabet[in]);
 				for(int k = 0; k < 500; k++){
-//					printf("beginning feedforward:\n");
-					//float input[strlen(alphabet)]; memset(input, '\0', strlen(alphabet) * sizeof(float)); input[in] = 1.0;
 					CREATEONEHOT(input, strlen(alphabet), in);
 					forward(&n, input);
 					int guess = 0;
 					for(int k = 0; k < strlen(alphabet); k++) if(n.tail->output[k] > n.tail->output[guess]) guess = k;
-//					printf("	guessed: %c from input %c\n", alphabet[guess], alphabet[in]);
 					in = guess;
 					printf("%c", alphabet[guess]);
-//					printf("	finished forward\n");
 			}
 			exit(0);
 		}
 	}
 	
-	n.plasticity = 0.05; //I've found that the larger the network, the lower the initial learning rate should be.	
+	n.plasticity = 0.005; //I've found that the larger the network, the lower the initial learning rate should be.	
 
 	int epochs = 1000;
   float previousepochavgcost = 4.5;
@@ -91,20 +88,9 @@ int main(void){
 		do {
 			//The below is all the code needed for training - the rest is just debug stuff.
 			/****************************************************/
-//			float input_one_hot[strlen(alphabet)]; memset(input_one_hot, '\0', strlen(alphabet) * sizeof(float)); input_one_hot[input_character] = 1.0;
-			//make_one_hot(input_character, alphabet, input_one_hot);	
-///			float expected[strlen(alphabet)]; memset(expected, '\0', strlen(alphabet)*sizeof(float)); expected[label] = 1.0;
 			CREATEONEHOT(input_one_hot, strlen(alphabet), input_character);
 			CREATEONEHOT(expected, strlen(alphabet), label);
 
-/*
-					printf("expected: [");
-					for(int i = 0; i < strlen(alphabet); i++){
-						printf("%6.5f", expected[i]);
-						if(i < strlen(alphabet)-1) printf(", ");
-						else printf("]\n");
-					}
-					*/
 			forward(&n, input_one_hot);
 			float cost_local = quadratic_cost(&n, expected);
 			backward(&n);
@@ -125,7 +111,7 @@ int main(void){
 			count++;
 			label = label_from_char(fgetc(fp), alphabet);
 			
-			if(count % 1000 == 0){
+			if(count % 10000 == 0){
 				epochcount += count;
 				epochcost += cost;
 			
@@ -135,13 +121,18 @@ int main(void){
 				lastcost = (lastcost * 10 + cost/count)/11.0;
 				printf("\n\n****\nlatest cost: %6.5f (avg %6.5f) vs epoch avg cost:%f, epoch (%d) %5.2f%% completed.\n", cost/count, lastcost, epochcost/epochcount, i, completion);
 
-				printf("\nAUTOSAVING MODEL FILE!\n");
-				saveLSTMToFile(&n, modelfile);
+				if(cost/count < epochcost/epochcount){
+					printf("\nAUTOSAVING MODEL FILE!\n");
+					saveLSTMToFile(&n, modelfile);
+				}else{
+					printf("\nPERFORMANCE WORSE THAN AVERAGE, NOT SAVING MODELFILE\n");
+				}
 				printf("****\n\n");
 
 				//Reset short-term cost statistic
 				cost = 0;
 				count = 0;
+				sleep(1.0);
 			}
 		}
 	

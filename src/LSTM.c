@@ -10,15 +10,13 @@
 #include <string.h>
 
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc(NUM * sizeof(TYPE));
-#define DEBUG 1
+#define DEBUG 0
 
 /*
  * Handy function for zeroing out a 2d array
  */
 void zero_2d_arr(float **arr, size_t sequence_length, size_t input_dimension){
-//	printf("2d arr wipe (%p):\n", arr);
 	for(long i = 0; i < sequence_length; i++){
-//		printf("	accessing %p\n", arr[i]);
 		for(long j = 0; j < input_dimension; j++){
 			arr[i][j] = 0.0;
 		}
@@ -51,6 +49,9 @@ void wipe(LSTM *n){
 				l->cells[i].output[t] = 0;
 				l->cells[i].gradient[t] = 0;
 				l->cells[i].dOutput[t] = 0;
+				l->cells[i].state[t] = 0;
+				l->cells[i].dstate[t] = 0;
+				l->cells[i].lstate = 0;
 				l->output[i] = 0;
 			}
 		}
@@ -59,10 +60,8 @@ void wipe(LSTM *n){
 		l->t = 0;
 		l = l->output_layer;
 	}
-//	printf("about to zero cost gradients, %lu\n", n->tail->size);
 	zero_2d_arr(n->cost_gradients, UNROLL_LENGTH, n->tail->size);
 	n->t = 0;
-//	printf("done with wipe\n");
 }	
 
 /*
@@ -111,6 +110,7 @@ LSTM_layer *createLSTM_layer(size_t input_dim, size_t size, float plasticity){
 		cell->dstate = ALLOCATE(float, UNROLL_LENGTH);
 		cell->gradient = ALLOCATE(float, UNROLL_LENGTH);
 		cell->dOutput = ALLOCATE(float, UNROLL_LENGTH);
+		cell->lstate = 0;
 
 	}
 	l->cells = cells;
@@ -166,6 +166,8 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 }
 
 float hypertan_element(float x){
+	if(x > 7.0)  return 0.999998;
+	if(x < -7.0) return -0.999998;
 	return (exp(x) - exp(-x)) / (exp(x) + exp(-x));
 }
 float d_hypertan_element(float x){
@@ -195,7 +197,7 @@ void layer_backward(LSTM_layer *l, float **gradients, float plasticity){
 			l->cells[j].gradient[t] = gradients[t][j];
 			float grad = l->cells[j].gradient[t];
 			if(grad > 1000 || grad < -1000){
-				printf("grad is unusually large (%6.5f) at t: %d, j: %d\n", grad, t, j);
+				printf("ERROR: layer_backward(): grad is unusually large (%6.5f) at t: %d, j: %d\n", grad, t, j);
 				exit(1);
 			}
 		}
@@ -305,22 +307,41 @@ void layer_forward(LSTM_layer *l, float *input){
 		o->dOutput[t] = o->output[t] * (1 - o->output[t]);
 
 		c->state[t] = a->output[t] * i->output[t] + f->output[t] * c->lstate; //Calculate the internal cell state
+//		if(c->state[t] > 1.0) c->state[t] = 1.0;
+//		if(c->state[t] < -1.0) c->state[t] = -1.0;
 		c->output[t] = hypertan_element(c->state[t]) * o->output[t]; //Calculate the output of the cell
-		c->lstate = c->state[t]; //Set the last timestep's cell state to the current one for the next timestep
 
 #if DEBUG
 		if(isnan(a->output[t])){
-			printf("ERROR: layer_forward(): a->output[%d] is nan from tanh(%6.5f + %6.5f)\n", t, inner_product(a->weights, l->inputs[t], l->input_dimension), a->bias);
+			printf("ERROR: layer_forward(): c[%d], a->output[%d] is nan from tanh(%6.5f + %6.5f)\n", j, t, inner_product(a->weights, l->inputs[t], l->input_dimension), a->bias);
+			printf("from inner product of:\n");
+			for(int i = 0; i < l->input_dimension; i++){
+				printf("%6.5f * %6.5f +\n", a->weights[i], l->inputs[t][i]);
+			}
 			exit(1);
 		}
 		if(isnan(c->state[t])){
-			printf("ERROR: layer_forward(): nan while doing state[%d] = %6.5f * %6.5f + %6.5f * %6.5f\n", t, a->output[t], i->output[t], f->output[t], c->lstate);
+			printf("ERROR: layer_forward(): nan while doing c[%d], state[%d] = %6.5f * %6.5f + %6.5f * %6.5f\n", j, t, a->output[t], i->output[t], f->output[t], c->lstate);
 			exit(1);
 		}
+		if(isnan(c->output[t])){
+			printf("ERROR: layer_forward(): c[%d]->output[%d] is nan from tanh(%6.5f * %6.5f)\n", j, t, c->state[t], o->output[t]);
+			printf("                      : made %6.5f from %6.5f * %6.5f + %6.5f * %6.5f\n", c->state[t], a->output[t], i->output[t], f->output[t], c->lstate);
+			exit(1);
+		}
+		if(c->state[t] > 50 || c->state[t] < -50){
+			printf("WARNING: layer_forward(): c[%d]->state[%d] (%6.5f) is unusually large and may lead to exploding gradients!\n", j, t, c->state[t]);
+			printf("                      : made %6.5f from %6.5f * %6.5f + %6.5f * %6.5f\n", c->state[t], a->output[t], i->output[t], f->output[t], c->lstate);
+		}
 #endif
+		c->lstate = c->state[t]; //Set the last timestep's cell state to the current one for the next timestep
 	}
 	for(long i = 0; i < l->size; i++){
 		l->output[i] = l->cells[i].output[t]; //copy cell outputs to the layer output vector (for use in inner_product)
+		if(isnan(l->output[i])){
+			printf("ERROR: layer_forward(): nan while copying to layer output vector: index %d, t %lu\n", i, t);
+			exit(1);
+		}
 	}
 }
 
@@ -330,13 +351,6 @@ void layer_forward(LSTM_layer *l, float *input){
 float quadratic_cost(LSTM *n, float *desired){
 	size_t t = n->t;
 	float cost = 0;
-//	printf("network output dimension: %lu\n", n->tail->size);
-//	printf("desired in cost: [");
-//	for(int p = 0; p < n->tail->size; p++){
-//		printf("%6.5f", desired[p]);
-//		if(p < n->tail->size-1) printf(", ");
-//		else printf("]\n");
-//	}
 	for(long i = 0; i < n->tail->size; i++){
 		n->cost_gradients[t][i] = desired[i] - n->tail->output[i];
 		cost += 0.5 * (desired[i] - n->tail->cells[i].output[t]) * (desired[i] - n->tail->cells[i].output[t]);
@@ -355,8 +369,8 @@ float quadratic_cost(LSTM *n, float *desired){
 			printf("ERROR: quadratic_cost(): unusually large gradient %6.5f on index %d from %6.5f - %6.5f\n", n->cost_gradients[t][i], i, desired[i], n->tail->output[i]);
 			exit(1);
 		}
-	}
 #endif
+	}
 	return cost;
 }
 
@@ -389,10 +403,8 @@ float cross_entropy_cost(LSTM *n, float *desired){
  */
 void backward(LSTM *n){
 	int weight_update = (n->t == UNROLL_LENGTH-1) || n->collapse;
-//	if(weight_update)printf("\n(backward)\n");
 	float **grads = n->cost_gradients;
 	LSTM_layer *l = n->tail;
-//	printf("weight update: %d from %d == %d || %d, grads: %p, l: %p\n", weight_update, n->t, UNROLL_LENGTH-1, n->collapse, grads, l);
 	while(l){
 		if(weight_update){
 			layer_backward(l, grads, n->plasticity);
@@ -592,6 +604,7 @@ LSTM loadLSTMFromFile(const char *filename){
 	n.cost_gradients = (float**)malloc(UNROLL_LENGTH * sizeof(float*));
 	for(long i = 0; i < UNROLL_LENGTH; i++) n.cost_gradients[i] = (float*)malloc(n.tail->size * sizeof(float));
 	fclose(fp);
+	wipe(&n);
 	return n;
 }
 
