@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include "MLP.h"
 
 #ifndef MAX_UNROLL_LENGTH
 #define MAX_UNROLL_LENGTH 1000
@@ -56,6 +57,8 @@ typedef struct lstm{
 
 	LSTM_layer *head;
 	LSTM_layer *tail;
+
+	MLP output_layer;
 	
 } LSTM;
 
@@ -64,7 +67,7 @@ LSTM loadLSTMFromFile(const char *filename);
 void saveLSTMToFile(LSTM *n, char *filename);
 
 void forward(LSTM *, float *);
-void backward(LSTM *);
+float backward(LSTM *, float *);
 float quadratic_cost(LSTM *, float *);
 float cross_entropy_cost(LSTM *, float *);
 

@@ -149,7 +149,11 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 	n.t = 0;
 	n.head = NULL;
 	n.tail = NULL;
-	for(long i = 1; i < len; i++){
+	if(len < 3){
+		printf("ERROR: lstm_from_arr(): must have at least input dim, hidden layer size, and output dim (3 layers), but only %d provided.\n", len);
+		exit(1);
+	}
+	for(long i = 1; i < len-1; i++){
 
 		LSTM_layer *l = createLSTM_layer(arr[i-1], arr[i], n.plasticity);
 
@@ -163,11 +167,19 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 		}
 	}	
 
-	//Allocate the 2d array to store the gradients calculated by the cost function
+	//Allocate the 2d array to store the gradients calculated by the output layer
 	n.cost_gradients = (float**)malloc(MAX_UNROLL_LENGTH * sizeof(float*));
-	for(long i = 0; i < MAX_UNROLL_LENGTH; i++) n.cost_gradients[i] = (float*)malloc(arr[len-1] * sizeof(float));
+	for(long i = 0; i < MAX_UNROLL_LENGTH; i++) n.cost_gradients[i] = (float*)malloc(arr[len-2] * sizeof(float));
 
-	zero_2d_arr(n.cost_gradients, MAX_UNROLL_LENGTH, arr[len-1]);
+	zero_2d_arr(n.cost_gradients, MAX_UNROLL_LENGTH, arr[len-2]);
+//Will need to change once mlp.c is rewritten
+/******************************/ 
+	MLP output = initMLP();
+	addLayer(&output, arr[len-2]);
+	addLayer(&output, arr[len-1]);
+	n.output_layer = output;
+/******************************/
+
 	return n;
 }
 
@@ -375,7 +387,7 @@ void layer_forward(LSTM_layer *l, float *input){
 
 /*
  * Calculates simple quadratic cost of network output.
- */
+ *
 float quadratic_cost(LSTM *n, float *desired){
 	size_t t = n->t;
 	float cost = 0;
@@ -405,9 +417,9 @@ float quadratic_cost(LSTM *n, float *desired){
 	return cost;
 }
 
-/*
+*
  * Calculates cross entropy cost of network output.
- */
+ 
 float cross_entropy_cost(LSTM *n, float *desired){
 	size_t t = n->t;
 	float cost = 0;
@@ -437,11 +449,19 @@ float cross_entropy_cost(LSTM *n, float *desired){
 	}
 	return cost;
 }
+*/
 
 /*
  * Performs a backward pass if the network unroll has been reached.
  */
-void backward(LSTM *n){
+float backward(LSTM *n, float *expected){
+	MLP *output_mlp = &n->output_layer;
+	float c = backpropagate(output_mlp, expected); //backpropagate the mlp output layer (not lstm layers)
+
+	for(int i = 0; i < n->tail->size; i++){
+		n->cost_gradients[n->t][i] = output_mlp->input->neurons[i].gradient; //copy gradients
+	}
+
 #if DEBUG
 	if(n->seq_len > MAX_UNROLL_LENGTH){
 		printf("ERROR: backward(): lstm.seq_len is too large (%d > max of %d).\n", n->seq_len, MAX_UNROLL_LENGTH);
@@ -478,7 +498,7 @@ void backward(LSTM *n){
 		//wipe(n);
 	}
 	else n->t++;
-	
+	return c;
 }
 
 /*
@@ -501,34 +521,16 @@ void forward(LSTM *n, float *x){
 		input = l->output;
 		l = l->output_layer;
 	}
-#if SOFTMAX
-	//do softmax to last layer's output vector (not cell outputs!)
-	double sum = 0;
-	for(long i = 0; i < n->tail->size; i++){
-		n->tail->output[i] += 1.0;
-		sum += exp(n->tail->output[i]);
-		if(isnan(sum)){
-			printf("ERROR: forward(): nan while summing in forward pass softmax doing exp(%6.5f)\n", n->tail->output[i]);
-			exit(1);
-		}
-	}
-	for(long i = 0; i < n->tail->size; i++){
-		float in = n->tail->output[i];
-		n->tail->output[i] = exp(n->tail->output[i])/sum;
-		if(isnan(n->tail->output[i])){
-			printf("ERROR: forward(): nan from forward pass in softmax doing exp(%6.5f) / %6.5f\n", in, sum);
-			exit(1);
-		}
-//		n->tail->cells[i].output[n->tail->t] = n->tail->output[i];
-	}
-#endif
+	MLP *output_mlp = &n->output_layer;
+
+	feedforward(output_mlp, n->tail->output);
 	/*
-	sum = 0;
-	printf("output: [");
-	for(long i = 0; i < n->tail->size; i++){
-		printf("%6.5f vs %6.5f", n->tail->output[i], n->tail->cells[i].output[n->t]);
-		sum += n->tail->output[i];
-		if(i < n->tail->size-1) printf(", ");
+	float sum = 0;
+	printf("feedforward output: [");
+	for(long i = 0; i < output_mlp->output->size; i++){
+		printf("%6.5f", output_mlp->output->neurons[i].activation);
+		sum += output_mlp->output->neurons[i].activation;
+		if(i < output_mlp->output->size-1) printf(", ");
 		else printf("], sum: %6.5f\n", sum);
 	}
 	*/

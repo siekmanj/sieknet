@@ -157,9 +157,9 @@ static void set_outputs(Layer *layer, float *outputs){
  * Description: Calculates the quadratic cost for an output neuron.
  *               Also sets activation gradients for output layer.
  * neuron: The neuron for which cost will be calculated.
- * y: Whether or not the neuron was supposed to fire or not (0 or 1)
+ * y: The expected value of the neuron
  */
-static float quadratic_cost(Neuron *neuron, int y){
+static float quadratic_cost(Neuron *neuron, float y){
   neuron->gradient = (2 * (y-neuron->activation));
   return ((y-neuron->activation)*(y-neuron->activation));
 }
@@ -168,9 +168,9 @@ static float quadratic_cost(Neuron *neuron, int y){
  * Description: Calculates the cross entropy cost for an output neuron.
  *               Also sets activation gradients for output layer.
  * neuron: The neuron for which cost will be calculated.
- * y: Whether or not the neuron was supposed to fire or not (0 or 1)
+ * y: The expected value of the neuron
  */
-static float cross_entropy_cost(Neuron *neuron, int y){
+static float cross_entropy_cost(Neuron *neuron, float y){
   //Make sure we don't get divide by zero errors for safety
   if(neuron->activation < 0.00001) neuron->activation = 0.00001;
   else if(neuron->activation > 0.9999) neuron->activation = 0.9999;
@@ -189,10 +189,10 @@ static float cross_entropy_cost(Neuron *neuron, int y){
  * output_layer: the last layer in the network.
  * label: the expected value chosen by the network.
  */
-static float cost(Layer *output_layer, int label){
+static float cost(Layer *output_layer, float *expected){
   float sum = 0;
   for(int i = 0; i < output_layer->size; i++){
-    int y = (i==label);
+    int y = expected[i];
 
     Neuron *neuron = &output_layer->neurons[i];
 	  //Calculate the cost from the desired value and actual neuron output
@@ -227,11 +227,11 @@ static void propagate_gradients(Layer *output_layer){
  * label: The neuron that should have fired in the output layer.
  * plasticity: The learning rate of the network.
  */
-float backpropagate(Layer *output_layer, int label, float plasticity){
-  float c = cost(output_layer, label); //Calculate cost & set activation gradients in output layer
-	propagate_gradients(output_layer); //Calculate gradients for every other neuron in the network
+float backpropagate(MLP *n, float *expected){
+  float c = cost(n->output, expected); //Calculate cost & set activation gradients in output layer
+	propagate_gradients(n->output); //Calculate gradients for every other neuron in the network
 
-  Layer *current = output_layer;
+  Layer *current = n->output;
   while(current->input_layer != NULL){
     Layer* input_layer = current->input_layer;
 
@@ -243,10 +243,10 @@ float backpropagate(Layer *output_layer, int label, float plasticity){
       //Calculate weight nudges
       for(int j = 0; j < input_layer->size; j++){
         float a = input_layer->neurons[j].activation;
-        currentNeuron->weights[j] += a * dActivation * gradient * plasticity;
+        currentNeuron->weights[j] += a * dActivation * gradient * n->plasticity;
       }
       //Calculate bias nudge
-      currentNeuron->bias += dActivation * gradient * plasticity;
+      currentNeuron->bias += dActivation * gradient * n->plasticity;
     }
     current = current->input_layer;
   }
@@ -283,11 +283,9 @@ void calculate_inputs(Layer *layer){
  */
 MLP initMLP(){
   MLP n;
-	//n.setInputs = 
   n.input = NULL;
   n.output = NULL;
-  n.performance = 0;
-  n.plasticity = .1;
+  n.plasticity = .01;
   return n;
 }
 
@@ -323,28 +321,27 @@ void addLayer(MLP *n, size_t size){
  * Description: Sets the inputs of the network.
  * n: the pointer to the network.
  * arr: the array of values to be passed into the network.
- */
+ *
 void setInputs(MLP *n, float* arr){
   set_outputs(n->input, arr);
 }
+*/
 
 /* 
  * Description: Does feed-forward, cost, and then backpropagation (gradient descent)
- * n: the pointer to the MLP.
- * label: the neuron expected to fire (for example, 4 for neuron 4)
  */
-float descend(MLP *n, int label){
-  feedforward(n);
-  return backpropagate(n->output, label, n->plasticity);
+float descend(MLP *n, float *x, float *y){
+  feedforward(n, x);
+  return backpropagate(n, y);
 }
 
 
 /*
  * Description: Performs the feed-forward operation on the network.
- * NOTE: setInputs should be used before calling feedforward.
  * n: A pointer to the network.
  */
-void feedforward(MLP *n){
+void feedforward(MLP *n, float *arr){
+	set_outputs(n->input, arr);
   Layer *current = n->input->output_layer;
   while(current != NULL){
     calculate_inputs(current); //Calculate inputs from previous layer

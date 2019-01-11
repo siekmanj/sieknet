@@ -9,6 +9,8 @@
 #include <string.h>
 #include <time.h>
 
+#define CREATEONEHOT(name, size, index) float name[size]; memset(name, '\0', size*sizeof(float)); name[index] = 1.0;
+
 char *modelfile = "../model/mnist.mlp";
 
 char *trainset_images = "../data/mnist/train-images-idx3-ubyte";
@@ -46,15 +48,11 @@ int main(void) {
     float avgCost = 0;
     for(size_t i = 0; i < training_set.numImages * epochs; i++) { // Run for the given number of epochs
       size_t index = i % training_set.numImages;
-      float *img = img2floatArray(&training_set, index, &height, &width); // Image is returned as a float array
-                                           																// (must have same dims as input
-                                        															    // layer)
-      setInputs(&n, img); // Set the activations of the neurons in the input layer.
-
+      float *x = img2floatArray(&training_set, index, &height, &width); // Image is returned as a float array
       int correctlabel = label(&training_set, index); // Retrieve the label from the image set.
+			CREATEONEHOT(y, 10, correctlabel); // Create a float array for cost
 
-      float c = descend(&n, correctlabel); // Perform feedforward &
-                                           // backpropagation, and return cost
+      float c = descend(&n, x, y); // Perform feedforward & backprop
 
       avgCost += c;
 
@@ -80,9 +78,8 @@ int main(void) {
       size_t height, width;
       float *img = img2floatArray(&testing_set, i, &height,
                                   &width); // Get image as float array
-      setInputs(&n, img); // Set the activations in the input layer
 
-      feedforward(&n); // Perform feedforward only, no backprop
+      feedforward(&n, img); // Perform feedforward only, no backprop
 
       int guess = bestGuess(&n); // Get network's best guess
 
