@@ -31,10 +31,7 @@ typedef struct Layer{
 typedef struct MLP{
 	Layer *input;
 	Layer *output;
-	//void (*setInputs)(void* layer, void* arr);
-	double performance;
 	double plasticity;
-	unsigned long age;
 } MLP;
 
 Layer *create_layer(size_t, Layer*);
@@ -44,17 +41,16 @@ MLP loadMLPFromFile(const char *filename);
 MLP initMLP();
 
 void addLayer(MLP *, size_t);
-void setInputs(MLP *, float*);
 void calculate_inputs(Layer*);
-void feedforward(MLP *);
+void feedforward(MLP *, float *);
 
 void gradients_wrt_outputs(Layer *);
 void mutate(Layer *, float, float);
 
 void saveMLPToFile(MLP *n, char* filename);
 
-float descend(MLP *n, int label);
-float backpropagate(Layer *output_layer, int label, float plasticity);
+float descend(MLP *n, float *, float *);
+float backpropagate(MLP *n, float *);
 
 int bestGuess(MLP *n);
 
