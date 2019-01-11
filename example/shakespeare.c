@@ -4,7 +4,6 @@
 #include <time.h>
 #include <math.h>
 #include <string.h>
-#define UNROLL_LENGTH 55
 #include "LSTM.h"
 
 
@@ -45,7 +44,7 @@ int main(void){
 	LSTM n;
 	if(getchar() == 'n'){
 		printf("creating network...\n");
-		n = createLSTM(strlen(alphabet), 250, strlen(alphabet));//loadLSTMFromFile(modelfile);
+		n = createLSTM(strlen(alphabet), 150, strlen(alphabet));//loadLSTMFromFile(modelfile);
 	}else{
 		printf("loading network from %s...\nenter 's' to sample.", modelfile);
 		n = loadLSTMFromFile(modelfile);
@@ -55,8 +54,7 @@ int main(void){
 				for(int k = 0; k < 500; k++){
 					CREATEONEHOT(input, strlen(alphabet), in);
 					forward(&n, input);
-					int guess = 0;
-					for(int k = 0; k < strlen(alphabet); k++) if(n.tail->output[k] > n.tail->output[guess]) guess = k;
+					int guess = bestGuess(&n.output_layer);
 					in = guess;
 					printf("%c", alphabet[guess]);
 			}
@@ -64,7 +62,8 @@ int main(void){
 		}
 	}
 	
-	n.plasticity = 0.005; //I've found that the larger the network, the lower the initial learning rate should be.	
+	n.plasticity = 0.01; //I've found that the larger the network, the lower the initial learning rate should be.	
+	n.seq_len = 25;
 
 	int epochs = 1000;
   float previousepochavgcost = 4.5;
@@ -90,39 +89,35 @@ int main(void){
 		do {
 			//The below is all the code needed for training - the rest is just debug stuff.
 			/****************************************************/
-			CREATEONEHOT(input_one_hot, strlen(alphabet), input_character);
-			CREATEONEHOT(expected, strlen(alphabet), label);
+			CREATEONEHOT(x, strlen(alphabet), input_character);
+			CREATEONEHOT(y, strlen(alphabet), label);
 
-			forward(&n, input_one_hot);
-			float cost_local = quadratic_cost(&n, expected);
-			backward(&n);
+			forward(&n, x);
+			float cost_local = backward(&n, y);
 			
 			/****************************************************/
 			if(isnan(cost_local)) { printf("COST NAN! STOPPING...\n"); exit(1); }
 
 			cost += cost_local;
 
-			int guess = 0;
-			for(int k = 0; k < strlen(alphabet); k++) if(n.tail->output[k] > n.tail->output[guess]) guess = k;
+			int guess = bestGuess(&n.output_layer);
 
-//			if(alphabet[label] == '\n') printf("\n");
-//			else if(alphabet[guess] == alphabet[label]) printf("%c", alphabet[label]);
-//			else printf("_");
-			printf("%c", alphabet[guess]);
+			if(alphabet[label] == '\n') printf("\n");
+			else if(alphabet[guess] == alphabet[label]) printf("%c", alphabet[label]);
+			else printf("_");
+//			printf("%c", alphabet[guess]);
 
 			input_character = label;
 			count++;
 			label = label_from_char(fgetc(fp), alphabet);
 			
-			if(count % (UNROLL_LENGTH*1000) == 0){
-				printf("\n1000 training iterations passed! printing a sample below:\n");
-				int seed = rand()%(strlen(alphabet)-8);
-				printf("small sample from input '%c':\n", alphabet[seed]);
-				for(int k = 0; k < UNROLL_LENGTH*100; k++){
+			if(count % (n.seq_len*500) == 0){
+				int seed = input_character;
+				printf("\n500 TRAINING CYCLES DONE, PRINTING SAMPLE BELOW FROM '%c'\n", seed);
+				for(int k = 0; k < n.seq_len*100; k++){
 					CREATEONEHOT(tmp, strlen(alphabet), seed);
 					forward(&n, tmp);
-					guess = 0;
-					for(int l = 0; l < strlen(alphabet); l++) if(n.tail->output[l] > n.tail->output[guess]) guess = l;
+					int guess = bestGuess(&n.output_layer);
 					printf("%c", alphabet[guess]);
 					seed = guess;
 				}
