@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#ifndef UNROLL_LENGTH
-#define UNROLL_LENGTH 25
+#ifndef MAX_UNROLL_LENGTH
+#define MAX_UNROLL_LENGTH 1000
 #endif
 
 #define createLSTM(...) lstm_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
@@ -23,6 +23,7 @@ typedef struct cell{
 	Gate input_gate;
 	Gate forget_gate;
 	Gate output_gate;
+	float loutput;
 	float lstate;
 	float *state;
 	float *dstate;
@@ -48,8 +49,10 @@ typedef struct lstm_layer{
 typedef struct lstm{
 	float **cost_gradients;
 	double plasticity;
-	int collapse;
 	size_t t;
+	int collapse;
+	int stateful;
+	int seq_len;
 
 	LSTM_layer *head;
 	LSTM_layer *tail;
