@@ -15,9 +15,9 @@ MLP_SRC=$(SRC_DIR)/MLP.c
 MNIST_SRC=$(SRC_DIR)/mnist.c
 
 char:
-	$(CC) $(CFLAGS) $(INCLUDE) $(LSTM_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
+	$(CC) $(CFLAGS) $(INCLUDE) $(LSTM_SRC) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 shakespeare:
-	$(CC) $(CFLAGS) $(INCLUDE) $(LSTM_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
+	$(CC) $(CFLAGS) $(INCLUDE) $(LSTM_SRC) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 mlp_mnist:
 	$(CC) $(CFLAGS) $(INCLUDE) $(MNIST_SRC) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 
