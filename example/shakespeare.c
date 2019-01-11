@@ -4,7 +4,7 @@
 #include <time.h>
 #include <math.h>
 #include <string.h>
-#define UNROLL_LENGTH 45
+#define UNROLL_LENGTH 55
 #include "LSTM.h"
 
 
@@ -14,10 +14,12 @@
  * This LSTM is trained character-by-character on Shakespeare's complete works.
  * The end goal is that the network writes its own plays.
  */
+ 
+//Calling convention: ../bin/shakespeare [load/new] [path_to_modelfile] [path_to_txt_file]
 
 char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!'\"[]{}<>/-_*&|\\\n ";
 
-char *modelfile = "../model/shakespeare.lstm";
+char *modelfile = "../model/test.lstm";
 
 char *datafile = "../data/shakespeare/complete_works.txt";
 
@@ -43,7 +45,7 @@ int main(void){
 	LSTM n;
 	if(getchar() == 'n'){
 		printf("creating network...\n");
-		n = createLSTM(strlen(alphabet), 300, strlen(alphabet));//loadLSTMFromFile(modelfile);
+		n = createLSTM(strlen(alphabet), 250, strlen(alphabet));//loadLSTMFromFile(modelfile);
 	}else{
 		printf("loading network from %s...\nenter 's' to sample.", modelfile);
 		n = loadLSTMFromFile(modelfile);
@@ -103,15 +105,29 @@ int main(void){
 			int guess = 0;
 			for(int k = 0; k < strlen(alphabet); k++) if(n.tail->output[k] > n.tail->output[guess]) guess = k;
 
-			if(alphabet[label] == '\n') printf("\n");
-			else if(alphabet[guess] == alphabet[label]) printf("%c", alphabet[label]);
-			else printf("_");
+//			if(alphabet[label] == '\n') printf("\n");
+//			else if(alphabet[guess] == alphabet[label]) printf("%c", alphabet[label]);
+//			else printf("_");
+			printf("%c", alphabet[guess]);
 
 			input_character = label;
 			count++;
 			label = label_from_char(fgetc(fp), alphabet);
 			
-			if(count % 10000 == 0){
+			if(count % (UNROLL_LENGTH*1000) == 0){
+				printf("\n1000 training iterations passed! printing a sample below:\n");
+				int seed = rand()%(strlen(alphabet)-8);
+				printf("small sample from input '%c':\n", alphabet[seed]);
+				for(int k = 0; k < UNROLL_LENGTH*100; k++){
+					CREATEONEHOT(tmp, strlen(alphabet), seed);
+					forward(&n, tmp);
+					guess = 0;
+					for(int l = 0; l < strlen(alphabet); l++) if(n.tail->output[l] > n.tail->output[guess]) guess = l;
+					printf("%c", alphabet[guess]);
+					seed = guess;
+				}
+				printf("\n");
+
 				epochcount += count;
 				epochcost += cost;
 			
@@ -124,6 +140,7 @@ int main(void){
 				if(cost/count < epochcost/epochcount){
 					printf("\nAUTOSAVING MODEL FILE!\n");
 					saveLSTMToFile(&n, modelfile);
+
 				}else{
 					printf("\nPERFORMANCE WORSE THAN AVERAGE, NOT SAVING MODELFILE\n");
 				}
@@ -132,7 +149,8 @@ int main(void){
 				//Reset short-term cost statistic
 				cost = 0;
 				count = 0;
-				sleep(1.0);
+				wipe(&n);
+				sleep(1);
 			}
 		}
 	
@@ -141,7 +159,7 @@ int main(void){
 		printf("Epoch completed, cost was %f vs previous cost of %f\n", cost/count, lastavgcost);
 //		saveLSTMToFile(&n, modelfile); 
 		previousepochavgcost = epochcost/epochcount;
-//		getchar();
+		if(i&1) getchar();
 
 		//Get a sample sonnet by feeding the network its own output, starting with a random letter.
 		/*
