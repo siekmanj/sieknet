@@ -18,7 +18,7 @@
 
 char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!'\"[]{}<>/-_*&|\\\n ";
 
-char *modelfile = "../model/test.lstm";
+char *modelfile = "../model/shakespeare_150.lstm";
 
 char *datafile = "../data/shakespeare/complete_works.txt";
 
@@ -48,22 +48,10 @@ int main(void){
 	}else{
 		printf("loading network from %s...\nenter 's' to sample.", modelfile);
 		n = loadLSTMFromFile(modelfile);
-		if(getchar() == 's'){
-				int in = rand() % strlen(alphabet) - 1;
-				printf("small sample from char '%c'\n", alphabet[in]);
-				for(int k = 0; k < 500; k++){
-					CREATEONEHOT(input, strlen(alphabet), in);
-					forward(&n, input);
-					int guess = bestGuess(&n.output_layer);
-					in = guess;
-					printf("%c", alphabet[guess]);
-			}
-			exit(0);
-		}
 	}
 	
-	n.plasticity = 0.01; //I've found that the larger the network, the lower the initial learning rate should be.	
-	n.seq_len = 25;
+	n.plasticity = 0.005; //I've found that the larger the network, the lower the initial learning rate should be.	
+	n.seq_len = 30;
 
 	int epochs = 1000;
   float previousepochavgcost = 4.5;
@@ -110,6 +98,7 @@ int main(void){
 			input_character = label;
 			count++;
 			label = label_from_char(fgetc(fp), alphabet);
+			if(!(count % (n.seq_len*50))) wipe(&n);
 			
 			if(count % (n.seq_len*500) == 0){
 				int seed = input_character;
@@ -144,7 +133,7 @@ int main(void){
 				//Reset short-term cost statistic
 				cost = 0;
 				count = 0;
-				wipe(&n);
+//				wipe(&n);
 				sleep(1);
 			}
 		}
@@ -154,7 +143,7 @@ int main(void){
 		printf("Epoch completed, cost was %f vs previous cost of %f\n", cost/count, lastavgcost);
 //		saveLSTMToFile(&n, modelfile); 
 		previousepochavgcost = epochcost/epochcount;
-		if(i&1) getchar();
+		if(!(i%10)) getchar();
 
 		//Get a sample sonnet by feeding the network its own output, starting with a random letter.
 		/*
