@@ -12,7 +12,7 @@
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc(NUM * sizeof(TYPE));
 #define SOFTMAX 0
 #define DEBUG 1
-#define MAX_GRAD 100
+#define MAX_GRAD 30
 
 /*
  * Handy function for zeroing out a 2d array
@@ -565,6 +565,13 @@ LSTM loadLSTMFromFile(const char *filename){
 	n.head = NULL;
 	n.tail = NULL;
 
+	//Because the lstm uses a mlp for its output layer, we need to load that mlp's params from a separate file (will rewrite when convenient)
+	char *mlp_filename = (char*)malloc((strlen(filename)+5)*sizeof(char));
+	strcpy(mlp_filename, filename);
+	strcat(mlp_filename, ".mlp");
+	n.output_layer = loadMLPFromFile(mlp_filename);
+	free(mlp_filename);
+
 	getWord(fp, buff);
 	if(strcmp(buff, "LSTM") != 0){
 		printf("ERROR: [%s] is not an LSTM.\n", buff);
@@ -665,6 +672,14 @@ LSTM loadLSTMFromFile(const char *filename){
  * Saves the network's state to a file that can be read later.
  */
 void saveLSTMToFile(LSTM *n, char *filename){
+
+	//Because the lstm uses a mlp for its output layer, we need to save that mlp's params to a separate file (will rewrite when convenient)
+	char *mlp_filename = (char*)malloc((strlen(filename)+5)*sizeof(char));
+	strcpy(mlp_filename, filename);
+	strcat(mlp_filename, ".mlp");
+	saveMLPToFile(&n->output_layer, mlp_filename);
+	free(mlp_filename);
+
 	FILE *fp;
 	char buff[1024];
 	memset(buff, '\0', 1024);
