@@ -18,7 +18,7 @@
 
 char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!'\"[]{}<>/-_*&|\\\n ";
 
-char *modelfile = "../model/shakespeare_150.lstm";
+char *modelfile = "../model/shakespeare_850.lstm";
 
 char *datafile = "../data/shakespeare/complete_works.txt";
 
@@ -44,17 +44,17 @@ int main(void){
 	LSTM n;
 	if(getchar() == 'n'){
 		printf("creating network...\n");
-		n = createLSTM(strlen(alphabet), 150, strlen(alphabet));//loadLSTMFromFile(modelfile);
+		n = createLSTM(strlen(alphabet), 600, strlen(alphabet));//loadLSTMFromFile(modelfile);
 	}else{
-		printf("loading network from %s...\nenter 's' to sample.", modelfile);
+		printf("loading network from %s...\n", modelfile);
 		n = loadLSTMFromFile(modelfile);
 	}
 	
-	n.plasticity = 0.005; //I've found that the larger the network, the lower the initial learning rate should be.	
-	n.seq_len = 30;
+	n.plasticity = 0.001; //I've found that the larger the network, the lower the initial learning rate should be.	
+	n.seq_len = 25;
 
-	int epochs = 1000;
-  float previousepochavgcost = 4.5;
+	int epochs = 5;
+  float previousepochavgcost = 2.4;
 	for(int i = 0; i < epochs; i++){ //Run for a large number of epochs
 		printf("beginning epoch %d\n", i);
 		wipe(&n);
