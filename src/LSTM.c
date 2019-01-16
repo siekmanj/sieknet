@@ -12,7 +12,7 @@
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc(NUM * sizeof(TYPE));
 #define SOFTMAX 0
 #define DEBUG 1
-#define MAX_GRAD 30
+#define MAX_GRAD 10
 
 /*
  * Handy function for zeroing out a 2d array
