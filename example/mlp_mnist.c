@@ -23,8 +23,8 @@ int main(void) {
   srand(time(NULL));
 
   //MLP n = loadMLPFromFile("../saves/mnist_784_20_20_10.mlp");
-  MLP n = createMLP(784, 20, 20, 10);
-  n.plasticity = 0.03; // 0.05 is a good starting learning rate - generally, the
+  MLP n = createMLP(784, 16, 16, 10);
+//  n.plasticity = 0.03; // 0.05 is a good starting learning rate - generally, the
                        // more layers/neurons, the lower your learning rate
                        // should be.
 
@@ -32,6 +32,7 @@ int main(void) {
 //  n.input->output_layer->squish = hypertan;
  // n.output->input_layer->squish = leaky_relu;
 
+/*
   size_t epochs = 5;
   int epoch = 0;
 
@@ -87,4 +88,5 @@ int main(void) {
     }
     printf("resulting avg correct: %f\n", avgCorrect / testing_set.numImages);
   }
+	*/
 }
