@@ -9,66 +9,42 @@
 #include <math.h>
 #include <string.h>
 
+#define MAX_LAYERS 20
+
+/*
+ * A function for calculating the inner product of two vectors.
+ */
+static float inner_product(float *x, float *y, size_t length){
+	float sum = 0;
+	for(long i = 0; i < length; i++){
+		sum += x[i] * y[i];	
+	}
+	return sum;
+}
+
+
 /*
  * Description: Calculates the activation of a given neuron using sigmoid, and
  *              sets the partial derivative of the cost with respect to the activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
  */
-void sigmoid(Layer* layer){
+void sigmoid(MLP_layer* layer){
   for(int i = 0; i < layer->size; i++){
-		uint8_t set_output = 1;
-		if(((float)(rand()%100))/100 < layer->dropout){
-			set_output = 0;
-		}
-    layer->neurons[i].activation = set_output * (1 / (1 + exp(-layer->neurons[i].input)));
-    layer->neurons[i].dActivation = set_output * (layer->neurons[i].activation * (1 - layer->neurons[i].activation));
+    layer->output[i] = (1 / (1 + exp(-layer->neurons[i].input)));
   }
 }
 
 /*
- * Description: Calculates the activation of a given neuron using leaky ReLu, and
+ * Description: Calculates the activation of a given neuron using ReLu, and
  *              sets the partial derivative of the cost with respect to the 
  *							activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
  * warning: this does not appear to be stable with high learning rates.
  */
-void leaky_relu(Layer* layer){
+void relu(MLP_layer* layer){
 	for(int i = 0; i < layer->size; i++){
-		uint8_t set_output = 1;
-		if(((float)(rand()%100))/100 < layer->dropout){
-			set_output = 0;
-		}
 		float x = layer->neurons[i].input;
-		float dX = 1;
-		if(x <= 0){
-			x = 0.001;
-			dX = 0.001;
-		}
-		layer->neurons[i].activation = set_output * x;
-		layer->neurons[i].dActivation = set_output * dX;
-	}
-}
-/*
- * Description: Calculates the activation of a given neuron using ReLu, and
- )*              sets the partial derivative of the cost with respect to the 
- *							activation.
- * layerptr: A pointer to the layer for which outputs will be calculated.
- * warning: this does not appear to be stable with high learning rates.
- */
-void relu(Layer* layer){
-	for(int i = 0; i < layer->size; i++){
-		uint8_t set_output = 1;
-		if(((float)(rand()%100))/100 < layer->dropout){
-			set_output = 0;
-		}
-		float x = layer->neurons[i].input;
-		float dX = 1;
-		if(x <= 0){
-			x = 0;
-			dX = 0;
-		}
-		layer->neurons[i].activation = set_output * x;
-		layer->neurons[i].dActivation = set_output * dX;
+		layer->output[i] = x;
 	}
 }
 /*
@@ -76,15 +52,11 @@ void relu(Layer* layer){
  *              sets the partial derivative of the cost with respect to the activation.
  * layerptr: A pointer to the layer for which outputs will be calculated.
  */
- void hypertan(Layer* layer){
+ void hypertan(MLP_layer* layer){
 	for(int i = 0; i < layer->size; i++){
-		uint8_t set_output = 1;
-		if(((float)(rand()%100))/100 < layer->dropout){
-			set_output = 0;
-		}
 		float x = layer->neurons[i].input;
-		layer->neurons[i].activation = set_output * ((exp(x) - exp(-x))/(exp(x) + exp(-x)));
-		layer->neurons[i].dActivation = set_output * (4/((exp(x) + exp(-x)) * (exp(x) + exp(-x))));
+		layer->output[i] = ((exp(x) - exp(-x))/(exp(x) + exp(-x)));
+//		layer->neurons[i].dActivation = set_output * (4/((exp(x) + exp(-x)) * (exp(x) + exp(-x))));
 	}
  }
 
@@ -94,63 +66,117 @@ void relu(Layer* layer){
  * layerptr: A pointer to the layer for which outputs will be calculated.
  * NOTE: potentially stable (dActivation tends toward 0 with very large/very negative inputs, keep learning rate low)
  */
-void softmax(Layer* layer){
+void softmax(MLP_layer* layer){
   double sum = 0;
-  for(int i = 0; i < layer->size; i++){
-    sum += exp(layer->neurons[i].input);
-  }
 
-  for(int i = 0; i < layer->size; i++){
-    layer->neurons[i].activation = exp(layer->neurons[i].input) / sum;
-    layer->neurons[i].dActivation = layer->neurons[i].activation * (1 - layer->neurons[i].activation);
-  }
-	
+  for(int i = 0; i < layer->size; i++)
+    sum += exp(layer->neurons[i].input);
+
+  for(int i = 0; i < layer->size; i++)
+    layer->output[i] = exp(layer->neurons[i].input) / sum;
 }
 
 /* 
- * Description: Allocates an array of Neurons, and then allocates and initializes each Neuron's weights and biases.
- * size: the size of the layer currently being build
- * previousLayer: the preceding layer in the network (can be NULL).
+ * Description: Creates a layer object
  */
-Layer *create_layer(size_t size, Layer *previousLayer){
-  Layer *layer = malloc(sizeof(Layer));
-  size_t previous_layer_size = 0;
-  if(previousLayer != NULL){
-    previous_layer_size = previousLayer->size;
-    previousLayer->output_layer = layer;
-  }
+MLP_layer *create_MLP_layer(size_t input_dimension, size_t num_neurons, float *params, void(*logistic)(MLP_layer *layer)){
+	printf("inside create_layer!\n");
+  MLP_layer *layer = (MLP_layer*)malloc(sizeof(MLP_layer));
 
   //Allocate every neuron in the layer
-  Neuron* neurons = (Neuron*)malloc(size*sizeof(Neuron));
-  for(int i = 0; i < size; i++){
-    //Allocate weights
-    float *weights = (float*)malloc(previous_layer_size*sizeof(float));
-    for(int j = 0; j < previous_layer_size; j++){
-      weights[j] = ((float)(rand()%7000)-3500)/10000; //Slight bias towards positive weights
-    }
-    neurons[i].weights = weights;
-    neurons[i].bias = ((float)(rand()%7000)-3500)/10000;
-		neurons[i].activation = ((float)(rand()%70000)/70000); //Initialize a random activation (for use in recurrent neural net as initial hidden state)
+  Neuron* neurons = (Neuron*)malloc(num_neurons*sizeof(Neuron));
+
+	int param_bound = num_neurons * input_dimension; //The number of parameters to read from network's param array
+	int param_idx = 0;
+  for(int i = 0; i < num_neurons; i++){
+		neurons[i].bias = &params[param_idx];
+		neurons[i].weights = &params[param_idx+1];
+		param_idx += input_dimension + 1;
   }
-  layer->size = size;
+
+  layer->size = num_neurons;
   layer->neurons = neurons;
-  layer->input_layer = previousLayer;
-  layer->squish = sigmoid; //Set layer activation to sigmoid by default
-	layer->dropout = 0; //Default to a 0% dropout rate
+  layer->input_dimension = input_dimension;
+  layer->logistic = logistic; //Set layer activation to sigmoid by default
   return layer;
 }
 
-/* 
- * Description: Sets the outputs of a layer manually, instead of calculating them.
- *              The purpose of this function is to set the outputs of the input layer.
- * layer: The layer whose outputs will be set.
- * outputs: The array of outputs which will be assigned to the layer
- * NOTE: dimensions of outputs and layer must both be size*size
+/*
+ * Description: a function called through a macro that allows creation of a network with any arbitrary number of layers.
+ * arr: The array containing the sizes of each layer, for instance {28*28, 16, 10}.
+ * size: The size of the array.
  */
-static void set_outputs(Layer *layer, float *outputs){
-  for(int i = 0; i < layer->size; i++){
-    layer->neurons[i].activation = outputs[i];
-  }
+MLP mlp_from_arr(size_t arr[], size_t size){
+	MLP n;
+	n.cost = NULL;
+	n.head = NULL;
+	n.tail = NULL;
+	n.learning_rate = 0.05;
+
+	size_t num_params = 0;
+	size_t num_outputs = 0;
+	for(int i = 1; i < size; i++){
+		num_params += (arr[i-1]+1)*arr[i];
+		num_outputs += arr[i];
+	}
+
+	n.num_params = num_params;
+	n.params = (float*)malloc(num_params*sizeof(float)); 
+
+	n.activations = (float*)malloc(num_outputs*sizeof(float));
+
+	int param_idx = 0;
+	int activ_idx = 0;
+	for(int i = 1; i < size; i++){
+			size_t input_dimension = arr[i-1];
+			size_t layer_size = arr[i];
+
+//			float *param_addr = &n.params[i*(input_dimension+1)];
+//			float *output_addr = &n.activations[i*la
+			MLP_layer *l;
+
+			if(i < size-1)
+				l = create_MLP_layer(input_dimension, layer_size, param_addr, output_addr, sigmoid);
+			else
+				l = create_MLP_layer(input_dimension, layer_size, param_addr, output_addr, softmax);
+
+			if(!n.head) n.head = l;
+			if(!n.tail){
+				l->input_layer = n.head;
+				n.head->output_layer = l;
+			}else{
+				l->input_layer = n.tail;
+				n.tail->output_layer = l;
+			}
+			n.tail = l;
+	}
+  return n;
+}
+
+void mlp_layer_forward(MLP_layer *l){
+	//calculate linear inputs
+	float x = l->input;
+	for(int i = 0; i < l->size; i++)
+		float w = l->neurons[i].weights;
+		l->neurons[i].input = inner_product(x, w, l->input_dimension);
+	}
+	l->logistic(l);
+}
+
+void mlp_forward(MLP *n, float *x){
+	MLP_layer *l = n->head;
+	l->input = x;
+	while(l){
+		mlp_layer_forward(l);
+		l = l->output_layer;
+	}
+}
+
+void mlp_layer_backward(MLP_layer *l, float *grads){
+	for(int i = 0; i < l->size; i++){
+		
+	}
+
 }
 
 /* 
@@ -158,7 +184,7 @@ static void set_outputs(Layer *layer, float *outputs){
  *               Also sets activation gradients for output layer.
  * neuron: The neuron for which cost will be calculated.
  * y: The expected value of the neuron
- */
+ *
 static float quadratic_cost(Neuron *neuron, float y){
   neuron->gradient = (2 * (y-neuron->activation));
   return ((y-neuron->activation)*(y-neuron->activation));
@@ -169,7 +195,7 @@ static float quadratic_cost(Neuron *neuron, float y){
  *               Also sets activation gradients for output layer.
  * neuron: The neuron for which cost will be calculated.
  * y: The expected value of the neuron
- */
+ *
 static float cross_entropy_cost(Neuron *neuron, float y){
   //Make sure we don't get divide by zero errors for safety
   if(neuron->activation < 0.00001) neuron->activation = 0.00001;
@@ -188,8 +214,8 @@ static float cross_entropy_cost(Neuron *neuron, float y){
 /* Description: Calculates the cost of the output layer and sets the activation gradients for the output neurons.
  * output_layer: the last layer in the network.
  * label: the expected value chosen by the network.
- */
-static float cost(Layer *output_layer, float *expected){
+ *
+static float cost(MLP_layer *output_layer, float *expected){
   float sum = 0;
   for(int i = 0; i < output_layer->size; i++){
     int y = expected[i];
@@ -200,12 +226,13 @@ static float cost(Layer *output_layer, float *expected){
 		//sum += quadratic_cost(neuron, y);
   }
   return sum;
-}
+}*/
 
-static void propagate_gradients(Layer *output_layer){
-	Layer *current = output_layer;
+/*
+static void propagate_gradients(MLP_layer *output_layer){
+	MLP_layer *current = output_layer;
 	while(current->input_layer != NULL){
-		Layer* input_layer = current->input_layer;
+		MLP_layer* input_layer = current->input_layer;
 
 		for(int i = 0; i < input_layer->size; i++){
 			float sum = 0;
@@ -220,20 +247,20 @@ static void propagate_gradients(Layer *output_layer){
 		current = input_layer;
 	}
 }
-
+*/
 /* 
  * Description: Performs backpropagation algorithm on the network.
  * output_layer: The last layer in the network.
  * label: The neuron that should have fired in the output layer.
- * plasticity: The learning rate of the network.
- */
+ * learning_rate: The learning rate of the network.
+ *
 float backpropagate(MLP *n, float *expected){
   float c = cost(n->output, expected); //Calculate cost & set activation gradients in output layer
 	propagate_gradients(n->output); //Calculate gradients for every other neuron in the network
 
-  Layer *current = n->output;
+  MLP_layer *current = n->output;
   while(current->input_layer != NULL){
-    Layer* input_layer = current->input_layer;
+    MLP_layer* input_layer = current->input_layer;
 
     for(int i = 0; i < current->size; i++){
       Neuron *currentNeuron = &current->neurons[i];
@@ -243,10 +270,10 @@ float backpropagate(MLP *n, float *expected){
       //Calculate weight nudges
       for(int j = 0; j < input_layer->size; j++){
         float a = input_layer->neurons[j].activation;
-        currentNeuron->weights[j] += a * dActivation * gradient * n->plasticity;
+        currentNeuron->weights[j] += a * dActivation * gradient * n->learning_rate;
       }
       //Calculate bias nudge
-      currentNeuron->bias += dActivation * gradient * n->plasticity;
+      currentNeuron->bias += dActivation * gradient * n->learning_rate;
     }
     current = current->input_layer;
   }
@@ -257,10 +284,11 @@ float backpropagate(MLP *n, float *expected){
 /* 
  * Description: Calculates the outputs of each neuron in a layer based on the outputs & weights of the neurons in the preceding layer
  * layer: the layer for which outputs will be calculated from inputs of the previous layer.
- */
-void calculate_inputs(Layer *layer){
-  Layer *input_layer = layer->input_layer;
-  for(int i = 0; i < layer->size; i++){
+ *
+void calculate_inputs(MLP_layer *l){
+  MLP_layer *input_layer = l->input_layer;
+  for(int i = 0; i < l->size; i++){
+		l->output[i] = inner_product(input_layer->output	
     float sum = 0;
     Neuron *current = &(layer->neurons[i]);
     for(int k = 0; k < input_layer->size; k++){
@@ -279,58 +307,9 @@ void calculate_inputs(Layer *layer){
 }
 
 /* 
- * Description: Initializes an multilayer perceptron object.
- */
-MLP initMLP(){
-  MLP n;
-  n.input = NULL;
-  n.output = NULL;
-  n.plasticity = .01;
-  return n;
-}
-
-/*
- * Description: a function called through a macro that allows creation of a network with any arbitrary number of layers.
- * arr: The array containing the sizes of each layer, for instance {28*28, 16, 10}.
- * size: The size of the array.
- */
-MLP mlp_from_arr(size_t arr[], size_t size){
-	MLP n = initMLP();
-	for(int i = 0; i < size; i++){
-		addLayer(&n, arr[i]);
-	}
-  return n;
-}
-
-/* 
- * Description: Adds a layer to the MLP object. Layers will be appended from input layer onward.
- * n: the pointer to the network.
- * size: the desired size of the layer to be added.
- */
-void addLayer(MLP *n, size_t size){
-  Layer *newLayer = create_layer(size, n->output);
-  if(n->output != NULL) n->output->squish = sigmoid; //Turn the previous output layer into a sigmoid layer.
-  n->output = newLayer;
-  n->output->squish = softmax; //Set the new output layer to a softmax layer.
-  if(n->input == NULL) n->input = newLayer;
-	n->output->output_layer = NULL;
-
-}
-
-/* 
- * Description: Sets the inputs of the network.
- * n: the pointer to the network.
- * arr: the array of values to be passed into the network.
+ * Description: Does feed-forward, cost, and then backpropagation
  *
-void setInputs(MLP *n, float* arr){
-  set_outputs(n->input, arr);
-}
-*/
-
-/* 
- * Description: Does feed-forward, cost, and then backpropagation (gradient descent)
- */
-float descend(MLP *n, float *x, float *y){
+float mlp_step(MLP *n, float *x, float *y){
   feedforward(n, x);
   return backpropagate(n, y);
 }
@@ -339,10 +318,10 @@ float descend(MLP *n, float *x, float *y){
 /*
  * Description: Performs the feed-forward operation on the network.
  * n: A pointer to the network.
- */
-void feedforward(MLP *n, float *arr){
+ *
+void mlp_forward(MLP *n, float *arr){
 	set_outputs(n->input, arr);
-  Layer *current = n->input->output_layer;
+  MLP_layer *current = n->input->output_layer;
   while(current != NULL){
     calculate_inputs(current); //Calculate inputs from previous layer
   	current->squish(current); //Squish current layer's inputs into non-linearity
@@ -350,35 +329,20 @@ void feedforward(MLP *n, float *arr){
   }
 }
 
-/* 
- * Description: Returns the number the network thinks was inputted.
- * NOTE: feedforward should be used before calling bestGuess.
- * n: the pointer to the MLP.
- */
-int bestGuess(MLP *n){
- int highestActivation = 0;
- for(int i = 0; i < n->output->size; i++){
-   if(n->output->neurons[i].activation > n->output->neurons[highestActivation].activation){
-     highestActivation = i;
-   }
- }
- return highestActivation;
-}
-
 /*
  * Description: Deallocates a network's memory from the heap
  * n: the pointer to the output layer of the MLP
- */
+ *
 void dealloc_network(MLP *n){
 	int counter = 0;
-	Layer* current = n->output;
+	MLP_layer* current = n->output;
 	while(current != NULL){
 		for(int i = 0; i < current->size; i++){
 			free(current->neurons[i].weights);
 		}
 		counter++;
 		free(current->neurons);
-		Layer* temp = current->input_layer;
+		MLP_layer* temp = current->input_layer;
 		free(current);
 		current = temp;
 	}
@@ -405,7 +369,7 @@ static void getWord(FILE *fp, char* dest){
  * Description: Saves the network's state to a file that can be read later.
  * n: A pointer to the network.
  * filename: The desired filename and path.
- */
+ *
 void saveMLPToFile(MLP *n, char* filename){
  FILE *fp;
  char buff[1024];
@@ -418,7 +382,7 @@ void saveMLPToFile(MLP *n, char* filename){
 
  //Get network dimensions
  size_t size = 0;
- Layer *current = n->input;
+ MLP_layer *current = n->input;
  while(1){
    if(current != NULL) size++;
    if(current == n->output) break;
@@ -445,7 +409,7 @@ void saveMLPToFile(MLP *n, char* filename){
      writeToFile(fp, buff);
    }else{
      for(int j = 0; j < current->size; j++){
-       Layer* input_layer = current->input_layer;
+       MLP_layer* input_layer = current->input_layer;
 
        strcat(buff, "neuron ");
        writeToFile(fp, buff);
@@ -468,7 +432,7 @@ void saveMLPToFile(MLP *n, char* filename){
 /*
  * Description: Loads a network from a file.
  * filename: The path to the file.
- */
+ *
 MLP loadMLPFromFile(const char *filename){
   FILE *fp = fopen(filename, "rb");
   char buff[1024];
@@ -494,7 +458,7 @@ MLP loadMLPFromFile(const char *filename){
     }
     getWord(fp, buff);
     size_t layer_size = strtol(buff, NULL, 10);
-    addLayer(&n, layer_size);
+    addMLP_layer(&n, layer_size);
 
     for(int j = 0; j < layer_size; j++){
       getWord(fp, buff);
@@ -503,7 +467,7 @@ MLP loadMLPFromFile(const char *filename){
       }
       getWord(fp, buff);
       size_t number_of_weights = strtol(buff, NULL, 10);
-      Layer *input_layer = n.output->input_layer;
+      MLP_layer *input_layer = n.output->input_layer;
       for(int k = 0; k < number_of_weights; k++){
         getWord(fp, buff);
         float weight = strtod(buff, NULL);
@@ -521,14 +485,14 @@ MLP loadMLPFromFile(const char *filename){
 
 /*
  * Functions for debugging
- */
-void printWeights(Layer *layer){
-  Layer *previousLayer = layer->input_layer;
+ *
+void printWeights(MLP_layer *layer){
+  MLP_layer *previousMLP_layer = layer->input_layer;
 	for(int i = 0; i < layer->size; i++){
 		printf("Neuron %d: ", i);
 	}
 	printf("\n");
-	for(int i = 0; i < previousLayer->size; i++){
+	for(int i = 0; i < previousMLP_layer->size; i++){
 		for(int j = 0; j < layer->size; j++){
 			if(j > 9) printf(" %9.2f ", layer->neurons[j].weights[i]);
 			else printf("%8.2f  ", layer->neurons[j].weights[i]);
@@ -543,13 +507,13 @@ void printWeights(Layer *layer){
 	printf("\n");
 }
 
-void printActivationGradients(Layer *layer){
+void printActivationGradients(MLP_layer *layer){
   printf("activation gradients:\n");
   for(int i = 0; i < layer->size; i++){
     printf("  Neuron %d: %f from %f\n", i, layer->neurons[i].gradient, layer->neurons[i].activation);
   }
 }
-void printOutputs(Layer *layer){
+void printOutputs(MLP_layer *layer){
   for(int i = 0; i < layer->size; i++){
     float val = layer->neurons[i].activation;
 		if(i > 9) printf(" %9.4f ", val);
@@ -557,7 +521,7 @@ void printOutputs(Layer *layer){
 		}
 		printf("\n");
 }
-void prettyprint(Layer *layer){
+void prettyprint(MLP_layer *layer){
   for(int i = 0; i < layer->size; i++){
     float val = layer->neurons[i].activation;
     if(!(i % (int)sqrt(layer->size))) printf("\n");
@@ -566,3 +530,4 @@ void prettyprint(Layer *layer){
 		}
     printf("\n");
 }
+*/

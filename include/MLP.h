@@ -9,64 +9,63 @@
 // some magic
 #define createMLP(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
-typedef struct Neuron{
+typedef struct neuron{
+	float input; //needed for efficient softmax
 	float *weights;
-	float input;
-	float bias;
-	float activation;
-	float dActivation;	
-	float gradient;
+	float *bias;
 } Neuron;
 
-typedef struct Layer{
+typedef struct layer{
+	struct layer *input_layer;
+	struct layer *output_layer;
 	Neuron *neurons;
-	struct Layer *input_layer;
-	struct Layer *output_layer;
-	void (*squish)(struct Layer*);
-	float dropout;
+	float *gradients;
+	float *output;
+	float *input;
 	size_t size;
-} Layer;
+	size_t input_dimension;
+	void (*logistic)(struct layer *);
+} MLP_layer;
 
 
-typedef struct MLP{
-	Layer *input;
-	Layer *output;
-	double plasticity;
+typedef struct mlp{
+	MLP_layer *head;
+	MLP_layer *tail;
+	int guess;
+	size_t num_params;
+	float learning_rate;
+	float *params;
+	float *_outputs;
+	float (*cost)(struct mlp *);
 } MLP;
 
-Layer *create_layer(size_t, Layer*);
-
 MLP mlp_from_arr(size_t arr[], size_t size);
-MLP loadMLPFromFile(const char *filename);
-MLP initMLP();
+MLP load_mlp(const char *filename);
 
-void addLayer(MLP *, size_t);
-void calculate_inputs(Layer*);
-void feedforward(MLP *, float *);
+void mlp_forward(MLP *, float *);
 
-void gradients_wrt_outputs(Layer *);
-void mutate(Layer *, float, float);
+//void gradients_wrt_outputs(MLP_layer *);
+//void mutate(MLP_layer *, float, float);
 
 void saveMLPToFile(MLP *n, char* filename);
 
 float descend(MLP *n, float *, float *);
 float backpropagate(MLP *n, float *);
 
-int bestGuess(MLP *n);
+//int bestGuess(MLP *n);
 
 //These are activation functions
-//You can set these by assigning layer->squish = hypertan/sigmoid/etc
-void hypertan(Layer* layer); //Sometimes unstable
-void sigmoid(Layer* layer);
-void softmax(Layer* layer);
-void relu(Layer* layer); //not stable, be careful
-void leaky_relu(Layer* layer); //not stable, be careful
+void hypertan(MLP_layer* layer); //Sometimes unstable
+void sigmoid(MLP_layer* layer);
+void softmax(MLP_layer* layer);
+//void relu(MLP_layer* layer); //not stable, be careful
+//void leaky_relu(MLP_layer* layer); //not stable, be careful
 
 void dealloc_network(MLP *);
 
-void printOutputs(Layer *layer);
-void prettyprint(Layer *layer);
-void printActivationGradients(Layer *layer);
-void printWeights(Layer *layer);
+//void printOutputs(MLP_layer *layer);
+//void prettyprint(MLP_layer *layer);
+//void printActivationGradients(MLP_layer *layer);
+//void printWeights(MLP_layer *layer);
 
 #endif
