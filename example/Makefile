@@ -10,8 +10,8 @@ INCLUDE=-I../include
 LIBS=-lm
 CFLAGS=-O3
 
-LSTM_SRC=$(SRC_DIR)/LSTM.c
-MLP_SRC=$(SRC_DIR)/MLP.c
+LSTM_SRC=$(SRC_DIR)/lstm.c
+MLP_SRC=$(SRC_DIR)/mlp.c
 MNIST_SRC=$(SRC_DIR)/mnist.c
 
 char:
@@ -20,6 +20,8 @@ shakespeare:
 	$(CC) $(CFLAGS) $(INCLUDE) $(LSTM_SRC) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 mlp_mnist:
 	$(CC) $(CFLAGS) $(INCLUDE) $(MNIST_SRC) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
+binary:
+	$(CC) $(CFLAGS) $(INCLUDE) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 
 sequence:
 	$(CC) $(CFLAGS) $(INCLUDE) $(LSTM_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
