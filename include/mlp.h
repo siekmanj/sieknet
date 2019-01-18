@@ -16,10 +16,10 @@ typedef struct neuron{
 } Neuron;
 
 typedef struct layer{
-	struct layer *input_layer;
-	struct layer *output_layer;
+	//struct layer *input_layer;
+	//struct layer *output_layer;
 	Neuron *neurons;
-	float *gradients;
+	float *gradient;
 	float *output;
 	float *input;
 	size_t size;
@@ -29,25 +29,30 @@ typedef struct layer{
 
 
 typedef struct mlp{
-	MLP_layer *head;
-	MLP_layer *tail;
-	int guess;
+	MLP_layer *layers;
+	size_t depth;
 	size_t num_params;
+	size_t input_dimension;
+	size_t output_dimension;
+	size_t guess;
 	float learning_rate;
 	float *params;
-	float *_outputs;
-	float (*cost)(struct mlp *);
+	float *output;
+	//size_t batch_size;
+	float *cost_gradient;
+	float (*cost)(struct mlp *, float *);
 } MLP;
 
 MLP mlp_from_arr(size_t arr[], size_t size);
 MLP load_mlp(const char *filename);
 
 void mlp_forward(MLP *, float *);
+void mlp_backward(MLP *);
 
 //void gradients_wrt_outputs(MLP_layer *);
 //void mutate(MLP_layer *, float, float);
 
-void saveMLPToFile(MLP *n, char* filename);
+void save_mlp(MLP *n, char* filename);
 
 float descend(MLP *n, float *, float *);
 float backpropagate(MLP *n, float *);
@@ -58,8 +63,6 @@ float backpropagate(MLP *n, float *);
 void hypertan(MLP_layer* layer); //Sometimes unstable
 void sigmoid(MLP_layer* layer);
 void softmax(MLP_layer* layer);
-//void relu(MLP_layer* layer); //not stable, be careful
-//void leaky_relu(MLP_layer* layer); //not stable, be careful
 
 void dealloc_network(MLP *);
 
