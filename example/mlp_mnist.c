@@ -22,11 +22,11 @@ char *testset_labels = "../data/mnist/t10k-labels-idx1-ubyte";
 int main(void) {
   srand(time(NULL));
 
-  //MLP n = loadMLPFromFile("../saves/mnist_784_20_20_10.mlp");
-  MLP n = createMLP(784, 16, 16, 10);
+  //MLP n = loadMLPFromFile("../model/mnist.mlp");
+  MLP n = createMLP(784, 100, 10);
 
-	n.learning_rate = 0.001;
-  size_t epochs = 5;
+	n.learning_rate = 0.1;
+  size_t epochs = 10;
   int epoch = 0;
 
   // Training data
