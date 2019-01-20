@@ -3,7 +3,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include "MLP.h"
+#include "mlp.h"
 
 #ifndef MAX_UNROLL_LENGTH
 #define MAX_UNROLL_LENGTH 1000
@@ -49,6 +49,7 @@ typedef struct lstm_layer{
 
 typedef struct lstm{
 	float **cost_gradients;
+	float *params;
 	double plasticity;
 	size_t t;
 	int collapse;

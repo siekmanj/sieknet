@@ -46,8 +46,13 @@ typedef struct mlp{
 MLP mlp_from_arr(size_t arr[], size_t size);
 MLP load_mlp(const char *filename);
 
+MLP_layer create_MLP_layer(size_t, size_t, float *, void(*)(MLP_layer *));
+
 void mlp_forward(MLP *, float *);
 void mlp_backward(MLP *);
+
+void mlp_layer_forward(MLP_layer *, float *);
+void mlp_layer_backward(MLP_layer *, float *, float);
 
 void save_mlp(const MLP *n, const char* filename);
 
