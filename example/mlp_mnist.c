@@ -2,7 +2,7 @@
  * 7/24/2018
  * In this file are some tests I've done with the network.
  */
-#include <MLP.h>
+#include <mlp.h>
 #include <math.h>
 #include <mnist.h>
 #include <stdio.h>
@@ -22,17 +22,11 @@ char *testset_labels = "../data/mnist/t10k-labels-idx1-ubyte";
 int main(void) {
   srand(time(NULL));
 
-  //MLP n = loadMLPFromFile("../saves/mnist_784_20_20_10.mlp");
-  MLP n = createMLP(784, 20, 20, 10);
-  n.plasticity = 0.03; // 0.05 is a good starting learning rate - generally, the
-                       // more layers/neurons, the lower your learning rate
-                       // should be.
+  //MLP n = loadMLPFromFile("../model/mnist.mlp");
+  MLP n = createMLP(784, 100, 10);
 
-  // Set some interesting activation functions for variety
-//  n.input->output_layer->squish = hypertan;
- // n.output->input_layer->squish = leaky_relu;
-
-  size_t epochs = 5;
+	n.learning_rate = 0.1;
+  size_t epochs = 10;
   int epoch = 0;
 
   // Training data
@@ -51,15 +45,16 @@ int main(void) {
       float *x = img2floatArray(&training_set, index, &height, &width); // Image is returned as a float array
       int correctlabel = label(&training_set, index); // Retrieve the label from the image set.
 			CREATEONEHOT(y, 10, correctlabel); // Create a float array for cost
-
-      float c = descend(&n, x, y); // Perform feedforward & backprop
+			
+			mlp_forward(&n, x);
+			float c = n.cost(&n, y);
+			mlp_backward(&n);
 
       avgCost += c;
 
       // Save the state of the network at the end of each epoch.
       if(i % training_set.numImages == 0 && i != 0) {
         printf("Epoch %d finished, cost %f.\n", epoch++, avgCost / i);
-        saveMLPToFile(&n, modelfile);
       }
     }
   }
@@ -79,11 +74,9 @@ int main(void) {
       float *img = img2floatArray(&testing_set, i, &height,
                                   &width); // Get image as float array
 
-      feedforward(&n, img); // Perform feedforward only, no backprop
+      mlp_forward(&n, img); // Perform feedforward only, no backprop
 
-      int guess = bestGuess(&n); // Get network's best guess
-
-      avgCorrect += (guess == label(&testing_set, i));
+      avgCorrect += (n.guess== label(&testing_set, i));
     }
     printf("resulting avg correct: %f\n", avgCorrect / testing_set.numImages);
   }
