@@ -73,11 +73,12 @@ int main(){
 
 	getchar();
 	*/
-	MLP n = createMLP(4, 32, 16);
+	//MLP n = createMLP(4, 32, 16);
+	MLP n = load_mlp("../model/bin.mlp");
 	n.learning_rate = 0.1;
 	float avg_cost;
 	//n.cost = cross_entropy_cost;
-	for(int i = 0; i < 0; i++){ //Run the network for 80000....00 examples
+	for(int i = 0; i < 100000; i++){ //Run the network for 80000....00 examples
 		//Create a random 4-bit binary number
 		int bit0 = rand()%2==0;
 		int bit1 = rand()%2==0;
@@ -98,11 +99,12 @@ int main(){
 		avg_cost += cost;
 
 		//Debug stuff
-		if(!(i % 100)){
+		if(!(i % 1000)){
 			printf("CURRENTLY ON EXAMPLE %d\n", i);
 			printf("Label %2d, guess %2d, Cost: %5.3f, avg: %5.3f\n\n(ENTER to continue, CTRL+C to quit)\n", (int)ans, n.guess, cost, avg_cost/i);
 			getchar();
 		}	
 	}
+	save_mlp(&n, "../model/bin.mlp");
 	dealloc_network(&n);
 }
