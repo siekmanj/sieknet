@@ -4,7 +4,7 @@
 #include <time.h>
 #include <math.h>
 #include <string.h>
-#include "LSTM.h"
+#include "lstm.h"
 
 
 #define CREATEONEHOT(name, size, index) float name[size]; memset(name, '\0', size*sizeof(float)); name[index] = 1.0;
@@ -18,7 +18,7 @@
 
 char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,.;:?!'\"[]{}<>/-_*&|\\\n ";
 
-char *modelfile = "../model/shakespeare_850.lstm";
+char *modelfile = "../model/shakespeare_50.lstm";
 
 char *datafile = "../data/shakespeare/complete_works.txt";
 
@@ -88,7 +88,7 @@ int main(void){
 
 			cost += cost_local;
 
-			int guess = bestGuess(&n.output_layer);
+			int guess = n.output_layer.guess;
 
 			if(alphabet[label] == '\n') printf("\n");
 			else if(alphabet[guess] == alphabet[label]) printf("%c", alphabet[label]);
@@ -106,7 +106,7 @@ int main(void){
 				for(int k = 0; k < n.seq_len*100; k++){
 					CREATEONEHOT(tmp, strlen(alphabet), seed);
 					forward(&n, tmp);
-					int guess = bestGuess(&n.output_layer);
+					int guess = n.output_layer.guess;
 					printf("%c", alphabet[guess]);
 					seed = guess;
 				}
