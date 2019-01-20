@@ -45,6 +45,17 @@ void relu(MLP_layer* layer){
 }
 
 /*
+ * Does Xavier (or Xavier-like) parameter initialization
+ */
+void xavier_init(float *params, size_t input_dim, size_t layer_size){
+	for(int i = 0; i < input_dim; i++){
+		float rand_param = (((float)rand())/((float)RAND_MAX)) * sqrt(2.0 / (input_dim + layer_size));
+		if(rand()&1) rand_param *= -1;
+		params[i] = rand_param;
+	}
+}
+
+/*
  * Calculates the activations of a layer using tanh.
  */
  void hypertan(MLP_layer* layer){
@@ -119,17 +130,9 @@ MLP_layer create_MLP_layer(size_t input_dimension, size_t num_neurons, float *pa
 	for(int i = 0; i < num_neurons; i++){
 		neurons[i].bias = &params[param_idx];
 		neurons[i].weights = &params[param_idx+1];
+		//Xavier (or Xavier-like) bias+weight initialization
+		xavier_init(&params[param_idx], input_dimension+1, num_neurons);
 		param_idx += input_dimension + 1;
-		
-		//Xavier (or Xavier-like) initialization
-		for(int j = 0; j < input_dimension; j++){ 
-			float rand_weight = (((float)rand())/((float)RAND_MAX)) * sqrt(2.0 / (input_dimension + num_neurons));
-			if(rand()&1) rand_weight *= -1;
-			neurons[i].weights[j] = rand_weight;
-		}
-		float rand_bias = (((float)rand())/((float)RAND_MAX)) * sqrt(2.0 / (input_dimension + num_neurons));
-		if(rand()&1) rand_bias *= -1;
-		*neurons[i].bias = rand_bias;
 	}
 	layer.input = NULL; //set in forward pass
 	layer.output = (float*)malloc(num_neurons*sizeof(float)); //allocate for layer outputs (forward pass)

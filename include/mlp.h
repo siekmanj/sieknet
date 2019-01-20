@@ -59,6 +59,8 @@ void save_mlp(const MLP *n, const char* filename);
 float descend(MLP *n, float *, float *);
 float backpropagate(MLP *n, float *);
 
+void xavier_init(float *, size_t, size_t);
+
 
 //These are activation functions
 void hypertan(MLP_layer* layer);
