@@ -16,7 +16,7 @@
 /*
  * Calculates the inner product of two vectors.
  */
-static float inner_product(const float *x, const float *y, size_t length){
+float inner_product(const float *x, const float *y, size_t length){
 	float sum = 0;
 	for(long i = 0; i < length; i++){
 		sum += x[i] * y[i];	
@@ -29,9 +29,9 @@ static float inner_product(const float *x, const float *y, size_t length){
  * Calculates the activations of a layer with sigmoid.
  */
 void sigmoid(MLP_layer* layer){
-  for(int i = 0; i < layer->size; i++){
-    layer->output[i] = (1 / (1 + exp(-layer->neurons[i].input)));
-  }
+	for(int i = 0; i < layer->size; i++){
+		layer->output[i] = (1 / (1 + exp(-layer->neurons[i].input)));
+	}
 }
 
 /*
@@ -60,19 +60,19 @@ void relu(MLP_layer* layer){
  * Calculates the gradients wrt cost function given a label vector y.
  */
 float quadratic_cost(MLP *n, float *y){
-  float sum = 0;
+	float sum = 0;
 	float *o = n->output;
-  for(int i = 0; i < n->output_dimension; i++){
+	for(int i = 0; i < n->output_dimension; i++){
 		n->cost_gradient[i] = (y[i] - o[i]);
 		sum += 0.5*(y[i]-o[i]) * (y[i]-o[i]);
-  }
-  return sum;
+	}
+	return sum;
 }
 
 float cross_entropy_cost(MLP *n, float *y){
-  float sum = 0;
+	float sum = 0;
 	float *o = n->output;
-  for(int i = 0; i < n->output_dimension; i++){
+	for(int i = 0; i < n->output_dimension; i++){
 		if(o[i] > 0.9999) o[i] = 0.9999;
 		if(o[i] < 0.0001) o[i] = 0.0001;
 		float grad = (y[i]/o[i]) - ((1-y[i])/(1-o[i]));
@@ -88,35 +88,35 @@ float cross_entropy_cost(MLP *n, float *y){
 #endif
 		n->cost_gradient[i] = grad;
 		sum += -(y[i] * log(o[i]) + (1-y[i]) * log(1-o[i]));
-  }
-  return sum;
+	}
+	return sum;
 }
 
 /*
  * Calculates the activation of a given neuron using softmax.
  */
 void softmax(MLP_layer* layer){
-  double sum = 0;
+	double sum = 0;
 
-  for(int i = 0; i < layer->size; i++)
-    sum += exp(layer->neurons[i].input);
+	for(int i = 0; i < layer->size; i++)
+		sum += exp(layer->neurons[i].input);
 
-  for(int i = 0; i < layer->size; i++)
-    layer->output[i] = exp(layer->neurons[i].input) / sum;
+	for(int i = 0; i < layer->size; i++)
+		layer->output[i] = exp(layer->neurons[i].input) / sum;
 }
 
 /* 
  * Creates a layer object
  */
 MLP_layer create_MLP_layer(size_t input_dimension, size_t num_neurons, float *params, void(*logistic)(MLP_layer *layer)){
-  MLP_layer layer;
+	MLP_layer layer;
 
-  //Allocate every neuron in the layer
-  Neuron* neurons = (Neuron*)malloc(num_neurons*sizeof(Neuron));
+	//Allocate every neuron in the layer
+	Neuron* neurons = (Neuron*)malloc(num_neurons*sizeof(Neuron));
 
 	int param_bound = num_neurons * input_dimension; //The number of parameters to read from network's param array
 	int param_idx = 0;
-  for(int i = 0; i < num_neurons; i++){
+	for(int i = 0; i < num_neurons; i++){
 		neurons[i].bias = &params[param_idx];
 		neurons[i].weights = &params[param_idx+1];
 		param_idx += input_dimension + 1;
@@ -130,17 +130,17 @@ MLP_layer create_MLP_layer(size_t input_dimension, size_t num_neurons, float *pa
 		float rand_bias = (((float)rand())/((float)RAND_MAX)) * sqrt(2.0 / (input_dimension + num_neurons));
 		if(rand()&1) rand_bias *= -1;
 		*neurons[i].bias = rand_bias;
-  }
+	}
 	layer.input = NULL; //set in forward pass
 	layer.output = (float*)malloc(num_neurons*sizeof(float)); //allocate for layer outputs (forward pass)
 	layer.gradient = (float*)malloc(input_dimension*sizeof(float)); //allocate for layer gradients (backward pass)
 
-  layer.neurons = neurons;
-  layer.size = num_neurons;
-  layer.input_dimension = input_dimension;
-  
+	layer.neurons = neurons;
+	layer.size = num_neurons;
+	layer.input_dimension = input_dimension;
+	
 	layer.logistic = logistic; //Set layer activation function
-  return layer;
+	return layer;
 }
 
 /*
@@ -185,7 +185,7 @@ MLP mlp_from_arr(size_t arr[], size_t size){
 			n.layers[i-1] = l;
 	}
 	n.output = n.layers[n.depth-1].output;
-  return n;
+	return n;
 }
 
 /*
@@ -299,13 +299,13 @@ void dealloc_network(MLP *n){
 }
 
  /*
-  * IO FUNCTIONS FOR READING AND WRITING TO A FILE
-  */
+	* IO FUNCTIONS FOR READING AND WRITING TO A FILE
+	*/
 
 static void getWord(FILE *fp, char* dest){
-  memset(dest, '\0', strlen(dest));
-  //printf("bytes read: %lu\n", fread(dest, 1024, 1, fp));
-  int res = fscanf(fp, " %1023s", dest);
+	memset(dest, '\0', strlen(dest));
+	//printf("bytes read: %lu\n", fread(dest, 1024, 1, fp));
+	int res = fscanf(fp, " %1023s", dest);
 }
 /* 
  * Saves the network's state to a file that can be read later.
@@ -341,16 +341,16 @@ void save_mlp(const MLP *n, const char* filename){
  * filename: The path to the file.
  */
 MLP load_mlp(const char *filename){
-  FILE *fp = fopen(filename, "rb");
-  char buff[1024];
-  memset(buff, '\0', 1024);
+	FILE *fp = fopen(filename, "rb");
+	char buff[1024];
+	memset(buff, '\0', 1024);
 
-  getWord(fp, buff); //Get first word to check if MLP file
+	getWord(fp, buff); //Get first word to check if MLP file
 
-  if(strcmp(buff, "MLP") != 0){
-    printf("ERROR: [%s] is not MLP.\n", buff);
-    exit(1);
-  }
+	if(strcmp(buff, "MLP") != 0){
+		printf("ERROR: [%s] is not MLP.\n", buff);
+		exit(1);
+	}
 	size_t num_layers, input_dim;
 
 	fscanf(fp, "%lu %lu", &num_layers, &input_dim);
@@ -365,5 +365,5 @@ MLP load_mlp(const char *filename){
 	for(int i = 0; i < n.num_params; i++){
 		fscanf(fp, "%f", &n.params[i]);
 	}
-  return n;
+	return n;
 }

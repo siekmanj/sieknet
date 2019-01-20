@@ -66,6 +66,8 @@ void sigmoid(MLP_layer* layer);
 void softmax(MLP_layer* layer);
 void relu(MLP_layer* layer);
 
+float inner_product(const float *, const float *, size_t);
+
 void dealloc_network(MLP *);
 
 #endif
