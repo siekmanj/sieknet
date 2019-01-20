@@ -39,9 +39,15 @@ int main(int argc, char** argv){
 	LSTM n = create_lstm(ascii_range, 40, ascii_range);
 	CREATEONEHOT(x, ascii_range, 3);
 	CREATEONEHOT(y, ascii_range, 5);
-	lstm_forward(&n, x);
-	n.cost(&n, y);
-	lstm_backward(&n);
+	n.seq_len = 2;
+	for(int i = 0; i < 4; i++){
+		lstm_forward(&n, x);
+		n.cost(&n, y);
+		lstm_backward(&n);
+	}
+	//lstm_forward(&n, x);
+	//n.cost(&n, y);
+	//lstm_backward(&n);
 	/*
 	if(argc < 2){ printf("must provide %d args.\n", 2); exit(1);}
 
