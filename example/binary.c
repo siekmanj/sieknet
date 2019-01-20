@@ -73,9 +73,10 @@ int main(){
 
 	getchar();
 	*/
-	//MLP n = createMLP(4, 32, 16);
-	MLP n = load_mlp("../model/bin.mlp");
+	MLP n = createMLP(4, 32, 16);
+	//MLP n = load_mlp("../model/bin.mlp");
 	n.learning_rate = 0.1;
+	n.layers[0].logistic = relu;
 	float avg_cost;
 	//n.cost = cross_entropy_cost;
 	for(int i = 0; i < 100000; i++){ //Run the network for 80000....00 examples
@@ -88,10 +89,7 @@ int main(){
 
 		float x[4] = {bit0, bit1, bit2, bit3}; //Input array (1 bit per input)
 		CREATEONEHOT(y, 16, (int)ans);
-		
-		//PRINTLIST(x, 4);
 
-		//PRINTLIST(y, 16);
 		mlp_forward(&n, x);
 		float cost = n.cost(&n, y);
 		mlp_backward(&n);
