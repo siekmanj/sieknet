@@ -50,7 +50,9 @@ void relu(MLP_layer* layer){
  void hypertan(MLP_layer* layer){
 	for(int i = 0; i < layer->size; i++){
 		float x = layer->neurons[i].input;
-		layer->output[i] = ((exp(x) - exp(-x))/(exp(x) + exp(-x)));
+		if(x > 7.0) layer->output[i] = 0.999998;
+		else if(x < -7.0) layer->output[i] = -0.999998;
+		else layer->output[i] = ((exp(x) - exp(-x))/(exp(x) + exp(-x)));
 	}
  }
 
@@ -106,7 +108,7 @@ void softmax(MLP_layer* layer){
 /* 
  * Creates a layer object
  */
-static MLP_layer create_MLP_layer(size_t input_dimension, size_t num_neurons, float *params, void(*logistic)(MLP_layer *layer)){
+MLP_layer create_MLP_layer(size_t input_dimension, size_t num_neurons, float *params, void(*logistic)(MLP_layer *layer)){
   MLP_layer layer;
 
   //Allocate every neuron in the layer
@@ -124,10 +126,12 @@ static MLP_layer create_MLP_layer(size_t input_dimension, size_t num_neurons, fl
 			float rand_weight = (((float)rand())/((float)RAND_MAX)) * sqrt(2.0 / (input_dimension + num_neurons));
 			if(rand()&1) rand_weight *= -1;
 			neurons[i].weights[j] = rand_weight;
-			
 		}
+		float rand_bias = (((float)rand())/((float)RAND_MAX)) * sqrt(2.0 / (input_dimension + num_neurons));
+		if(rand()&1) rand_bias *= -1;
+		*neurons[i].bias = rand_bias;
   }
-	layer.input = NULL;
+	layer.input = NULL; //set in forward pass
 	layer.output = (float*)malloc(num_neurons*sizeof(float)); //allocate for layer outputs (forward pass)
 	layer.gradient = (float*)malloc(input_dimension*sizeof(float)); //allocate for layer gradients (backward pass)
 
@@ -187,7 +191,7 @@ MLP mlp_from_arr(size_t arr[], size_t size){
 /*
  * Does a forward pass for a single layer.
  */
-static void mlp_layer_forward(MLP_layer *l, float *x){
+void mlp_layer_forward(MLP_layer *l, float *x){
 	l->input = x; //need to save pointer for backward pass
 	for(int i = 0; i < l->size; i++){
 		float *w = l->neurons[i].weights; 
@@ -220,6 +224,11 @@ float differentiate(const float x, const void (*logistic)(MLP_layer*)){
 		return 1 - x*x;
 	if(logistic == softmax || logistic == sigmoid)
 		return x * (1 - x);
+	if(logistic == relu){
+		if(x > 0) return 1;
+		else return 0;
+	}
+		
 	printf("ERROR: differentiate(): derivative of logistic function not implemented!\n");
 	exit(1);
 }
