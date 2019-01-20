@@ -9,9 +9,9 @@
 #include <math.h>
 #include <string.h>
 
+#define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
-#define SOFTMAX 0
-#define DEBUG 1
+#define DEBUG 0
 #define MAX_GRAD 10
 
 /*
@@ -48,8 +48,9 @@ void wipe(LSTM *n){
 		LSTM_layer *l = &n->layers[i];
 		for(long t = 0; t < MAX_UNROLL_LENGTH; t++){
 			for(long i = 0; i < l->size; i++){
+				l->output[t][i] = 0;
 				//l->cells[i].output[t] = 0;
-				l->cells[i].gradient[t] = 0;
+				//l->cells[i].gradient[t] = 0;
 				l->cells[i].dOutput[t] = 0;
 				l->cells[i].state[t] = 0;
 				l->cells[i].dstate[t] = 0;
@@ -58,12 +59,34 @@ void wipe(LSTM *n){
 				l->output[i] = 0;
 			}
 		}
-		zero_2d_arr(l->input, MAX_UNROLL_LENGTH, l->input_dimension);
-		zero_2d_arr(l->input_gradients, MAX_UNROLL_LENGTH, l->input_dimension);
+		zero_2d_arr(l->input_gradient, MAX_UNROLL_LENGTH, l->input_dimension);
 	}
-	zero_2d_arr(n->network_gradient, MAX_UNROLL_LENGTH, n->output_dimension);
+	zero_2d_arr(n->network_gradient, MAX_UNROLL_LENGTH, n->layers[n->depth-1].size);
 	n->t = 0;
+	printf("dopne with wipe\n");
 }	
+
+static float cost_wrapper(LSTM *n, float *y){
+	MLP *mlp = &n->output_layer;
+	float c = mlp->cost(mlp, y);
+	mlp_backward(mlp);
+
+	float *grads = mlp->layers[0].gradient;
+	
+	size_t t = n->t;
+	if(mlp->layers[0].input_dimension != n->layers[n->depth-1].size){
+		printf("ERROR: cost_wrapper(): Size mismatch between mlp output layer and final lstm layer (%d vs %d)\n", mlp->layers[0].input_dimension, n->layers[n->depth-1].size);
+		exit(1);
+	}
+	for(int i = 0; i < mlp->layers[0].input_dimension; i++)
+		n->network_gradient[t][i] = grads[i];
+
+	//PRINTLIST(n->network_gradient[t], n->layers[n->depth-1].size);
+	n->t++;
+	//printf("t: %d\n", n->t);
+	return c;
+}
+
 
 /*
  * Used to initialize & allocate memory for a layer of LSTM cells
@@ -79,25 +102,30 @@ LSTM_layer create_LSTM_layer(size_t input_dim, size_t size, float *param_addr){
 
 	int param_idx = 0;
 	for(long i = 0; i < size; i++){
-		printf("allocating cells!\n");
+		//printf("allocating cells!\n");
 		Cell *cell = &cells[i];
+
 
 		float *input_nonl_bias = &param_addr[param_idx];
 		float *input_nonl_weights = &param_addr[param_idx+1];
-		param_idx += input_dimension+1;
-		printf("%d params assigned\n", param_idx);
+		xavier_init(&param_addr[param_idx], (l.input_dimension+1), size);
+		param_idx += l.input_dimension+1;
+		//printf("%d params assigned, addr %p\n", param_idx, &param_addr[param_idx]);
 		float *input_gate_bias = &param_addr[param_idx];
 		float *input_gate_weights = &param_addr[param_idx+1];
-		param_idx += input_dimension+1;
-		printf("%d params assigned\n", param_idx);
+		xavier_init(&param_addr[param_idx], (l.input_dimension+1), size);
+		param_idx += l.input_dimension+1;
+		//printf("%d params assigned, addr %p\n", param_idx, &param_addr[param_idx]);
 		float *forget_gate_bias = &param_addr[param_idx];
 		float *forget_gate_weights = &param_addr[param_idx+1];
-		param_idx += input_dimension+1;
-		printf("%d params assigned\n", param_idx);
+		xavier_init(&param_addr[param_idx], (l.input_dimension+1), size);
+		param_idx += l.input_dimension+1;
+		//printf("%d params assigned, addr %p\n", param_idx, &param_addr[param_idx]);
 		float *output_gate_bias = &param_addr[param_idx];
 		float *output_gate_weights = &param_addr[param_idx+1];
-		param_idx += input_dimension+1;
-		printf("%d params assigned\n", param_idx);
+		xavier_init(&param_addr[param_idx], (l.input_dimension+1), size);
+		param_idx += l.input_dimension+1;
+		//printf("%d params assigned, addr %p\n", param_idx, &param_addr[param_idx]);
 
 		//Allocate gates
 		cell->input_nonl = createGate(input_nonl_weights, input_nonl_bias, MAX_UNROLL_LENGTH);
@@ -108,26 +136,34 @@ LSTM_layer create_LSTM_layer(size_t input_dim, size_t size, float *param_addr){
 		//cell->output = ALLOCATE(float, MAX_UNROLL_LENGTH);
 		cell->state = ALLOCATE(float, MAX_UNROLL_LENGTH);
 		cell->dstate = ALLOCATE(float, MAX_UNROLL_LENGTH);
-		cell->gradient = ALLOCATE(float, MAX_UNROLL_LENGTH);
+		//cell->gradient = ALLOCATE(float, MAX_UNROLL_LENGTH);
 		cell->dOutput = ALLOCATE(float, MAX_UNROLL_LENGTH);
 		cell->lstate = 0;
 		cell->loutput = 0;
 
 	}
+	//printf("done with cells!\n");
 	l.cells = cells;
 	l.size = size;
-
+	//printf("allocating input!\n");
 	//allocate the 2d array used to store inputs over timesteps
 	l.input = ALLOCATE(float*, MAX_UNROLL_LENGTH);
-	for(long t = 0; t < MAX_UNROLL_LENGTH; t++) l.input[t] = ALLOCATE(float, l.input_dimension);
+	//for(long t = 0; t < MAX_UNROLL_LENGTH; t++) l.input[t] = ALLOCATE(float, l.input_dimension);
+	
+	//printf("allocating output!\n");
+	l.output = ALLOCATE(float*, MAX_UNROLL_LENGTH);
+	for(int t = 0; t < MAX_UNROLL_LENGTH; t++) 
+		l.output[t] = ALLOCATE(float, l.size);
+
 	
 	//allocate the 2d array used to store gradients to be backpropagated over timesteps
-	l.input_gradients = ALLOCATE(float*, MAX_UNROLL_LENGTH);
-	for(long t = 0; t < MAX_UNROLL_LENGTH; t++) l.input_gradients[t] = ALLOCATE(float, l.input_dimension);
+	//printf("allocating input grads!\n");
+	l.input_gradient = ALLOCATE(float*, MAX_UNROLL_LENGTH);
+	for(long t = 0; t < MAX_UNROLL_LENGTH; t++) l.input_gradient[t] = ALLOCATE(float, l.input_dimension);
 
-	zero_2d_arr(l.input, MAX_UNROLL_LENGTH, l.input_dimension);
-	zero_2d_arr(l.input_gradients, MAX_UNROLL_LENGTH, l.input_dimension);
-	printf("done with lstm layer!\n");
+	//zero_2d_arr(l.input, MAX_UNROLL_LENGTH, l.input_dimension-l.size);
+	zero_2d_arr(l.input_gradient, MAX_UNROLL_LENGTH, l.input_dimension);
+	//printf("done with lstm layer!\n");
 
 	return l;
 }
@@ -138,13 +174,16 @@ LSTM_layer create_LSTM_layer(size_t input_dim, size_t size, float *param_addr){
 LSTM lstm_from_arr(size_t *arr, size_t len){
 	printf("making lstm!\n");
 	LSTM n;
+	n.t = 0;
 	n.collapse = 0;
 	n.stateful = 0;
 	n.seq_len = 25;
 	n.learning_rate = 0.01;
-	n.t = 0;
-	//n.head = NULL;
-	//n.tail = NULL;
+	n.input_dimension = arr[0];
+	n.output_dimension = arr[len-1];
+	n.depth = len-2;
+	n.cost = cost_wrapper;
+
 	if(len < 3){
 		printf("ERROR: lstm_from_arr(): must have at least input dim, hidden layer size, and output dim (3 layers), but only %d provided.\n", len);
 		exit(1);
@@ -158,34 +197,35 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 	printf("%lu params counted!\n", num_params);
 
 	n.layers = ALLOCATE(LSTM_layer, len-2);
+	n.params = ALLOCATE(float, num_params);
 	
 	int param_idx = 0;
 	for(int i = 1; i < len-1; i++){
+		printf("passing pointer to %p\n", &n.params[param_idx]);
 		LSTM_layer l = create_LSTM_layer(arr[i-1], arr[i], &n.params[param_idx]);
 		param_idx += (4*(arr[i-1]+arr[i]+1))*arr[i];
 		n.layers[i-1] = l;
+		printf("done\n");
 	}	
-
-	for(int i = 1; i < len-1; i++){
-		LSTM_layer *l = &n.layers[i];
-		LSTM_layer *p = &n.layers[i-1];
-		p->output = l->input;
-		printf("assigned layer %d's output to layer %d's input\n", i-1, i);
-	}
-
 
 	//Allocate the 2d array to store the gradients calculated by the output layer
 	n.network_gradient = (float**)malloc(MAX_UNROLL_LENGTH * sizeof(float*));
 	for(long i = 0; i < MAX_UNROLL_LENGTH; i++) 
 		n.network_gradient[i] = (float*)malloc(arr[len-2] * sizeof(float));
+	
+	n.network_input = ALLOCATE(float*, MAX_UNROLL_LENGTH);
+	for(int i = 0; i < MAX_UNROLL_LENGTH; i++)
+		n.network_input[i] = ALLOCATE(float, arr[0]);
 
+	printf("zeroing 2d arrs\n");
 	zero_2d_arr(n.network_gradient, MAX_UNROLL_LENGTH, arr[len-2]);
+	zero_2d_arr(n.network_input, MAX_UNROLL_LENGTH, arr[0]);
 
 //Will need to change once mlp.c is rewritten
 /******************************/ 
 	n.output_layer = createMLP(arr[len-2], arr[len-1]);
 /******************************/
-
+	printf("done making lstm\n");
 	return n;
 }
 
@@ -212,24 +252,32 @@ void lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 	size_t recurrent_offset = l->input_dimension - l->size;
 
 	//for(long i = 0; i < l->input_dimension - l->size; i++){
-		l->input[t] = input; //Copy input for this timestep 
+		//l->input[t][i] = input[i]; //Copy input for this timestep 
+	l->input[t] = input; //save pointer to input for backward pass
 	//}
 	//for(long i = 0; i < l->size; i++){
-		//l->inputs[t][recurrent_offset + i] = l->cells[i].loutput; //Concatenate last timestep's outputs into our input vector
+	//	l->input[t][recurrent_offset + i] = l->cells[i].loutput; //Concatenate last timestep's outputs into our input vector
 	//}
+	float tmp[l->input_dimension];
+	for(int i = 0; i < recurrent_offset; i++)
+		tmp[i] = input[i];
+	for(int i = recurrent_offset; i < l->input_dimension; i++)
+		tmp[i] = l->cells[i - recurrent_offset].loutput;
 
 	//Do output calculations for every cell in this layer
 	for(long j = 0; j < l->size; j++){
+		//printf("	doing cell output %d\n", j);
 		Cell *c = &l->cells[j];
 		Gate *a = &c->input_nonl;
 		Gate *i = &c->input_gate;
 		Gate *f = &c->forget_gate;
 		Gate *o = &c->output_gate;
 
-		a->output[t] = hypertan_element(inner_product(a->weights, l->inputs[t], l->input_dimension) + a->bias); //input nonlinearity uses hypertangent
-		i->output[t] = sigmoid_element(inner_product(i->weights, l->inputs[t], l->input_dimension) + i->bias); //all of the gates use sigmoid
-		f->output[t] = sigmoid_element(inner_product(f->weights, l->inputs[t], l->input_dimension) + f->bias);
-		o->output[t] = sigmoid_element(inner_product(o->weights, l->inputs[t], l->input_dimension) + o->bias);
+		//printf("doing gate outputs, %p and %p\n", a->weights, tmp);
+		a->output[t] = hypertan_element(inner_product(a->weights, tmp, l->input_dimension) + *a->bias); //input nonlinearity uses hypertangent
+		i->output[t] = sigmoid_element(inner_product(i->weights, tmp, l->input_dimension) + *i->bias); //all of the gates use sigmoid
+		f->output[t] = sigmoid_element(inner_product(f->weights, tmp, l->input_dimension) + *f->bias);
+		o->output[t] = sigmoid_element(inner_product(o->weights, tmp, l->input_dimension) + *o->bias);
 
 		//not used, may delete
 		a->dOutput[t] = 1 - a->output[t] * a->output[t];
@@ -238,14 +286,14 @@ void lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 		o->dOutput[t] = o->output[t] * (1 - o->output[t]);
 
 		c->state[t] = a->output[t] * i->output[t] + f->output[t] * c->lstate; //Calculate the internal cell state
-		c->output[t] = hypertan_element(c->state[t]) * o->output[t]; //Calculate the output of the cell
+		l->output[t][j] = hypertan_element(c->state[t]) * o->output[t]; //Calculate the output of the cell
 
 #if DEBUG
 		if(isnan(a->output[t])){
-			printf("ERROR: lstm_layer_forward(): c[%d], a->output[%d] is nan from tanh(%6.5f + %6.5f)\n", j, t, inner_product(a->weights, l->inputs[t], l->input_dimension), a->bias);
+			printf("ERROR: lstm_layer_forward(): c[%d], a->output[%d] is nan from tanh(%6.5f + %6.5f)\n", j, t, inner_product(a->weights, l->input[t], l->input_dimension), a->bias);
 			printf("from inner product of:\n");
 			for(int i = 0; i < l->input_dimension; i++){
-				printf("%6.5f * %6.5f +\n", a->weights[i], l->inputs[t][i]);
+				printf("%6.5f * %6.5f +\n", a->weights[i], l->input[t][i]);
 			}
 			exit(1);
 		}
@@ -253,7 +301,7 @@ void lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 			printf("ERROR: lstm_layer_forward(): nan while doing c[%d], state[%d] = %6.5f * %6.5f + %6.5f * %6.5f\n", j, t, a->output[t], i->output[t], f->output[t], c->lstate);
 			exit(1);
 		}
-		if(isnan(c->output[t])){
+		if(isnan(l->output[t][j])){
 			printf("ERROR: lstm_layer_forward(): c[%d]->output[%d] is nan from tanh(%6.5f * %6.5f)\n", j, t, c->state[t], o->output[t]);
 			printf("                      : made %6.5f from %6.5f * %6.5f + %6.5f * %6.5f\n", c->state[t], a->output[t], i->output[t], f->output[t], c->lstate);
 			exit(1);
@@ -264,8 +312,9 @@ void lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 		}
 #endif
 		c->lstate = c->state[t]; //Set the last timestep's cell state to the current one for the next timestep
-		c->loutput = c->output[t];
+		c->loutput = l->output[t][j];
 	}
+	/*
 	for(long i = 0; i < l->size; i++){
 		l->output[i] = l->cells[i].output[t]; //copy cell outputs to the layer output vector (for use in inner_product)
 		if(isnan(l->output[i])){
@@ -273,33 +322,128 @@ void lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 			exit(1);
 		}
 	}
+	*/
 }
 
 /*
- * Computes the weight nudges to each parameter using backpropagation through time (bptt) for a single layer.
- *
-void layer_backward(LSTM_layer *l, float **gradients, float plasticity){
+ * Does a forward pass through the network
+ */
+void lstm_forward(LSTM *n, float *x){
+	size_t t = n->t;
+	for(int i = 0; i < n->input_dimension; i++){
+		n->network_input[t][i] = x[i];
+	}
+
+	float *input = n->network_input[t];
+	for(int i = 0; i < n->depth; i++){
+		LSTM_layer *l = &n->layers[i];
+		lstm_layer_forward(l, input, t);
+		input = l->output[t];
+	}
+	LSTM_layer *last_lstm_layer = &n->layers[n->depth-1];
+	mlp_forward(&n->output_layer, last_lstm_layer->output[t]);
+}
+
+/*
+void lstm_propagate_gradients(LSTM *n, float **network_grads){
+	size_t MAX_TIME = n->t-1;
+	float **gradients = network_grads;
+	for(int i = n->depth-1; i >= 0; i--){
+		LSTM_layer *l = &n->layers[i];
+		int recurrent_offset = l->input_dimension - l->size;
+		for(long t = MAX_TIME; t >= 0; t--){
+			for(long j = 0; j < l->size; j++){
+				Cell *c = &l->cells[j];
+				Gate *a = &c->input_nonl;
+				Gate *i = &c->input_gate;
+				Gate *f = &c->forget_gate;
+				Gate *o = &c->output_gate;
+
+				float delta_out;
+				float next_dstate;
+				float next_forget;
+
+				if(t >= MAX_TIME){
+					delta_out = 0; //Zero because no future timesteps
+					next_dstate = 0;
+					next_forget = 0;
+				}else{
+					delta_out = l->input_gradient[t+1][recurrent_offset + j];
+					next_dstate = c->dstate[t+1];
+					next_forget = f->output[t+1];
+				}
+				float grad = gradients[t][j]; //use instead of c->gradient[t]
+				c->dOutput[t] = grad + delta_out;
+				c->dstate[t] = c->dOutput[t] * o->output[t] * d_hypertan_element(c->state[t]) + next_dstate * next_forget;
+
+				a->gradient[t] = c->dstate[t] * i->output[t] * a->dOutput[t];
+				i->gradient[t] = c->dstate[t] * a->output[t] * i->dOutput[t];
+				if(t) f->gradient[t] = c->dstate[t] * c->state[t-1] * f->dOutput[t];
+				else  f->gradient[t] = 0;
+				o->gradient[t] = c->dOutput[t] * hypertan_element(c->state[t]) * o->output[t] * (1 - o->output[t]);
+
+				for(long k = 0; k < l->input_dimension; k++){
+					l->input_gradient[t][k] += a->gradient[t] * a->weights[k];
+					l->input_gradient[t][k] += i->gradient[t] * i->weights[k];
+					l->input_gradient[t][k] += f->gradient[t] * f->weights[k];
+					l->input_gradient[t][k] += o->gradient[t] * o->weights[k];
+				}
+			}
+			//clip gradients that are too large (to put a band-aid on exploding gradients)
+			for(long j = 0; j < l->input_dimension; j++){
+				if(l->input_gradient[t][j] > MAX_GRAD) l->input_gradient[t][j] = MAX_GRAD;
+				if(l->input_gradient[t][j] < -MAX_GRAD) l->input_gradient[t][j] = -MAX_GRAD;
+			}
+		}
+		gradients = l->input_gradient;
+	}
+}
+
+void lstm_layer_backward(LSTM_layer *l, size_t max_time, float learning_rate){
 	int recurrent_offset = l->input_dimension - l->size;
-	//copy gradients over
-	for(long t = l->t; t >= 0; t--){
+	for(long t = 0; t <= max_time; t++){
 		for(long j = 0; j < l->size; j++){
-			l->cells[j].gradient[t] = gradients[t][j];
-			float grad = l->cells[j].gradient[t];
-			if(grad > 10000 || grad < -10000){
-				printf("ERROR: layer_backward(): grad is unusually large (%6.5f) at t: %d, j: %d\n", grad, t, j);
-				exit(1);
+			Cell *c = &l->cells[j];
+			Gate *a = &c->input_nonl;
+			Gate *i = &c->input_gate;
+			Gate *f = &c->forget_gate;
+			Gate *o = &c->output_gate;
+			for(long k = 0; k < recurrent_offset; k++){
+				a->weights[k] += a->gradient[t] * l->input[t][k] * learning_rate;
+				i->weights[k] += i->gradient[t] * l->input[t][k] * learning_rate;
+				f->weights[k] += f->gradient[t] * l->input[t][k] * learning_rate;
+				o->weights[k] += o->gradient[t] * l->input[t][k] * learning_rate;
 			}
-			if(isnan(grad)){
-				printf("ERROR: layer_backward(): gradient received from output layer was nan for cell %d, t %d!\n", j, t);
-				exit(1);
+			if(t < max_time){
+				for(long k = recurrent_offset; k < l->input_dimension; k++){
+					a->weights[k] += a->gradient[t+1] * l->output[t][j] * learning_rate;
+					i->weights[k] += i->gradient[t+1] * l->output[t][j] * learning_rate;
+					f->weights[k] += f->gradient[t+1] * l->output[t][j] * learning_rate;
+					o->weights[k] += o->gradient[t+1] * l->output[t][j] * learning_rate;
+					if(isnan(a->weights[k])){
+						printf("ERROR: layer_backward(): nan'ed a weight while doing nudge, from %6.5f * %6.5f * %6.5f\n", a->gradient[t+1], l->output[t][j], learning_rate);
+						exit(1);
+					}
+				}
 			}
-//			if(grad > 100) l->cells[j].gradient[t] = 100;
-//			if(grad < -100)l->cells[j].gradient[t] = -100;
+			*a->bias += a->gradient[t] * learning_rate;
+			*i->bias += i->gradient[t] * learning_rate;
+			*f->bias += f->gradient[t] * learning_rate;
+			*o->bias += o->gradient[t] * learning_rate;
 		}
 	}
+}
+*/
+
+/*
+ * Computes the weight nudges to each parameter using backpropagation through time (bptt) for a single layer.
+ */
+void lstm_layer_backward(LSTM_layer *l, float **gradients, size_t max_time, float learning_rate){
+	int recurrent_offset = l->input_dimension - l->size;
+	//copy gradients over
 	//do the gradient calculations
-//	zero_2d_arr(l->input_gradients, MAX_UNROLL_LENGTH, l->input_dimension);
-	size_t MAX_TIME = l->t-1;
+//	zero_2d_arr(l->input_gradient, MAX_UNROLL_LENGTH, l->input_dimension);
+	size_t MAX_TIME = max_time;
 	for(long t = MAX_TIME; t >= 0; t--){
 		for(long j = 0; j < l->size; j++){
 			Cell *c = &l->cells[j];
@@ -317,12 +461,13 @@ void layer_backward(LSTM_layer *l, float **gradients, float plasticity){
 				next_dstate = 0;
 				next_forget = 0;
 			}else{
-				delta_out = l->input_gradients[t+1][recurrent_offset + j];
+				delta_out = l->input_gradient[t+1][recurrent_offset + j];
 				next_dstate = c->dstate[t+1];
 				next_forget = f->output[t+1];
 			}
 			float grad = gradients[t][j]; //use instead of c->gradient[t]
-			c->dOutput[t] = c->gradient[t] + delta_out;
+			//c->dOutput[t] = c->gradient[t] + delta_out;
+			c->dOutput[t] = grad + delta_out;
 			c->dstate[t] = c->dOutput[t] * o->output[t] * d_hypertan_element(c->state[t]) + next_dstate * next_forget;
 
 			a->gradient[t] = c->dstate[t] * i->output[t] * a->dOutput[t];
@@ -332,16 +477,16 @@ void layer_backward(LSTM_layer *l, float **gradients, float plasticity){
 			o->gradient[t] = c->dOutput[t] * hypertan_element(c->state[t]) * o->output[t] * (1 - o->output[t]);
 
 			for(long k = 0; k < l->input_dimension; k++){
-				l->input_gradients[t][k] += a->gradient[t] * a->weights[k];
-				l->input_gradients[t][k] += i->gradient[t] * i->weights[k];
-				l->input_gradients[t][k] += f->gradient[t] * f->weights[k];
-				l->input_gradients[t][k] += o->gradient[t] * o->weights[k];
+				l->input_gradient[t][k] += a->gradient[t] * a->weights[k];
+				l->input_gradient[t][k] += i->gradient[t] * i->weights[k];
+				l->input_gradient[t][k] += f->gradient[t] * f->weights[k];
+				l->input_gradient[t][k] += o->gradient[t] * o->weights[k];
 			}
 		}
 		//clip gradients that are too large (to put a band-aid on exploding gradients)
 		for(long j = 0; j < l->input_dimension; j++){
-			if(l->input_gradients[t][j] > MAX_GRAD) l->input_gradients[t][j] = MAX_GRAD;
-			if(l->input_gradients[t][j] < -MAX_GRAD) l->input_gradients[t][j] = -MAX_GRAD;
+			if(l->input_gradient[t][j] > MAX_GRAD) l->input_gradient[t][j] = MAX_GRAD;
+			if(l->input_gradient[t][j] < -MAX_GRAD) l->input_gradient[t][j] = -MAX_GRAD;
 		}
 	}
 	//do the parameter nudges
@@ -353,37 +498,42 @@ void layer_backward(LSTM_layer *l, float **gradients, float plasticity){
 			Gate *f = &c->forget_gate;
 			Gate *o = &c->output_gate;
 			for(long k = 0; k < recurrent_offset; k++){
-				a->weights[k] += a->gradient[t] * l->inputs[t][k] * plasticity;
-				i->weights[k] += i->gradient[t] * l->inputs[t][k] * plasticity;
-				f->weights[k] += f->gradient[t] * l->inputs[t][k] * plasticity;
-				o->weights[k] += o->gradient[t] * l->inputs[t][k] * plasticity;
+				a->weights[k] += a->gradient[t] * l->input[t][k] * learning_rate;
+				i->weights[k] += i->gradient[t] * l->input[t][k] * learning_rate;
+				f->weights[k] += f->gradient[t] * l->input[t][k] * learning_rate;
+				o->weights[k] += o->gradient[t] * l->input[t][k] * learning_rate;
 			}
 			if(t < MAX_TIME){
 				for(long k = recurrent_offset; k < l->input_dimension; k++){
-					a->weights[k] += a->gradient[t+1] * c->output[t] * plasticity;
-					i->weights[k] += i->gradient[t+1] * c->output[t] * plasticity;
-					f->weights[k] += f->gradient[t+1] * c->output[t] * plasticity;
-					o->weights[k] += o->gradient[t+1] * c->output[t] * plasticity;
-					/*
-					a->weights[k] += a->gradient[t] * c->output[t] * plasticity;
-					i->weights[k] += i->gradient[t] * c->output[t] * plasticity;
-					f->weights[k] += f->gradient[t] * c->output[t] * plasticity;
-					o->weights[k] += o->gradient[t] * c->output[t] * plasticity;
-					*
+					a->weights[k] += a->gradient[t+1] * l->output[t][j] * learning_rate;
+					i->weights[k] += i->gradient[t+1] * l->output[t][j] * learning_rate;
+					f->weights[k] += f->gradient[t+1] * l->output[t][j] * learning_rate;
+					o->weights[k] += o->gradient[t+1] * l->output[t][j] * learning_rate;
 					if(isnan(a->weights[k])){
-						printf("ERROR: layer_backward(): nan'ed a weight while doing nudge, from %6.5f * %6.5f * %6.5f\n", a->gradient[t+1], c->output[t], plasticity);
+						//printf("ERROR: layer_backward(): nan'ed a weight while doing nudge, from %6.5f * %6.5f * %6.5f\n", a->gradient[t+1], c->output[t], learning_rate);
 						exit(1);
 					}
 				}
 			}
-			a->bias += a->gradient[t] * plasticity;
-			i->bias += i->gradient[t] * plasticity;
-			f->bias += f->gradient[t] * plasticity;
-			o->bias += o->gradient[t] * plasticity;
+			*a->bias += a->gradient[t] * learning_rate;
+			*i->bias += i->gradient[t] * learning_rate;
+			*f->bias += f->gradient[t] * learning_rate;
+			*o->bias += o->gradient[t] * learning_rate;
 		}
 	}
 }
-*/
+void lstm_backward(LSTM *n){
+	if(n->t >= n->seq_len){
+		//lstm_propagate_gradients(n, n->network_gradient);
+		float **grads = n->network_gradient;
+		for(int i = n->depth-1; i >= 0; i--){
+			lstm_layer_backward(&n->layers[i], grads, n->t-1, n->learning_rate);
+			grads = n->layers[i].input_gradient;
+		}
+		//if(!n->stateful) wipe(n);
+		n->t = 0;
+	}
+}
 /*
  * Performs a backward pass if the network unroll has been reached.
  *
@@ -410,9 +560,9 @@ float backward(LSTM *n, float *expected){
 	LSTM_layer *l = n->tail;
 	while(l){
 		if(weight_update){
-			layer_backward(l, grads, n->plasticity);
+			layer_backward(l, grads, n->learning_rate);
 			l->t = 0;
-			grads = l->input_gradients;
+			grads = l->input_gradient;
 		}
 		else l->t++;
 		l = l->input_layer;
@@ -421,7 +571,7 @@ float backward(LSTM *n, float *expected){
 
 	while(l && weight_update){
 		zero_2d_arr(l->inputs, MAX_UNROLL_LENGTH, l->input_dimension);
-		zero_2d_arr(l->input_gradients, MAX_UNROLL_LENGTH, l->input_dimension);
+		zero_2d_arr(l->input_gradient, MAX_UNROLL_LENGTH, l->input_dimension);
 		l = l->output_layer;
 	}
 	if(weight_update){
@@ -434,20 +584,6 @@ float backward(LSTM *n, float *expected){
 	return c;
 }
 
-/*
- * Does a forward pass through the network
- *
-void forward(LSTM *n, float *x){
-	float *input = x;
-	LSTM_layer *l = n->head;
-	while(l){
-		lstm_layer_forward(l, input);
-		input = l->output;
-		l = l->output_layer;
-	}
-
-	mlp_forward(&n->output_layer, n->tail->output);
-}
 
  /*
   * IO FUNCTIONS FOR READING AND WRITING TO A FILE
@@ -474,7 +610,7 @@ LSTM loadLSTMFromFile(const char *filename){
 	LSTM n;
 	n.t = 0;
 	n.collapse = 0;
-	n.plasticity = 0.01;
+	n.learning_rate = 0.01;
 	n.head = NULL;
 	n.tail = NULL;
 
@@ -501,7 +637,7 @@ LSTM loadLSTMFromFile(const char *filename){
 		if(strcmp(buff, "layer") == 0){
 			getWord(fp, buff); //read the number of cells in this layer
 			size_t layersize = strtol(buff, NULL, 10);
-			LSTM_layer *l = createLSTM_layer(input_dimension, layersize, n.plasticity);
+			LSTM_layer *l = createLSTM_layer(input_dimension, layersize, n.learning_rate);
 
 			for(long j = 0; j < layersize; j++){
 				getWord(fp, buff);
@@ -684,7 +820,7 @@ float step(LSTM_layer *l, float *input, float *desired){
 					next_dstate = 0;
 					next_forget = 0;
 				}else{
-					delta_out = l->input_gradients[t+1][l->input_dimension - l->size + j];
+					delta_out = l->input_gradient[t+1][l->input_dimension - l->size + j];
 					next_dstate = c->dstate[t+1];
 					next_forget = f->output[t+1];
 				}
@@ -704,11 +840,11 @@ float step(LSTM_layer *l, float *input, float *desired){
 				printf("BACKPROP t=%d:		d_f: %6.5f\n", t, f->gradient[t]);
 				printf("BACKPROP t=%d:		d_o: %6.5f\n", t, o->gradient[t]);
 				for(long k = 0; k < l->input_dimension; k++){
-					l->input_gradients[t][k] += a->gradient[t] * a->weights[k];
-					l->input_gradients[t][k] += i->gradient[t] * i->weights[k];
-					l->input_gradients[t][k] += f->gradient[t] * f->weights[k];
-					l->input_gradients[t][k] += o->gradient[t] * o->weights[k];
-//					printf("BACKPROP t=%d: l->input_gradients[%d][%d] set to %f\n", t, t, k, l->input_gradients[t][k]);
+					l->input_gradient[t][k] += a->gradient[t] * a->weights[k];
+					l->input_gradient[t][k] += i->gradient[t] * i->weights[k];
+					l->input_gradient[t][k] += f->gradient[t] * f->weights[k];
+					l->input_gradient[t][k] += o->gradient[t] * o->weights[k];
+//					printf("BACKPROP t=%d: l->input_gradient[%d][%d] set to %f\n", t, t, k, l->input_gradient[t][k]);
 				}
 //				printf("BACKPROP t=%d: dOutput is %6.5f from gradient %6.5f and dout %6.5f\n", t, c->dOutput[t], c->gradient[t], delta_out); 
 			}
@@ -724,24 +860,24 @@ float step(LSTM_layer *l, float *input, float *desired){
 				size_t recurrent_offset = l->input_dimension - l->size;
 				for(long k = 0; k < recurrent_offset; k++){
 //					printf("BACKPROP: adding %6.5f * %6.5f (%6.5f) to weight %d of a\n", a->gradient[t], l->inputs[t][k], a->gradient[t] * l->inputs[t][k], k);
-					a->weights[k] += a->gradient[t] * l->inputs[t][k] * plasticity;
-					i->weights[k] += i->gradient[t] * l->inputs[t][k] * plasticity;
-					f->weights[k] += f->gradient[t] * l->inputs[t][k] * plasticity;
-					o->weights[k] += o->gradient[t] * l->inputs[t][k] * plasticity;
+					a->weights[k] += a->gradient[t] * l->inputs[t][k] * learning_rate;
+					i->weights[k] += i->gradient[t] * l->inputs[t][k] * learning_rate;
+					f->weights[k] += f->gradient[t] * l->inputs[t][k] * learning_rate;
+					o->weights[k] += o->gradient[t] * l->inputs[t][k] * learning_rate;
 				}
 				if(t < MAX_UNROLL_LENGTH-1){
 					for(long k = recurrent_offset; k < l->input_dimension; k++){
 //						printf("BACKPROP: 		making a weight adjustment with a.grad[%d+1]: %6.5f * c.output[%d]: %6.5f\n", t, a->gradient[t+1], t, c->output[t]);
-						a->weights[k] += a->gradient[t+1] * c->output[t] * plasticity;
-						i->weights[k] += i->gradient[t+1] * c->output[t] * plasticity;
-						f->weights[k] += f->gradient[t+1] * c->output[t] * plasticity;
-						o->weights[k] += o->gradient[t+1] * c->output[t] * plasticity;
+						a->weights[k] += a->gradient[t+1] * c->output[t] * learning_rate;
+						i->weights[k] += i->gradient[t+1] * c->output[t] * learning_rate;
+						f->weights[k] += f->gradient[t+1] * c->output[t] * learning_rate;
+						o->weights[k] += o->gradient[t+1] * c->output[t] * learning_rate;
 					}
 				}
-				a->bias += a->gradient[t] * plasticity;
-				i->bias += i->gradient[t] * plasticity;
-				f->bias += f->gradient[t] * plasticity;
-				o->bias += o->gradient[t] * plasticity;
+				a->bias += a->gradient[t] * learning_rate;
+				i->bias += i->gradient[t] * learning_rate;
+				f->bias += f->gradient[t] * learning_rate;
+				o->bias += o->gradient[t] * learning_rate;
 			}
 		}
 //		printf("weight 0: %6.5f\n", l->cells[0].input_gate.weights[0]);
@@ -751,7 +887,7 @@ float step(LSTM_layer *l, float *input, float *desired){
 		//end bptt
 		l->t = 0;
 		zero_2d_arr(l->inputs, MAX_UNROLL_LENGTH, l->input_dimension);
-		zero_2d_arr(l->input_gradients, MAX_UNROLL_LENGTH, l->input_dimension);
+		zero_2d_arr(l->input_gradient, MAX_UNROLL_LENGTH, l->input_dimension);
 	}
 	size_t t = l->t;
 	for(long i = 0; i < l->input_dimension - l->size; i++){
