@@ -22,16 +22,16 @@ Everything is written so as to be easily modifiable. Parameters are stored in on
 
 ## Usage
 Create a 2-layer mlp with an input dimension of 784 neurons:
-```
+```C
 MLP n = createMLP(784, 50, 10);
 ```
 Create a 3-layer network with an input dimension of 784 neurons:
-```
+```C
 MLP n = createMLP(784, 35, 25, 10);
 ```
 
 Run a single forward/backward step:
-```
+```C
 MLP n = createMLP(2, 16, 2);
 n.learning_rate = 0.01; //Set the learning rate
 
@@ -46,7 +46,7 @@ dealloc_network(&n); //Free the network's memory from the heap
 ```
 
 By default, hidden layers will use the sigmoid logistic function and the output layer will use softmax. However, you can use any of the other activation functions implemented:
-```
+```C
 MLP n = createMLP(10, 50, 20, 35, 5);
 n.layers[0].logistic = hypertan; //The layer of size 50 will now use tanh activation
 n.layers[1].logistic = softmax; //The layer of size 20 will now use softmax activation
@@ -55,7 +55,7 @@ n.layers[3].logistic = sigmoid; //The output layer of size 5 will now use sigmoi
 ```
 
 Save/load models to disk:
-```
+```C
 save_mlp(&n, "../model/file.mlp");
 
 MLP b = load_mlp("../model/file.mlp");
