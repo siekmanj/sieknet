@@ -52,7 +52,7 @@ void mlp_backward(MLP *);
 //void gradients_wrt_outputs(MLP_layer *);
 //void mutate(MLP_layer *, float, float);
 
-void save_mlp(MLP *n, char* filename);
+void save_mlp(const MLP *n, const char* filename);
 
 float descend(MLP *n, float *, float *);
 float backpropagate(MLP *n, float *);

@@ -220,6 +220,8 @@ float differentiate(const float x, const void (*logistic)(MLP_layer*)){
 		return 1 - x*x;
 	if(logistic == softmax || logistic == sigmoid)
 		return x * (1 - x);
+	printf("ERROR: differentiate(): derivative of logistic function not implemented!\n");
+	exit(1);
 }
 
 /*
@@ -287,15 +289,9 @@ void dealloc_network(MLP *n){
 	free(n->layers);
 }
 
-
  /*
   * IO FUNCTIONS FOR READING AND WRITING TO A FILE
   */
-
-static void writeToFile(FILE *fp, char *ptr){
-  fprintf(fp, "%s", ptr);
-  memset(ptr, '\0', strlen(ptr));
-}
 
 static void getWord(FILE *fp, char* dest){
   memset(dest, '\0', strlen(dest));
@@ -307,134 +303,58 @@ static void getWord(FILE *fp, char* dest){
  * n: A pointer to the network.
  * filename: The desired filename and path.
  */
-void save_mlp(MLP *n, char* filename){
- FILE *fp;
- char buff[1024];
- memset(buff, '\0', 1024);
+void save_mlp(const MLP *n, const char* filename){
+	char buff[1024];
+	memset(buff, '\0', 1024);
 
- //Create file
- fp = fopen(filename, "w");
- printf("Saving to: %s\n", filename);
- memset(buff, '\0', strlen(buff));
+	//Create file
+	FILE *fp = fopen(filename, "w");
+	printf("Saving mlp to: %s\n", filename);
+	memset(buff, '\0', strlen(buff));
 
- //Get network dimensions
- size_t size = 0;
- MLP_layer *current = n->input;
- while(1){
-   if(current != NULL) size++;
-   if(current == n->output) break;
-   current = current->output_layer;
- }
-
- //Write header info to file
- strcat(buff, "MLP ");
- writeToFile(fp, buff); //Write identifier
- snprintf(buff, 100, "%lu ", size); //Convert num of layers to int
- writeToFile(fp, buff); //Write number of layers to file
-
- current = n->input;
- fclose(fp);
+	//Write header info to file
+	fprintf(fp, "MLP %lu %lu ", n->depth, n->input_dimension);
+	for(int i = 0; i < n->depth; i++){
+		fprintf(fp, "%lu", n->layers[i].size);
+		if(i < n->depth-1) fprintf(fp, " ");
+		else fprintf(fp, "\n");
+	}
+	for(int i = 0; i < n->num_params; i++){
+		fprintf(fp, "%f", n->params[i]);
+		if(i < n->num_params-1) fprintf(fp, " ");
+		else fprintf(fp, "\n");
+	}
+	fclose(fp);
 }
 
 /*
  * Loads a network from a file.
  * filename: The path to the file.
- *
-MLP loadMLPFromFile(const char *filename){
+ */
+MLP load_mlp(const char *filename){
   FILE *fp = fopen(filename, "rb");
   char buff[1024];
   memset(buff, '\0', 1024);
 
-  MLP n = initMLP();
   getWord(fp, buff); //Get first word to check if MLP file
 
   if(strcmp(buff, "MLP") != 0){
     printf("ERROR: [%s] is not MLP.\n", buff);
-    return n;
+    exit(1);
   }
+	size_t num_layers, input_dim;
 
-  //Get number of layers in network
-  getWord(fp, buff);
-  size_t size = strtol(buff, NULL, 10);
+	fscanf(fp, "%lu %lu", &num_layers, &input_dim);
+	size_t arr[num_layers+1];
+	arr[0] = input_dim;
+	for(int i = 1; i <= num_layers; i++){
+		fscanf(fp, " %lu", &arr[i]);
+	}
 
-  for(int i = 0; i < size; i++){
-    getWord(fp, buff);
-    if(strcmp(buff, "layer") != 0){
-      printf("PARSE ERROR\n");
-      return n;
-    }
-    getWord(fp, buff);
-    size_t layer_size = strtol(buff, NULL, 10);
-    addMLP_layer(&n, layer_size);
-
-    for(int j = 0; j < layer_size; j++){
-      getWord(fp, buff);
-      if(strcmp(buff, "INPUTLAYER") == 0) {
-        break;
-      }
-      getWord(fp, buff);
-      size_t number_of_weights = strtol(buff, NULL, 10);
-      MLP_layer *input_layer = n.output->input_layer;
-      for(int k = 0; k < number_of_weights; k++){
-        getWord(fp, buff);
-        float weight = strtod(buff, NULL);
-        n.output->neurons[j].weights[k] = weight;
-      }
-      getWord(fp, buff);
-      float bias = strtod(buff, NULL);
-      n.output->neurons[j].bias = bias;
-    }
-  }
-  fclose(fp);
+	MLP n;
+	n = mlp_from_arr(arr, num_layers+1);
+	for(int i = 0; i < n.num_params; i++){
+		fscanf(fp, "%f", &n.params[i]);
+	}
   return n;
 }
-
-
-/*
- * Functions for debugging
- *
-void printWeights(MLP_layer *layer){
-  MLP_layer *previousMLP_layer = layer->input_layer;
-	for(int i = 0; i < layer->size; i++){
-		printf("Neuron %d: ", i);
-	}
-	printf("\n");
-	for(int i = 0; i < previousMLP_layer->size; i++){
-		for(int j = 0; j < layer->size; j++){
-			if(j > 9) printf(" %9.2f ", layer->neurons[j].weights[i]);
-			else printf("%8.2f  ", layer->neurons[j].weights[i]);
-		}
-		printf("\n");
-	}
-	printf("\n");
-	for(int i = 0; i < layer->size; i++){
-			if(i > 9) printf(" %9.2f ", layer->neurons[i].bias);
-			else printf("%8.2f  ", layer->neurons[i].bias);
-	}
-	printf("\n");
-}
-
-void printActivationGradients(MLP_layer *layer){
-  printf("activation gradients:\n");
-  for(int i = 0; i < layer->size; i++){
-    printf("  Neuron %d: %f from %f\n", i, layer->neurons[i].gradient, layer->neurons[i].activation);
-  }
-}
-void printOutputs(MLP_layer *layer){
-  for(int i = 0; i < layer->size; i++){
-    float val = layer->neurons[i].activation;
-		if(i > 9) printf(" %9.4f ", val);
-		else printf("%8.4f  ", val);
-		}
-		printf("\n");
-}
-void prettyprint(MLP_layer *layer){
-  for(int i = 0; i < layer->size; i++){
-    float val = layer->neurons[i].activation;
-    if(!(i % (int)sqrt(layer->size))) printf("\n");
-		if(val <= 0.5) printf(".");
-    if(val > 0.5) printf("A");
-		}
-    printf("\n");
-}
-*/
