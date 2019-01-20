@@ -5,7 +5,7 @@
  * https://blog.aidangomez.ca/2016/04/17/Backpropogating-an-LSTM-A-Numerical-Example/
  */
 
-#include "LSTM.h"
+#include "lstm.h"
 #include <math.h>
 #include <string.h>
 
@@ -172,12 +172,11 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 	for(long i = 0; i < MAX_UNROLL_LENGTH; i++) n.cost_gradients[i] = (float*)malloc(arr[len-2] * sizeof(float));
 
 	zero_2d_arr(n.cost_gradients, MAX_UNROLL_LENGTH, arr[len-2]);
+
+	n.params = (float*)malloc((arr[len-2]+1)*arr[len-1]*sizeof(float));
 //Will need to change once mlp.c is rewritten
 /******************************/ 
-	MLP output = initMLP();
-	addLayer(&output, arr[len-2]);
-	addLayer(&output, arr[len-1]);
-	n.output_layer = output;
+	n.output_layer = createMLP(arr[len-2], arr[len-1]);
 /******************************/
 
 	return n;
@@ -386,80 +385,14 @@ void lstm_layer_forward(LSTM_layer *l, float *input){
 }
 
 /*
- * Calculates simple quadratic cost of network output.
- *
-float quadratic_cost(LSTM *n, float *desired){
-	size_t t = n->t;
-	float cost = 0;
-	for(long i = 0; i < n->tail->size; i++){
-		n->cost_gradients[t][i] = desired[i] - n->tail->output[i];
-#if SOFTMAX
-		n->cost_gradients[t][i] *= n->tail->output[i] * (1 - n->tail->output[i]);
-#endif
-		cost += 0.5 * (desired[i] - n->tail->cells[i].output[t]) * (desired[i] - n->tail->cells[i].output[t]);
-
-#if DEBUG
-		if(isnan(n->cost_gradients[t][i])){
-			printf("ERROR: quadratic_cost(): got a nan while doing cost gradients, %6.5f - %6.5f\n", desired[i], n->tail->output[i]);
-			exit(1);
-		}
-		if(isnan(cost)){
-			printf("ERROR: quadratic_cost(): got a nan while summing index i: %d, (%6.5f - %6.5f)^2\n", i, desired[i], n->tail->cells[i].output[t]);
-			exit(1);
-		}
-		float grad = n->cost_gradients[t][i];
-		if(grad > 1000 || grad < -1000){
-			printf("ERROR: quadratic_cost(): unusually large gradient %6.5f on index %d from %6.5f - %6.5f\n", n->cost_gradients[t][i], i, desired[i], n->tail->output[i]);
-			exit(1);
-		}
-#endif
-	}
-	return cost;
-}
-
-*
- * Calculates cross entropy cost of network output.
- 
-float cross_entropy_cost(LSTM *n, float *desired){
-	size_t t = n->t;
-	float cost = 0;
-	for(long i = 0; i < n->tail->size; i++){
-		float y_t = n->tail->output[i]; //output
-		float l_t = desired[i]; //label
-		if(y_t < 0.00001) y_t = 0.00001;
-		if(y_t > 0.9999) y_t = .9999;
-
-
-		n->cost_gradients[t][i] = l_t/y_t - (1 - l_t)/(1 - y_t); //cross entropy derivative
-#if SOFTMAX
-		n->cost_gradients[t][i] *= y_t * (1 - y_t); //softmax derivative
-#endif
-
-		float grad = n->cost_gradients[t][i];
-		if(grad > 1000 || grad < -1000){
-			printf("ERROR: cross_entropy_cost(): unusually large grad (%6.5f)\n", grad);
-			exit(1);
-		}
-		cost += -(l_t * log(y_t) + (1 - l_t) * log(1 - y_t));
-		if(isnan(cost)){
-			printf("ERROR: cross_entropy_cost(): cost was NAN on output %d, t %lu, desired %6.5f and actual %6.5f\n", i, t, desired[i], n->tail->cells[i].output[t]);
-			exit(0);
-		}
-		n->tail->output[i] = y_t;
-	}
-	return cost;
-}
-*/
-
-/*
  * Performs a backward pass if the network unroll has been reached.
  */
 float backward(LSTM *n, float *expected){
-	MLP *output_mlp = &n->output_layer;
-	float c = backpropagate(output_mlp, expected); //backpropagate the mlp output layer (not lstm layers)
+	float c = n->output_layer.cost(&n->output_layer, expected);
+	mlp_backward(&n->output_layer); //backpropagate the mlp output layer (not lstm layers)
 
 	for(int i = 0; i < n->tail->size; i++){
-		n->cost_gradients[n->t][i] = output_mlp->input->neurons[i].gradient; //copy gradients
+		n->cost_gradients[n->t][i] = n->output_layer.layers[0].gradient[i]; //copy gradients
 	}
 
 #if DEBUG
@@ -521,9 +454,8 @@ void forward(LSTM *n, float *x){
 		input = l->output;
 		l = l->output_layer;
 	}
-	MLP *output_mlp = &n->output_layer;
 
-	feedforward(output_mlp, n->tail->output);
+	mlp_forward(&n->output_layer, n->tail->output);
 	/*
 	float sum = 0;
 	printf("feedforward output: [");
@@ -569,7 +501,7 @@ LSTM loadLSTMFromFile(const char *filename){
 	char *mlp_filename = (char*)malloc((strlen(filename)+5)*sizeof(char));
 	strcpy(mlp_filename, filename);
 	strcat(mlp_filename, ".mlp");
-	n.output_layer = loadMLPFromFile(mlp_filename);
+	n.output_layer = load_mlp(mlp_filename);
 	free(mlp_filename);
 
 	getWord(fp, buff);
@@ -677,7 +609,7 @@ void saveLSTMToFile(LSTM *n, char *filename){
 	char *mlp_filename = (char*)malloc((strlen(filename)+5)*sizeof(char));
 	strcpy(mlp_filename, filename);
 	strcat(mlp_filename, ".mlp");
-	saveMLPToFile(&n->output_layer, mlp_filename);
+	save_mlp(&n->output_layer, mlp_filename);
 	free(mlp_filename);
 
 	FILE *fp;

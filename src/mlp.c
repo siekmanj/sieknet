@@ -257,7 +257,7 @@ void propagate_gradients(MLP *n, float *gradient){
 /*
  * Calculates the backward pass for a single layer (does parameter update)
  */
-static void mlp_layer_backward(MLP_layer *l, float *grads, float learning_rate){
+void mlp_layer_backward(MLP_layer *l, float *grads, float learning_rate){
 	for(int i = 0; i < l->size; i++){
 		float gradient = grads[i]; //gradient of this neuron's output with respect to cost
 		float d_output = differentiate(l->output[i], l->logistic);
