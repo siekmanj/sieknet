@@ -44,10 +44,10 @@ int main(void){
 	LSTM n;
 	if(getchar() == 'n'){
 		printf("creating network...\n");
-		n = createLSTM(strlen(alphabet), 600, strlen(alphabet));//loadLSTMFromFile(modelfile);
+		n = create_lstm(strlen(alphabet), 50, strlen(alphabet));//loadLSTMFromFile(modelfile);
 	}else{
 		printf("loading network from %s...\n", modelfile);
-		n = loadLSTMFromFile(modelfile);
+		//n = loadLSTMFromFile(modelfile);
 	}
 	
 	n.plasticity = 0.001; //I've found that the larger the network, the lower the initial learning rate should be.	
@@ -57,7 +57,7 @@ int main(void){
   float previousepochavgcost = 2.4;
 	for(int i = 0; i < epochs; i++){ //Run for a large number of epochs
 		printf("beginning epoch %d\n", i);
-		wipe(&n);
+		//wipe(&n);
 		FILE *fp = fopen(datafile, "rb"); //This is the dataset
 		if(!fp){
 			printf("%s COULD NOT BE OPENED!\n", datafile);
@@ -81,6 +81,7 @@ int main(void){
 			CREATEONEHOT(y, strlen(alphabet), label);
 
 			forward(&n, x);
+			//float cost_local = n.cost(&n, y);
 			float cost_local = backward(&n, y);
 			
 			/****************************************************/
@@ -98,7 +99,7 @@ int main(void){
 			input_character = label;
 			count++;
 			label = label_from_char(fgetc(fp), alphabet);
-			if(!(count % (n.seq_len*50))) wipe(&n);
+			//if(!(count % (n.seq_len*50))) wipe(&n);
 			
 			if(count % (n.seq_len*500) == 0){
 				int seed = input_character;
@@ -122,8 +123,8 @@ int main(void){
 				printf("\n\n****\nlatest cost: %6.5f (avg %6.5f) vs epoch avg cost:%f, epoch (%d) %5.2f%% completed.\n", cost/count, lastcost, epochcost/epochcount, i, completion);
 
 				if(cost/count < epochcost/epochcount){
-					printf("\nAUTOSAVING MODEL FILE!\n");
-					saveLSTMToFile(&n, modelfile);
+					//printf("\nAUTOSAVING MODEL FILE!\n");
+					//saveLSTMToFile(&n, modelfile);
 
 				}else{
 					printf("\nPERFORMANCE WORSE THAN AVERAGE, NOT SAVING MODELFILE\n");

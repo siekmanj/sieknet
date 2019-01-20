@@ -9,7 +9,7 @@
 #define MAX_UNROLL_LENGTH 1000
 #endif
 
-#define createLSTM(...) lstm_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
+#define create_lstm(...) lstm_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
 typedef struct gate{
 	float *output;
