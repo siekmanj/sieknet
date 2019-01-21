@@ -71,7 +71,7 @@ static float cost_wrapper(LSTM *n, float *y){
 	
 	size_t t = n->t;
 	if(mlp->layers[0].input_dimension != n->layers[n->depth-1].size){
-		printf("ERROR: cost_wrapper(): Size mismatch between mlp output layer and final lstm layer (%d vs %d)\n", mlp->layers[0].input_dimension, n->layers[n->depth-1].size);
+		printf("ERROR: cost_wrapper(): Size mismatch between mlp output layer and final lstm layer (%lu vs %lu)\n", mlp->layers[0].input_dimension, n->layers[n->depth-1].size);
 		exit(1);
 	}
 	for(int i = 0; i < mlp->layers[0].input_dimension; i++)
@@ -161,7 +161,7 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 	n.cost = cost_wrapper;
 
 	if(len < 3){
-		printf("ERROR: lstm_from_arr(): must have at least input dim, hidden layer size, and output dim (3 layers), but only %d provided.\n", len);
+		printf("ERROR: lstm_from_arr(): must have at least input dim, hidden layer size, and output dim (3 layers), but only %lu provided.\n", len);
 		exit(1);
 	}
 	size_t num_params = 0;
@@ -515,6 +515,7 @@ void save_lstm(LSTM *n, const char *filename){
 LSTM load_lstm(const char *filename){
   FILE *fp = fopen(filename, "rb");
   char buff[1024];
+	int f;
   memset(buff, '\0', 1024);
 
   getWord(fp, buff); //Get first word to check if MLP file
@@ -524,16 +525,16 @@ LSTM load_lstm(const char *filename){
     exit(1);
   }
 	size_t num_layers, input_dim;
-	fscanf(fp, "%lu %lu", &num_layers, &input_dim);
+	f = fscanf(fp, "%lu %lu", &num_layers, &input_dim);
 	size_t arr[num_layers+2];
 	arr[0] = input_dim;
 	for(int i = 1; i <= num_layers; i++){
-		fscanf(fp, " %lu", &arr[i]);
+		f = fscanf(fp, " %lu", &arr[i]);
 	}
-	fscanf(fp, " %lu", &arr[num_layers+1]);
+	f = fscanf(fp, " %lu", &arr[num_layers+1]);
 	LSTM n = lstm_from_arr(arr, num_layers+2);
 	for(int i = 0; i < n.num_params; i++){
-		fscanf(fp, "%f", &n.params[i]);
+		f = fscanf(fp, "%f", &n.params[i]);
 	}
 	return n;
 }
