@@ -24,63 +24,63 @@ char *trainset_labels = "../data/mnist/train-labels-idx1-ubyte";
 char *testset_labels = "../data/mnist/t10k-labels-idx1-ubyte";
 
 int main(void) {
-  srand(time(NULL));
+	srand(time(NULL));
 
-  //MLP n = loadMLPFromFile("../model/mnist.mlp");
-  MLP n = create_mlp(784, 100, 10);
+	//MLP n = loadMLPFromFile("../model/mnist.mlp");
+	MLP n = create_mlp(784, 100, 10);
 
 	n.learning_rate = 0.05;
-  size_t epochs = 5;
-  int epoch = 0;
+	size_t epochs = 5;
+	int epoch = 0;
 
-  // Training data
-  {
-    ImageSet training_set;
-    size_t height, width;
-    openImageSet(&training_set, 47040016, trainset_images, trainset_labels); 
-    if(training_set.imgBuff == NULL) {
-      printf("WARNING: mnist data set not loaded correctly. Check filenames.\n");
-      exit(1);
-    }
-    printf("Training for %lu epochs.\n", epochs);
-    float avgCost = 0;
-    for(size_t i = 0; i < training_set.numImages * epochs; i++) { // Run for the given number of epochs
-      size_t index = i % training_set.numImages;
-      float *x = img2floatArray(&training_set, index, &height, &width); // Image is returned as a float array
-      int correctlabel = label(&training_set, index); // Retrieve the label from the image set.
+	// Training data
+	{
+		ImageSet training_set;
+		size_t height, width;
+		openImageSet(&training_set, 47040016, trainset_images, trainset_labels); 
+		if(training_set.imgBuff == NULL) {
+			printf("WARNING: mnist data set not loaded correctly. Check filenames.\n");
+			exit(1);
+		}
+		printf("Training for %lu epochs.\n", epochs);
+		float avgCost = 0;
+		for(size_t i = 0; i < training_set.numImages * epochs; i++) { // Run for the given number of epochs
+			size_t index = i % training_set.numImages;
+			float *x = img2floatArray(&training_set, index, &height, &width); // Image is returned as a float array
+			int correctlabel = label(&training_set, index); // Retrieve the label from the image set.
 			CREATEONEHOT(y, 10, correctlabel); // Create a float array for cost
 			
 			mlp_forward(&n, x);
 			float c = n.cost(&n, y);
 			mlp_backward(&n);
 
-     avgCost += c;
+		 avgCost += c;
 
-      // Save the state of the network at the end of each epoch.
-      if(i % training_set.numImages == 0 && i != 0) {
-        printf("Epoch %d finished, cost %f.\n", epoch++, avgCost / i);
-      }
-    }
-  }
+			// Save the state of the network at the end of each epoch.
+			if(i % training_set.numImages == 0 && i != 0) {
+				printf("Epoch %d finished, cost %f.\n", epoch++, avgCost / i);
+			}
+		}
+	}
 
-  // Testing data
-  {
-    printf("Testing:\n");
-    ImageSet testing_set;
+	// Testing data
+	{
+		printf("Testing:\n");
+		ImageSet testing_set;
 
-    openImageSet(&testing_set, 7840016, testset_images, testset_labels);
+		openImageSet(&testing_set, 7840016, testset_images, testset_labels);
 
-    float avgCost = 0;
-    float avgCorrect = 0;
+		float avgCost = 0;
+		float avgCorrect = 0;
 
-    for (int i = 0; i < testing_set.numImages; i++) {
-      size_t height, width;
-      float *img = img2floatArray(&testing_set, i, &height, &width); // Get image as float array
+		for (int i = 0; i < testing_set.numImages; i++) {
+			size_t height, width;
+			float *img = img2floatArray(&testing_set, i, &height, &width); // Get image as float array
 
-      mlp_forward(&n, img); // Perform feedforward only, no backprop
+			mlp_forward(&n, img); // Perform feedforward only, no backprop
 
-      avgCorrect += (n.guess== label(&testing_set, i));
-    }
-    printf("Accuracy on test set: %f\n", avgCorrect / testing_set.numImages);
-  }
+			avgCorrect += (n.guess== label(&testing_set, i));
+		}
+		printf("Accuracy on test set: %f\n", avgCorrect / testing_set.numImages);
+	}
 }

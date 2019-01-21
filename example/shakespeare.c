@@ -54,7 +54,7 @@ int main(void){
 	n.seq_len = 25;
 	n.stateful = 1;
 	int epochs = 5;
-  float previousepochavgcost = 2.4;
+	float previousepochavgcost = 2.4;
 	printf("Ready to train! Press <ENTER> to continue.\n");
 	getchar();
 	for(int i = 0; i < epochs; i++){ //Run for a large number of epochs
