@@ -36,7 +36,14 @@ void printImage(ImageSet *imgset, size_t index){
 int openImageSet(ImageSet *imgset, size_t size, char* imgFilename, char* labelFilename){
 	FILE *imageFile = fopen(imgFilename, "rb");
 	FILE *labelFile = fopen(labelFilename, "rb");
-	if(imageFile == NULL || labelFile == NULL) return 0;
+	if(!imageFile){
+		printf("Could not open '%s'\n", imgFilename);
+		exit(1);
+	}
+	else if(!labelFile){
+		printf("Could not open '%s'\n", labelFilename);
+		exit(1);
+	}
 
 	uint8_t *imgBuff = malloc(sizeof(uint8_t)*size);
 	uint8_t *labelBuff = malloc(sizeof(uint8_t)*size);
