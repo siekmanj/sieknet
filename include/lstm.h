@@ -28,23 +28,16 @@ typedef struct cell{
 	float lstate;
 	float *state;
 	float *dstate;
-	//float *output;
 	float *dOutput;
-	//float *gradient;
 } Cell;
 
 typedef struct lstm_layer{
 	Cell *cells;
-	//float *hidden;
 	float **output;
 	float **input;
 	float **input_gradient;
-	//struct lstm_layer *input_layer;
-	//struct lstm_layer *output_layer;
 	size_t input_dimension;
 	size_t size;
-	//size_t t;
-	//double plasticity;
 } LSTM_layer;
 
 typedef struct lstm{
@@ -80,5 +73,7 @@ void lstm_forward(LSTM *, float *);
 void lstm_backward(LSTM *);
 
 void wipe(LSTM *);
+
+void dealloc_lstm(LSTM *);
 
 #endif
