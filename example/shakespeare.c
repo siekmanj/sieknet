@@ -47,7 +47,7 @@ int main(void){
 		n = create_lstm(strlen(alphabet), 40, strlen(alphabet));//loadLSTMFromFile(modelfile);
 	}else{
 		printf("loading network from %s...\n", modelfile);
-		//n = loadLSTMFromFile(modelfile);
+		n = load_lstm(modelfile);
 	}
 	
 	n.learning_rate = 0.01; //I've found that the larger the network, the lower the initial learning rate should be.	
@@ -125,7 +125,7 @@ int main(void){
 
 				if(cost/count < epochcost/epochcount){
 					printf("\nAUTOSAVING MODEL FILE!\n");
-					//saveLSTMToFile(&n, modelfile);
+					save_lstm(&n, modelfile);
 
 				}else{
 					printf("\nPERFORMANCE WORSE THAN AVERAGE, NOT SAVING MODELFILE\n");
