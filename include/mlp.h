@@ -7,7 +7,7 @@
 #include <time.h>
 
 // some magic
-#define createMLP(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
+#define create_mlp(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
 typedef struct neuron{
 	float input; //needed for efficient softmax
@@ -59,6 +59,8 @@ void save_mlp(const MLP *n, const char* filename);
 float descend(MLP *n, float *, float *);
 float backpropagate(MLP *n, float *);
 
+void xavier_init(float *, size_t, size_t);
+
 
 //These are activation functions
 void hypertan(MLP_layer* layer);
@@ -66,6 +68,9 @@ void sigmoid(MLP_layer* layer);
 void softmax(MLP_layer* layer);
 void relu(MLP_layer* layer);
 
-void dealloc_network(MLP *);
+float inner_product(const float *, const float *, size_t);
+
+float cross_entropy_cost(MLP *, float *);
+void dealloc_mlp(MLP *);
 
 #endif
