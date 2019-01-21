@@ -43,7 +43,7 @@ void bad_args(char *s, int pos){
 	exit(1);
 }
 
-int train(LSTM *n, char *datafile, size_t num_epochs, float learning_rate){
+int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float learning_rate){
 	/* Begin training */
 	wipe(n);
 	n->learning_rate = learning_rate;
@@ -79,7 +79,7 @@ int train(LSTM *n, char *datafile, size_t num_epochs, float learning_rate){
 
 			avg_cost += c;
 
-			if(!(counter++) % (training_iterations*n->seq_len)){
+			if(!((counter++) % (training_iterations*n->seq_len))){
 				wipe(n);
 				printf("Epoch %5.2f%% complete, avg cost %f.\n", 100 * ((float)counter)/datafilelen, avg_cost/counter);
 				printf("%lu character sample from lstm below:\n", training_iterations);
@@ -90,6 +90,7 @@ int train(LSTM *n, char *datafile, size_t num_epochs, float learning_rate){
 					printf("%c", int2char(n->guess));
 					seed = n->guess;
 				}
+				save_lstm(n, modelfile);
 				printf("\nResuming training...\n");
 				sleep(2);
 			}
@@ -126,13 +127,14 @@ int main(int argc, char** argv){
 	LSTM n;
 	if(newlstm) n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
 	else{
+		printf("loading '%s'\n", modelfile);
 		fp = fopen(modelfile, "rb");
 		if(!fp){ printf("Could not open modelfile '%s' - does it exist?\n", modelfile); exit(1);}
 		n = load_lstm(modelfile);
 	}
 	save_lstm(&n, modelfile);
 
-	train(&n, datafile, NUM_EPOCHS, LEARNING_RATE);
+	train(&n, modelfile, datafile, NUM_EPOCHS, LEARNING_RATE);
 	
 	
 	//lstm_forward(&n, x);
