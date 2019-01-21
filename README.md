@@ -1,6 +1,6 @@
 # sieknet
 ## A dependency-free neural network library written in C
-This is a neural network and deep learning library written in C which implements various machine learning algorithms. It has no dependencies - all you need to compile and run this code is `gcc` or any C compiler.
+This is a neural network and deep learning library written in C which implements various machine learning algorithms. It has no dependencies and is written completely from scratch - all you need to compile and run this code is `gcc` or any C compiler.
 
 Features include:
  - [x] basic multiplayer perceptron (MLP)
@@ -9,14 +9,17 @@ Features include:
  - [x] backpropagation through time (BPTT)
  
 Plans for the near future include:
+ - [ ] Adam stochastic optimizer
+ - [ ] Momentum stochastic optimizer
  - [ ] vanilla recurrent neural network (implemented but broken)
  - [ ] gated recurrent unit (GRU)
  - [ ] policy gradients and various RL algorithms
  - [ ] support for batch sizes greater than 1 (currently all updating is done online).
  
  Plans for the distant future include:
- - [ ] Filip Pieknewski's [Predictive Vision Model](https://blog.piekniewski.info/2016/11/04/predictive-vision-in-a-nutshell/)
- - [ ] neural turing machine
+ - [ ] Filip Pieknewski's [predictive vision model](https://blog.piekniewski.info/2016/11/04/predictive-vision-in-a-nutshell/)
+ - [ ] Neural turing machine
+ - [ ] Transformer
 
 Everything is written so as to be easily modifiable. Parameters are stored in one large array similar to [Genann](https://github.com/codeplea/genann), so as to allow for alternative training methods like a genetic algorithm.
 
@@ -43,7 +46,7 @@ mlp_forward(&n, x); //Run forward pass
 float cost = n.cost(&n, y); //Evaluate cost of network output
 mlp_backward(&n); //Run backward pass (update parameters)
 
-dealloc_network(&n); //Free the network's memory from the heap
+dealloc_mlp(&n); //Free the network's memory from the heap
 ```
 
 You can also just run the forward pass:
@@ -94,14 +97,16 @@ n.stateful = 0; //Reset hidden state & cell state every parameter update.
 for(int i = 0; i < 6; i++){
     lstm_forward(&n, x); //Evaluated every i
     n.cost(&n, y); //Evaluated every i
-    lstm_backward(&n); //Because seq_len=3, the backward pass will only run when i=2 and i=5
+    lstm_backward(&n); //Because seq_len=3, the backward pass will only be evaluated when i=2 and i=5
 }
 
 ```
-Note that your `n.seq_len` determines when the backward pass is run. In the above example, the parameter update step is run every third timestep. You will need to decide how long to make your seq_len, but I recommend somewhere between 10 and 35. If you use a sequences length longer than 35, you may run into the exploding gradient problem. If your sequence data is longer than 35 timesteps, you can use the `n.stateful` flag to stop hidden states and cell states from being zeroed out after a parameter update.
+Note that your `n.seq_len` determines when the backward pass is run. In the above example, the parameter update (`lstm_backward()`) is evaluated every third timestep.
+
+You will need to decide how long to make your seq_len, but I recommend somewhere between 10 and 35. If you use a sequence length longer than 35, you may run into the exploding gradient problem. If your sequence data is longer than 35 timesteps, you can use the `n.stateful` flag to stop recurrent inputs and cell states from being zeroed out after a parameter update.
 ```C
-n.stateful = 1;
-n.seq_len = 30;
+n.stateful = 1; //recurrent inputs and cell states won't be reset after a parameter update.
+n.seq_len = 30; //run parameter update (backpropagation through time) every 30 timesteps
 for(int i = 0; /*forever*/; i++){
     lstm_forward(&n, x);
     n.cost(&n, y);
@@ -111,9 +116,24 @@ for(int i = 0; /*forever*/; i++){
       wipe(&n);
 }
 ```
-If you choose to do this, you will need to reset the states at some point yourself using `wipe()`.
+If you choose to do this, you will need to reset the states at some point yourself using `wipe()`, as shown above.
 
-Various demonstrations of how to use the networks can be found in `/example/`, along with a makefile for compiling them.
+If you absolutely need to train over sequences longer than 35 timesteps, the library supports up to 200 timesteps. There is a `#define MAX_UNROLL_LENGTH 200` in `/include/lstm.h` which you can modify if you need more than that. I don't recommend doing this, as backpropagation through time is a fairly memory-intensive algorithm.
+
+If you just want to run the network without training, you can do so like this:
+```C
+for(int i = 0; /*forever*/; i++){
+    lstm_forward(&n, x);
+    printf("network output: %d\n", n.guess);
+}
+```
+Saving and loading the network is straightforward:
+```C
+save_lstm(&n, "../your/file.lstm");
+dealloc_lstm(&n);
+LSTM n = load_lstm("../your/file.lstm");
+```
+Various demonstrations of how to use the library can be found in `/example/`, along with a makefile for compiling them.
 
 ## References
 I have used the following resources extensively in the course of this project:
