@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
-#include "LSTM.h"
+#include "lstm.h"
 
 
 /*
@@ -29,8 +29,8 @@ int data[] = {
 
 int main(void){
 	srand(time(NULL));
-	LSTM n = createLSTM(10, 15, 15, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
-	n.plasticity = 0.01;
+	LSTM n = create_lstm(10, 15, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
+	n.learning_rate = 0.01;
 
 	float cost = 0;
 	float cost_threshold = 0.05;
@@ -51,30 +51,19 @@ int main(void){
 			memset(expected, '\0', 10*sizeof(float));
 			expected[label] = 1.0;
 			
-			forward(&n, one_hot);
-//			float c = cross_entropy_cost(&n, expected);
-			float c = quadratic_cost(&n, expected);
-			backward(&n);
+			lstm_forward(&n, one_hot);
+			float c = n.cost(&n, expected);
+			lstm_backward(&n);
 
 			cost += c;
 
-			int guess = 0;
-			for(int j = 0; j < 10; j++) if(n.tail->output[j] > n.tail->output[guess]) guess = j;
+			int guess = n.output_layer.guess;
 
 			count++;	
 		
-			if(!(epoch % 1000) && label != data[i]){
+			//if(!(epoch % 1000) && label != data[i]){
 				printf("label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", label, data[i], guess, c, cost/count, guess == label);
-				printf("outputs: [");
-				float sum = 0;
-				for(int j = 0; j < n.tail->size; j++){
-					printf("%4.3f", n.tail->output[j]);
-					if(j < n.tail->size-1) printf(", ");
-					else printf("]\n");
-					sum += n.tail->output[j];
-				}
-				printf("sum: %4.3f\n", sum);
-			}
+			//}
 		}
 
 	  if(cost/count < cost_threshold){

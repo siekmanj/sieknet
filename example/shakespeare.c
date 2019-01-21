@@ -44,20 +44,20 @@ int main(void){
 	LSTM n;
 	if(getchar() == 'n'){
 		printf("creating network...\n");
-		n = createLSTM(strlen(alphabet), 600, strlen(alphabet));//loadLSTMFromFile(modelfile);
+		n = create_lstm(strlen(alphabet), 40, strlen(alphabet));//loadLSTMFromFile(modelfile);
 	}else{
 		printf("loading network from %s...\n", modelfile);
-		n = loadLSTMFromFile(modelfile);
+		//n = loadLSTMFromFile(modelfile);
 	}
 	
-	n.plasticity = 0.001; //I've found that the larger the network, the lower the initial learning rate should be.	
+	n.learning_rate = 0.01; //I've found that the larger the network, the lower the initial learning rate should be.	
 	n.seq_len = 25;
 
 	int epochs = 5;
   float previousepochavgcost = 2.4;
 	for(int i = 0; i < epochs; i++){ //Run for a large number of epochs
 		printf("beginning epoch %d\n", i);
-		wipe(&n);
+		//wipe(&n);
 		FILE *fp = fopen(datafile, "rb"); //This is the dataset
 		if(!fp){
 			printf("%s COULD NOT BE OPENED!\n", datafile);
@@ -80,8 +80,9 @@ int main(void){
 			CREATEONEHOT(x, strlen(alphabet), input_character);
 			CREATEONEHOT(y, strlen(alphabet), label);
 
-			forward(&n, x);
-			float cost_local = backward(&n, y);
+			lstm_forward(&n, x);
+			float cost_local = n.cost(&n, y);
+			lstm_backward(&n);
 			
 			/****************************************************/
 			if(isnan(cost_local)) { printf("COST NAN! STOPPING...\n"); exit(1); }
@@ -98,14 +99,15 @@ int main(void){
 			input_character = label;
 			count++;
 			label = label_from_char(fgetc(fp), alphabet);
-			if(!(count % (n.seq_len*50))) wipe(&n);
+			int sequences = 500;
+			//if(!(count % (n.seq_len*sequences))) wipe(&n);
 			
-			if(count % (n.seq_len*500) == 0){
+			if(count % (n.seq_len*sequences) == 0){
 				int seed = input_character;
 				printf("\n500 TRAINING CYCLES DONE, PRINTING SAMPLE BELOW FROM '%c'\n", seed);
-				for(int k = 0; k < n.seq_len*100; k++){
+				for(int k = 0; k < n.seq_len*10; k++){
 					CREATEONEHOT(tmp, strlen(alphabet), seed);
-					forward(&n, tmp);
+					lstm_forward(&n, tmp);
 					int guess = n.output_layer.guess;
 					printf("%c", alphabet[guess]);
 					seed = guess;
@@ -123,7 +125,7 @@ int main(void){
 
 				if(cost/count < epochcost/epochcount){
 					printf("\nAUTOSAVING MODEL FILE!\n");
-					saveLSTMToFile(&n, modelfile);
+					//saveLSTMToFile(&n, modelfile);
 
 				}else{
 					printf("\nPERFORMANCE WORSE THAN AVERAGE, NOT SAVING MODELFILE\n");
@@ -145,21 +147,5 @@ int main(void){
 		previousepochavgcost = epochcost/epochcount;
 		if(!(i%10)) getchar();
 
-		//Get a sample sonnet by feeding the network its own output, starting with a random letter.
-		/*
-		char input = alphabet[rand()%(strlen(alphabet)-1)];
-		printf("Sample from input '%c':\n", input);
-		for(int i = 0; i < 1000; i++){
-			float input_vector[strlen(alphabet)];		
-			make_one_hot(input, alphabet, input_vector);
-			
-			setOneHotInput(&n, input_vector);
-			
-			feedforward_recurrent(&n);
-	
-			input = alphabet[bestGuess(&n)];
-			printf("%c", input);
-		}
-		*/
 	}
 }
