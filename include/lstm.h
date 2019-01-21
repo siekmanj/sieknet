@@ -6,17 +6,17 @@
 #include "mlp.h"
 
 #ifndef MAX_UNROLL_LENGTH
-#define MAX_UNROLL_LENGTH 1000
+#define MAX_UNROLL_LENGTH 200
 #endif
 
-#define createLSTM(...) lstm_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
+#define create_lstm(...) lstm_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
 typedef struct gate{
 	float *output;
 	float *dOutput;
 	float *gradient;
 	float *weights;
-	float bias;
+	float *bias;
 } Gate;
 
 typedef struct cell{
@@ -28,50 +28,52 @@ typedef struct cell{
 	float lstate;
 	float *state;
 	float *dstate;
-	float *output;
 	float *dOutput;
-	float *gradient;
 } Cell;
 
 typedef struct lstm_layer{
 	Cell *cells;
-	float *output;
-	float *hidden;
-	float **inputs;
-	float **input_gradients;
-	struct lstm_layer *input_layer;
-	struct lstm_layer *output_layer;
+	float **output;
+	float **input;
+	float **input_gradient;
 	size_t input_dimension;
 	size_t size;
-	size_t t;
-	double plasticity;
 } LSTM_layer;
 
 typedef struct lstm{
-	float **cost_gradients;
 	float *params;
-	double plasticity;
-	size_t t;
+	float **network_gradient;
+	float **network_input;
+	
 	int collapse;
 	int stateful;
-	int seq_len;
+	int guess;
+	
+	size_t input_dimension;
+	size_t output_dimension;
 
-	LSTM_layer *head;
-	LSTM_layer *tail;
+	size_t num_params;
+	size_t seq_len;
+	size_t depth;
+	size_t t;
+
+	float learning_rate;
+	LSTM_layer *layers;
 
 	MLP output_layer;
+	float (*cost)(struct lstm *, float *);
 	
 } LSTM;
 
 LSTM lstm_from_arr(size_t *arr, size_t len);
-LSTM loadLSTMFromFile(const char *filename);
-void saveLSTMToFile(LSTM *n, char *filename);
+LSTM load_lstm(const char *filename);
+void save_lstm(LSTM *n, const char *filename);
 
-void forward(LSTM *, float *);
-float backward(LSTM *, float *);
-float quadratic_cost(LSTM *, float *);
-float cross_entropy_cost(LSTM *, float *);
+void lstm_forward(LSTM *, float *);
+void lstm_backward(LSTM *);
 
 void wipe(LSTM *);
+
+void dealloc_lstm(LSTM *);
 
 #endif
