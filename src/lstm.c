@@ -169,6 +169,7 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 		num_params += (4*(arr[i-1]+arr[i]+1)*arr[i]); //gate parameters
 	}
 	num_params += (arr[len-2]+1)*arr[len-1]; //output layer (mlp) params
+	n.num_params = num_params;
 
 	n.layers = ALLOCATE(LSTM_layer, len-2);
 	n.params = ALLOCATE(float, num_params);
@@ -445,4 +446,49 @@ static void writeToFile(FILE *fp, char *ptr){
 static void getWord(FILE *fp, char* dest){
   memset(dest, '\0', strlen(dest));
   int res = fscanf(fp, " %1023s", dest);
+}
+
+void save_lstm(LSTM *n, const char *filename){
+	FILE *fp = fopen(filename, "w");
+	printf("saving lstm to: %s\n", filename);
+
+	fprintf(fp, "LSTM %lu %lu ", n->depth, n->input_dimension);
+	for(int i = 0; i < n->depth; i++){
+		fprintf(fp, "%lu", n->layers[i].size);
+		fprintf(fp, " ");
+	}
+	fprintf(fp, "%lu\n", n->output_layer.layers[0].size);
+
+	for(int i = 0; i < n->num_params; i++){
+		fprintf(fp, "%f", n->params[i]);
+		if(i < n->num_params-1) fprintf(fp, " ");
+		else fprintf(fp, "\n");
+	}
+	fclose(fp);
+}
+
+LSTM load_lstm(const char *filename){
+  FILE *fp = fopen(filename, "rb");
+  char buff[1024];
+  memset(buff, '\0', 1024);
+
+  getWord(fp, buff); //Get first word to check if MLP file
+
+  if(strcmp(buff, "LSTM") != 0){
+    printf("ERROR: [%s] is not LSTM.\n", buff);
+    exit(1);
+  }
+	size_t num_layers, input_dim;
+	fscanf(fp, "%lu %lu", &num_layers, &input_dim);
+	size_t arr[num_layers+2];
+	arr[0] = input_dim;
+	for(int i = 1; i <= num_layers; i++){
+		fscanf(fp, " %lu", &arr[i]);
+	}
+	fscanf(fp, " %lu", &arr[num_layers+1]);
+	LSTM n = lstm_from_arr(arr, num_layers+2);
+	for(int i = 0; i < n.num_params; i++){
+		fscanf(fp, "%f", &n.params[i]);
+	}
+	return n;
 }

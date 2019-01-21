@@ -59,6 +59,7 @@ typedef struct lstm{
 	size_t input_dimension;
 	size_t output_dimension;
 
+	size_t num_params;
 	size_t seq_len;
 	size_t depth;
 	size_t t;
@@ -73,7 +74,7 @@ typedef struct lstm{
 
 LSTM lstm_from_arr(size_t *arr, size_t len);
 LSTM load_lstm(const char *filename);
-void save_lstm(LSTM *n, char *filename);
+void save_lstm(LSTM *n, const char *filename);
 
 void lstm_forward(LSTM *, float *);
 void lstm_backward(LSTM *);
