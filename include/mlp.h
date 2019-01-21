@@ -70,6 +70,7 @@ void relu(MLP_layer* layer);
 
 float inner_product(const float *, const float *, size_t);
 
+float cross_entropy_cost(MLP *, float *);
 void dealloc_network(MLP *);
 
 #endif
