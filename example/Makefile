@@ -24,7 +24,7 @@ binary:
 	$(CC) $(CFLAGS) $(INCLUDE) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 
 sequence:
-	$(CC) $(CFLAGS) $(INCLUDE) $(LSTM_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
+	$(CC) $(CFLAGS) $(INCLUDE) $(MLP_SRC) $(LSTM_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 
 
 
