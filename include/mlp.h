@@ -7,7 +7,7 @@
 #include <time.h>
 
 // some magic
-#define createMLP(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
+#define create_mlp(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
 typedef struct neuron{
 	float input; //needed for efficient softmax
@@ -71,6 +71,6 @@ void relu(MLP_layer* layer);
 float inner_product(const float *, const float *, size_t);
 
 float cross_entropy_cost(MLP *, float *);
-void dealloc_network(MLP *);
+void dealloc_mlp(MLP *);
 
 #endif

@@ -9,8 +9,7 @@
 
 
 /*
- * This is a simple demonstration of something a generic neural network would find 
- * difficult, but a RNN can do fairly easily.
+ * This is a simple demonstration of something a generic neural network would find difficult.
  * The network is trained to match a pattern which outputs a number n, n times.
  * For instance, 1, 2, 2, 3, 3, 3, 4, 4, 4, 4 .... and so on.
  */
@@ -29,11 +28,12 @@ int data[] = {
 
 int main(void){
 	srand(time(NULL));
-	LSTM n = create_lstm(10, 15, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
+	LSTM n = create_lstm(10, 15, 15, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
 	n.learning_rate = 0.01;
+	n.seq_len = 30;
 
 	float cost = 0;
-	float cost_threshold = 0.05;
+	float cost_threshold = 0.1;
 	int count = 0;
 
 	for(int epoch = 0; epoch < 100000; epoch++){ //Train for 1000 epochs.

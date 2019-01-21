@@ -313,10 +313,9 @@ void lstm_forward(LSTM *n, float *x){
 		input = l->output[t];
 	}
 
-	LSTM_layer *last_lstm_layer = &n->layers[n->depth-1];
-
 	//Feedforward through final MLP layer
-	mlp_forward(&n->output_layer, input/*last_lstm_layer->output[t]*/);
+	mlp_forward(&n->output_layer, input);
+	n->guess = n->output_layer.guess;
 }
 
 /*
@@ -434,14 +433,61 @@ void lstm_backward(LSTM *n){
 }
 
 
+void dealloc_lstm(LSTM *n){
+	for(int i = 0; i < n->depth; i++){
+		LSTM_layer *l = &n->layers[i];
+		for(int j = 0; j < l->size; j++){
+			Cell *c = &l->cells[j];
+			Gate *a = &c->input_nonl;
+			Gate *i = &c->input_gate;
+			Gate *f = &c->forget_gate;
+			Gate *o = &c->output_gate;
+			free(a->output);
+			free(a->dOutput);
+			free(a->gradient);
+			
+			free(i->output);
+			free(i->dOutput);
+			free(i->gradient);
+			
+			free(f->output);
+			free(f->dOutput);
+			free(f->gradient);
+			
+			free(o->output);
+			free(o->dOutput);
+			free(o->gradient);
+
+			free(c->state);
+			free(c->dstate);
+			free(c->dOutput);
+		}
+		for(int t = 0; t < MAX_UNROLL_LENGTH; t++){
+			free(l->input_gradient[t]);
+			free(l->output[t]);
+		}
+		free(l->input_gradient);
+		free(l->output);
+		free(l->cells);
+	}
+	for(int t = 0; t < MAX_UNROLL_LENGTH; t++){
+		free(n->network_gradient[t]);
+		free(n->network_input[t]);
+	}
+	free(n->network_gradient);
+	free(n->network_input);
+	free(n->layers);
+	free(n->params);
+	free(n->output_layer.layers[0].output);
+	free(n->output_layer.layers[0].gradient);
+	free(n->output_layer.layers[0].neurons);
+	free(n->output_layer.layers);
+	free(n->output_layer.output);
+	free(n->output_layer.cost_gradient);
+}
  /*
   * IO FUNCTIONS FOR READING AND WRITING TO A FILE
   */
-
-static void writeToFile(FILE *fp, char *ptr){
-  fprintf(fp, "%s", ptr);
-  memset(ptr, '\0', strlen(ptr));
-}
 
 static void getWord(FILE *fp, char* dest){
   memset(dest, '\0', strlen(dest));
@@ -450,7 +496,6 @@ static void getWord(FILE *fp, char* dest){
 
 void save_lstm(LSTM *n, const char *filename){
 	FILE *fp = fopen(filename, "w");
-	printf("saving lstm to: %s\n", filename);
 
 	fprintf(fp, "LSTM %lu %lu ", n->depth, n->input_dimension);
 	for(int i = 0; i < n->depth; i++){
@@ -475,7 +520,7 @@ LSTM load_lstm(const char *filename){
   getWord(fp, buff); //Get first word to check if MLP file
 
   if(strcmp(buff, "LSTM") != 0){
-    printf("ERROR: [%s] is not LSTM.\n", buff);
+    printf("ERROR: [%s] is not an LSTM.\n", buff);
     exit(1);
   }
 	size_t num_layers, input_dim;
