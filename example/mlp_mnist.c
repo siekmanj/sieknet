@@ -40,13 +40,10 @@ int main(void) {
     }
     printf("Training for %lu epochs.\n", epochs);
     float avgCost = 0;
-		printf("%lu\n", training_set.numImages);
     for(size_t i = 0; i < training_set.numImages * epochs; i++) { // Run for the given number of epochs
       size_t index = i % training_set.numImages;
-			printf("here?\n");
       float *x = img2floatArray(&training_set, index, &height, &width); // Image is returned as a float array
       int correctlabel = label(&training_set, index); // Retrieve the label from the image set.
-			printf("%p\n", x);
 			CREATEONEHOT(y, 10, correctlabel); // Create a float array for cost
 			
 			mlp_forward(&n, x);
