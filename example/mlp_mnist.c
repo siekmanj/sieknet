@@ -42,9 +42,8 @@ int main(void) {
       printf("WARNING: mnist data set not loaded correctly. Check filenames.\n");
       exit(1);
     }
-
     printf("Training for %lu epochs.\n", epochs);
-    float avg_cost = 0;
+    float avgCost = 0;
     for(size_t i = 0; i < training_set.numImages * epochs; i++) { // Run for the given number of epochs
       size_t index = i % training_set.numImages;
       float *x = img2floatArray(&training_set, index, &height, &width); // Image is returned as a float array
@@ -55,10 +54,11 @@ int main(void) {
 			float c = n.cost(&n, y);
 			mlp_backward(&n);
 
-      avg_cost += c;
+     avgCost += c;
 
+      // Save the state of the network at the end of each epoch.
       if(i % training_set.numImages == 0 && i != 0) {
-        printf("Epoch %d finished, cost %f.\n", epoch++, avg_cost / i);
+        printf("Epoch %d finished, cost %f.\n", epoch++, avgCost / i);
       }
     }
   }
@@ -70,7 +70,7 @@ int main(void) {
 
     openImageSet(&testing_set, 7840016, testset_images, testset_labels);
 
-    float avg_cost = 0;
+    float avgCost = 0;
     float avgCorrect = 0;
 
     for (int i = 0; i < testing_set.numImages; i++) {

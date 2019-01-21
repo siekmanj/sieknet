@@ -222,7 +222,7 @@ void mlp_forward(MLP *n, float *input){
 /*
  * Calculates logistic function derivatives in terms of logistic output
  */
-float differentiate(const float x, const void (*logistic)(MLP_layer*)){
+float differentiate(const float x, void (*logistic)(MLP_layer*)){
 	if(logistic == hypertan)
 		return 1 - x*x;
 	if(logistic == softmax || logistic == sigmoid)
@@ -344,6 +344,7 @@ void save_mlp(const MLP *n, const char* filename){
  * filename: The path to the file.
  */
 MLP load_mlp(const char *filename){
+	int f;
 	FILE *fp = fopen(filename, "rb");
 	char buff[1024];
 	memset(buff, '\0', 1024);
@@ -356,17 +357,17 @@ MLP load_mlp(const char *filename){
 	}
 	size_t num_layers, input_dim;
 
-	fscanf(fp, "%lu %lu", &num_layers, &input_dim);
+	f = fscanf(fp, "%lu %lu", &num_layers, &input_dim);
 	size_t arr[num_layers+1];
 	arr[0] = input_dim;
 	for(int i = 1; i <= num_layers; i++){
-		fscanf(fp, " %lu", &arr[i]);
+		f = fscanf(fp, " %lu", &arr[i]);
 	}
 
 	MLP n;
 	n = mlp_from_arr(arr, num_layers+1);
 	for(int i = 0; i < n.num_params; i++){
-		fscanf(fp, "%f", &n.params[i]);
+		f = fscanf(fp, "%f", &n.params[i]);
 	}
 	return n;
 }

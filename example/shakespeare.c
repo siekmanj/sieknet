@@ -40,10 +40,10 @@ int main(void){
 	srand(time(NULL));
 	setbuf(stdout, NULL);
 
-	printf("Press <ENTER> to load %s (may take a while to load), or enter <n> to create %s.\n", modelfile);
+	printf("Press <ENTER> to load %s (may take a while to load), or enter <n> to create %s.\n", modelfile, modelfile);
 	LSTM n;
 	if(getchar() == 'n'){
-		printf("creating network %s...\n");
+		printf("creating network %s...\n", modelfile);
 		n = create_lstm(strlen(alphabet), 40, strlen(alphabet));//loadLSTMFromFile(modelfile);
 	}else{
 		printf("loading %s...\n", modelfile);
@@ -61,7 +61,7 @@ int main(void){
 		printf("beginning epoch %d\n", i);
 		FILE *fp = fopen(datafile, "rb"); //This is the dataset
 		if(!fp){
-			printf("%s COULD NOT BE OPENED!\n", datafile);
+			printf("%s couldn't be opened - does it exist?\n", datafile);
 			exit(1);
 		}
 		size_t datafilelen = 5447092;
