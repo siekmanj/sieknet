@@ -40,29 +40,31 @@ int main(void){
 	srand(time(NULL));
 	setbuf(stdout, NULL);
 
-	printf("Press ENTER to load %s (may take a while to load)\n", modelfile);
+	printf("Press <ENTER> to load %s (may take a while to load), or enter <n> to create %s.\n", modelfile);
 	LSTM n;
 	if(getchar() == 'n'){
-		printf("creating network...\n");
+		printf("creating network %s...\n");
 		n = create_lstm(strlen(alphabet), 40, strlen(alphabet));//loadLSTMFromFile(modelfile);
 	}else{
-		printf("loading network from %s...\n", modelfile);
+		printf("loading %s...\n", modelfile);
 		n = load_lstm(modelfile);
 	}
 	
 	n.learning_rate = 0.01; //I've found that the larger the network, the lower the initial learning rate should be.	
 	n.seq_len = 25;
-
+	n.stateful = 1;
 	int epochs = 5;
   float previousepochavgcost = 2.4;
+	printf("Ready to train! Press <ENTER> to continue.\n");
+	getchar();
 	for(int i = 0; i < epochs; i++){ //Run for a large number of epochs
 		printf("beginning epoch %d\n", i);
-		//wipe(&n);
 		FILE *fp = fopen(datafile, "rb"); //This is the dataset
 		if(!fp){
 			printf("%s COULD NOT BE OPENED!\n", datafile);
 			exit(1);
 		}
+		size_t datafilelen = 5447092;
 	
 		int input_character = label_from_char(' ', alphabet); //Start the network off with a character
 		int label = label_from_char(fgetc(fp), alphabet); //Get the first letter from the dataset as a label
@@ -72,7 +74,6 @@ int main(void){
 		int count = 0;
 		float lastavgcost = previousepochavgcost;
 		size_t epochcount = 1;
-		size_t datafilelen = 5447092;
 		float epochcost = 0;
 		do {
 			//The below is all the code needed for training - the rest is just debug stuff.
@@ -89,7 +90,7 @@ int main(void){
 
 			cost += cost_local;
 
-			int guess = n.output_layer.guess;
+			int guess = n.guess;
 
 			if(alphabet[label] == '\n') printf("\n");
 			else if(alphabet[guess] == alphabet[label]) printf("%c", alphabet[label]);
@@ -99,12 +100,11 @@ int main(void){
 			input_character = label;
 			count++;
 			label = label_from_char(fgetc(fp), alphabet);
-			int sequences = 500;
-			//if(!(count % (n.seq_len*sequences))) wipe(&n);
 			
+			int sequences = 500;
 			if(count % (n.seq_len*sequences) == 0){
 				int seed = input_character;
-				printf("\n500 TRAINING CYCLES DONE, PRINTING SAMPLE BELOW FROM '%c'\n", seed);
+				printf("\n%d TRAINING CYCLES DONE, PRINTING SAMPLE BELOW FROM '%c'\n", sequences, seed);
 				for(int k = 0; k < n.seq_len*10; k++){
 					CREATEONEHOT(tmp, strlen(alphabet), seed);
 					lstm_forward(&n, tmp);
@@ -135,7 +135,7 @@ int main(void){
 				//Reset short-term cost statistic
 				cost = 0;
 				count = 0;
-//				wipe(&n);
+				wipe(&n);
 				sleep(1);
 			}
 		}

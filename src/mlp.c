@@ -288,7 +288,7 @@ void mlp_backward(MLP *n){
 /*
  * Deallocates a network's memory from the heap
  */
-void dealloc_network(MLP *n){
+void dealloc_mlp(MLP *n){
 	int counter = 0;
 	for(int i = 0; i < n->depth; i++){
 		MLP_layer *l = &n->layers[i];
