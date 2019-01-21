@@ -54,7 +54,7 @@ int main(void){
 	n.seq_len = 25;
 	n.stateful = 1;
 	int epochs = 5;
-  float previousepochavgcost = 2.4;
+	float previousepochavgcost = 2.4;
 	printf("Ready to train! Press <ENTER> to continue.\n");
 	getchar();
 	for(int i = 0; i < epochs; i++){ //Run for a large number of epochs
@@ -126,7 +126,6 @@ int main(void){
 				if(cost/count < epochcost/epochcount){
 					printf("\nAUTOSAVING MODEL FILE!\n");
 					save_lstm(&n, modelfile);
-
 				}else{
 					printf("\nPERFORMANCE WORSE THAN AVERAGE, NOT SAVING MODELFILE\n");
 				}
@@ -143,7 +142,6 @@ int main(void){
 		while(label != EOF);
 		fclose(fp);
 		printf("Epoch completed, cost was %f vs previous cost of %f\n", cost/count, lastavgcost);
-//		saveLSTMToFile(&n, modelfile); 
 		previousepochavgcost = epochcost/epochcount;
 		if(!(i%10)) getchar();
 
