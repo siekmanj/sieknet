@@ -16,8 +16,6 @@ typedef struct neuron{
 } Neuron;
 
 typedef struct layer{
-	//struct layer *input_layer;
-	//struct layer *output_layer;
 	Neuron *neurons;
 	float *gradient;
 	float *output;

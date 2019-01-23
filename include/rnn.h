@@ -7,19 +7,29 @@
 #include "MLP.h"
 
 // some magic to allow arbitrary numbers of parameters
-#define createRNN(...) rnn_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
+#define create_rnn(...) rnn_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
+
+typedef struct rnn_layer{
+	Neuron *neurons;
+	float **gradient
+	float **output;
+	float **input;
+	size_t size;
+	size_t input_dimension;
 
 
-typedef MLP RNN;
+
+} RNN_layer;
 
 RNN rnn_from_arr(size_t arr[], size_t size);
-RNN loadRNNFromFile(const char *filename);
+RNN load_rnn(const char *filename);
+void save_rnn(RNN *, const char *filename);
 
-size_t recurrent_input_offset(Layer *layer);
+void rnn_forward(RNN *, float *);
+void rnn_backward(RNN *, float *);
 
-void setOneHotInput(RNN *n, float* arr);
-void feedforward_recurrent(RNN *n);
-void saveRNNToFile(RNN *n, char* filename);
+//void feedforward_recurrent(RNN *n);
+//void saveRNNToFile(RNN *n, char* filename);
 
 float step(RNN *n, int label);
 
