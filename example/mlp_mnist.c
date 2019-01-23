@@ -51,7 +51,8 @@ int main(void) {
 			CREATEONEHOT(y, 10, correctlabel); // Create a float array for cost
 			
 			mlp_forward(&n, x);
-			float c = n.cost(&n, y);
+			float c = mlp_cost(&n, y);
+			printf("got cost %f\n", c);
 			mlp_backward(&n);
 
 		 avgCost += c;
