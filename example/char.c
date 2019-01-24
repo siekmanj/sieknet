@@ -16,7 +16,7 @@ size_t HIDDEN_LAYER_SIZE = 100;
 size_t NUM_EPOCHS = 5;
 size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 
-float LEARNING_RATE = 0.01;
+float LEARNING_RATE = 0.005;
 
 /*
  * This file is for training an LSTM character-by-character on any text (ascii) file provided.
@@ -68,7 +68,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			CREATEONEHOT(y, ASCII_RANGE, char2int(label));
 			
 			lstm_forward(n, x);
-			float c = n->cost(n, y);
+			float c = lstm_cost(n, y);
 			lstm_backward(n);
 
 			if(int2char(label) == '\n') printf("\n");
