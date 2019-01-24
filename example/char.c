@@ -12,11 +12,11 @@
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 100;
+size_t HIDDEN_LAYER_SIZE = 300;
 size_t NUM_EPOCHS = 5;
 size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 
-float LEARNING_RATE = 0.005;
+float LEARNING_RATE = 0.001;
 
 /*
  * This file is for training an LSTM character-by-character on any text (ascii) file provided.
@@ -71,11 +71,9 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			float c = lstm_cost(n, y);
 			lstm_backward(n);
 
-			if(int2char(label) == '\n') printf("\n");
-			else if(n->guess == char2int(label)) printf("%c", int2char(n->guess));
+			//if(int2char(label) == '\n') printf("\n");
+			if(n->guess == char2int(label)) printf("%c", int2char(n->guess));
 			else printf("_");
-			//printf("guess %d vs real %d\n", n->guess, char2int(label));
-			//printf("input: %d, %c (%d and %c)\n", input_char, input_char, char2int(input_char), char2int(int2char(input_char)));
 
 			avg_cost += c;
 
@@ -135,18 +133,6 @@ int main(int argc, char** argv){
 	save_lstm(&n, modelfile);
 
 	train(&n, modelfile, datafile, NUM_EPOCHS, LEARNING_RATE);
-	
-	
-	//lstm_forward(&n, x);
-	//n.cost(&n, y);
-	//lstm_backward(&n);
-	/*
-
-
-	printf("range: %lu\n", ASCII_RANGE);
-	for(int i = 0; i < ASCII_RANGE; i++){
-		printf("index %d has: '%c'\n", i, int2char(i));
-	}*/
-
+	printf("training finished! LSTM saved to '%s'\n", modelfile);
 
 }
