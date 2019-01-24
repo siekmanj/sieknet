@@ -122,7 +122,7 @@ float cross_entropy_cost(float *o, const float *y, float *dest, size_t dim){
 }
 
 float mlp_cost(MLP *n, float *y){
-	return n->cost_fn(n->output, y, n->cost_gradient[n->b++], n->output_dimension);
+	return n->cost_fn(n->output, y, n->cost_gradient/*[n->b++]*/, n->output_dimension);
 }
 
 /* 
@@ -149,11 +149,13 @@ MLP_layer create_MLP_layer(size_t input_dimension, size_t num_neurons, float *pa
 	//layer.output = (float*)malloc(MAX_BATCH_SIZE*sizeof(float)); //allocate for layer outputs (forward pass)
 
 	layer.z = ALLOCATE(float, num_neurons);
+	layer.output = ALLOCATE(float, num_neurons);
+	/*
 	layer.output = ALLOCATE(float*, MAX_BATCH_SIZE);
 	for(int i = 0; i < MAX_BATCH_SIZE; i++)
 		layer.output[i] = ALLOCATE(float, num_neurons);
-	
-	layer.gradient = (float*)malloc(input_dimension*sizeof(float)); //allocate for layer gradients (backward pass)
+	*/
+	layer.gradient = ALLOCATE(float, input_dimension);
 
 	layer.neurons = neurons;
 	layer.size = num_neurons;
@@ -172,8 +174,8 @@ MLP mlp_from_arr(size_t arr[], size_t size){
 	n.input_dimension = arr[0];
 	n.output_dimension = arr[size-1];
 	n.depth = size-1;
-	n.batch_size = 5;
-	n.b = 0;
+	//n.batch_size = 5;
+	//n.b = 0;
 
 	size_t num_params = 0;
 	size_t num_outputs = 0;
@@ -186,7 +188,8 @@ MLP mlp_from_arr(size_t arr[], size_t size){
 	//n.params = (float*)malloc(num_params*sizeof(float)); //contains weights and biases of every layer
 	n.params = ALLOCATE(float, num_params);
 
-	//n.cost_gradient = (float*)malloc(n.output_dimension * sizeof(float));
+	n.cost_gradient = (float*)malloc(n.output_dimension * sizeof(float));
+	/*
 	n.cost_gradient = ALLOCATE(float*, MAX_BATCH_SIZE);
 	for(int i = 0; i < MAX_BATCH_SIZE; i++)
 		n.cost_gradient[i] = ALLOCATE(float, n.output_dimension);
@@ -194,7 +197,7 @@ MLP mlp_from_arr(size_t arr[], size_t size){
 	n.network_input = ALLOCATE(float*, MAX_BATCH_SIZE);
 	for(int i = 0; i < MAX_BATCH_SIZE; i++)
 		n.network_input[i] = ALLOCATE(float, n.input_dimension);
-
+	*/
 	//n.layers = (MLP_layer*)malloc((size-1)*sizeof(MLP_layer));
 	n.layers = ALLOCATE(MLP_layer, (size-1));
 	n.cost_fn = cross_entropy_cost;
@@ -217,20 +220,20 @@ MLP mlp_from_arr(size_t arr[], size_t size){
 			
 			n.layers[i-1] = l;
 	}
-	n.output = n.layers[n.depth-1].output[n.b];
+	n.output = n.layers[n.depth-1].output/*[n.b]*/;
 	return n;
 }
 
 /*
  * Does a forward pass for a single layer.
  */
-void mlp_layer_forward(MLP_layer *l, float *x, size_t batch_idx){
-	//l->input[batch_idx] = x; //need to save pointer for backward pass
+void mlp_layer_forward(MLP_layer *l, float *x/*, size_t batch_idx*/){
+	l->input = x; //need to save pointer for backward pass
 	for(int i = 0; i < l->size; i++){
 		float *w = l->neurons[i].weights; 
 		l->z[i] = inner_product(x, w, l->input_dimension) + *l->neurons[i].bias;
 	}
-	l->logistic(l->z, l->output[batch_idx], l->size); //Apply this layer's logistic function
+	l->logistic(l->z, l->output/*[batch_idx]*/, l->size); //Apply this layer's logistic function
 }
 
 /*
@@ -238,15 +241,15 @@ void mlp_layer_forward(MLP_layer *l, float *x, size_t batch_idx){
  */
 void mlp_forward(MLP *n, float *input){
 	//printf("doing forward!\n");
-	for(int i = 0; i < n->input_dimension; i++){
-		n->network_input[n->b][i] = input[i];
-	}
-	float *x = n->network_input[n->b];
+	//for(int i = 0; i < n->input_dimension; i++){
+	//	n->network_input[n->b][i] = input[i];
+	//}
+	float *x = input;//n->network_input[n->b];
 	for(int i = 0; i < n->depth; i++){
 		//printf("doing batch idx %d for layer %d!\n", n->b, i);
 		MLP_layer *l = &n->layers[i];
-		mlp_layer_forward(l, x, n->b); //Do forward pass for this layer
-		x = l->output[n->b]; //Use this layer's output as the next layer's input
+		mlp_layer_forward(l, x/*, n->b*/); //Do forward pass for this layer
+		x = l->output/*[n->b]*/; //Use this layer's output as the next layer's input
 		//printf("BATCH %d: CREATED SQUISHED OUTPUT FOR LAYER %d:\n", n->b, i);
 		//PRINTLIST(x, l->size);
 		//printf("did a layerfoward!\n");
@@ -308,13 +311,14 @@ static void avg_2d_arr(float **arr, float *dest, size_t batches, size_t size){
 /*
  * Propagates gradients throughout network using the chain rule (does not do parameter update)
  */
-void propagate_gradients(MLP *n, float *gradient, size_t batches){
+void propagate_gradients(MLP *n, float *gradient/*, size_t batches*/){
 	float *grads = gradient;
 	for(int i = n->depth-1; i >= 0; i--){
 		MLP_layer *l = &n->layers[i];
 		
-		float *avg = l->output[MAX_BATCH_SIZE-1];
-		avg_2d_arr(l->output, avg, batches, l->size);
+		//float *avg = l->output[MAX_BATCH_SIZE-1];
+		//avg_2d_arr(l->output, avg, batches, l->size);
+		float *avg = l->output;
 
 		for(int j = 0; j < l->input_dimension; j++){
 			float sum = 0;
@@ -333,14 +337,16 @@ void propagate_gradients(MLP *n, float *gradient, size_t batches){
 /*
  * Calculates the backward pass for a single layer (does parameter update)
  */
-void mlp_layer_backward(MLP_layer *l, float *grads, float *avg_ins, float learning_rate){
-	float *avg_outs = l->output[MAX_BATCH_SIZE-1];
+void mlp_layer_backward(MLP_layer *l, float *grads/*, float *avg_ins*/, float learning_rate){
+	//float *avg_outs = l->output[MAX_BATCH_SIZE-1];
+	float *avg_outs = l->output;
 	for(int i = 0; i < l->size; i++){
 		float gradient = grads[i]; //gradient of this neuron's output with respect to cost
 		float d_output = differentiate(avg_outs[i], l->logistic);
 
 		for(int j = 0; j < l->input_dimension; j++){
-			float x = avg_ins[j];
+			//float x = avg_ins[j];
+			float x = l->input[j];
 			l->neurons[i].weights[j] += gradient * d_output * x * learning_rate;
 		}
 		*l->neurons[i].bias += gradient * d_output * learning_rate;
@@ -351,28 +357,24 @@ void mlp_layer_backward(MLP_layer *l, float *grads, float *avg_ins, float learni
  * Does backward pass for entire network (does paramter update)
  */
 void mlp_backward(MLP *n){
-	if(n->b < n->batch_size) return;
+	//if(n->b < n->batch_size) return;
 
-	avg_2d_arr(n->cost_gradient, n->cost_gradient[MAX_BATCH_SIZE-1], n->batch_size, n->output_dimension);
-	avg_2d_arr(n->network_input, n->network_input[MAX_BATCH_SIZE-1], n->batch_size, n->input_dimension);
+	//avg_2d_arr(n->cost_gradient, n->cost_gradient[MAX_BATCH_SIZE-1], n->batch_size, n->output_dimension);
+	//avg_2d_arr(n->network_input, n->network_input[MAX_BATCH_SIZE-1], n->batch_size, n->input_dimension);
 
-	float *grads = n->cost_gradient[MAX_BATCH_SIZE-1];
-	//PRINTLIST(grads, n->output_dimension);
-	propagate_gradients(n, grads, n->batch_size);
-	for(int i = n->depth-1; i > 0; i--){
-		float *avg_ins = n->layers[i-1].output[MAX_BATCH_SIZE-1];
-		//printf("passing avg ins to layer %d\n", i);
-		//PRINTLIST(avg_ins, n->layers[i-1].size);
-		mlp_layer_backward(&n->layers[i], grads, avg_ins, n->learning_rate);
+	float *grads = n->cost_gradient/*[MAX_BATCH_SIZE-1]*/;
+	propagate_gradients(n, grads/*, n->batch_size*/);
+	for(int i = n->depth-1; i >= 0; i--){
+		//float *avg_ins = n->layers[i-1].output[MAX_BATCH_SIZE-1];
+		mlp_layer_backward(&n->layers[i], grads/*, avg_ins*/, n->learning_rate);
 		grads = n->layers[i].gradient;
 	}
-	float *avg_ins = n->network_input[MAX_BATCH_SIZE-1];
-	mlp_layer_backward(&n->layers[0], grads, avg_ins, n->learning_rate);
+	//float *avg_ins = n->network_input[MAX_BATCH_SIZE-1];
+	//mlp_layer_backward(&n->layers[0], grads, avg_ins, n->learning_rate);
 
-	//printf("did a backprop!\n");
-	n->b = 0;
-	zero_2d_arr(n->cost_gradient, MAX_BATCH_SIZE, n->output_dimension);
-	zero_2d_arr(n->network_input, MAX_BATCH_SIZE, n->input_dimension);
+	//n->b = 0;
+	//zero_2d_arr(n->cost_gradient, MAX_BATCH_SIZE, n->output_dimension);
+	//zero_2d_arr(n->network_input, MAX_BATCH_SIZE, n->input_dimension);
 }
 
 /*

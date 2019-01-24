@@ -61,7 +61,8 @@ typedef struct lstm{
 	LSTM_layer *layers;
 
 	MLP output_layer;
-	float (*cost)(struct lstm *, float *);
+	void (*output_logistic)(const float *, float *, size_t);
+	float (*cost_fn)(float *y, const float *l, float *dest, size_t);
 	
 } LSTM;
 
@@ -71,6 +72,7 @@ void save_lstm(LSTM *n, const char *filename);
 
 void lstm_forward(LSTM *, float *);
 void lstm_backward(LSTM *);
+float lstm_cost(LSTM *, float *);
 
 void wipe(LSTM *);
 
