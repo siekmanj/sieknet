@@ -14,16 +14,6 @@
 #define DEBUG 0
 #define MAX_GRAD 10
 
-/*
- * Handy function for zeroing out a 2d array
- */
-void zero_2d_arr(float **arr, size_t sequence_length, size_t input_dimension){
-	for(long i = 0; i < sequence_length; i++){
-		for(long j = 0; j < input_dimension; j++){
-			arr[i][j] = 0.0;
-		}
-	}
-}
 
 /*
  * Used to initialize input/forget/output gates
