@@ -66,8 +66,9 @@ void softmax(const float *z, float *dest, size_t dim){
 	for(int i = 0; i < dim; i++)
 		sum += exp(z[i]);
 
-	for(int i = 0; i < dim; i++)
+	for(int i = 0; i < dim; i++){
 		dest[i] = exp(z[i]) / sum;
+	}
 }
 
 /*
@@ -100,6 +101,10 @@ float cross_entropy_cost(float *o, const float *y, float *dest, size_t dim){
 		if(o[i] > 0.9999) o[i] = 0.9999;
 		if(o[i] < 0.0001) o[i] = 0.0001;
 		float grad = (y[i]/o[i]) - ((1-y[i])/(1-o[i]));
+		if(isnan(grad)){
+			printf("ERROR: cross_entropy_cost(): got a nan from y: %f, o: %f\n", y[i], o[i]);
+			exit(1);
+		}
 #if DEBUG
 		if(grad > MAX_GRAD){
 			printf("WARNING: cross_entropy_cost(): cost gradient massive (%5.3f). Is there an issue with the label (%5.3f)?\n", grad, y[i]);
@@ -242,6 +247,8 @@ void mlp_forward(MLP *n, float *input){
 		MLP_layer *l = &n->layers[i];
 		mlp_layer_forward(l, x, n->b); //Do forward pass for this layer
 		x = l->output[n->b]; //Use this layer's output as the next layer's input
+		//printf("BATCH %d: CREATED SQUISHED OUTPUT FOR LAYER %d:\n", n->b, i);
+		//PRINTLIST(x, l->size);
 		//printf("did a layerfoward!\n");
 	}
 	n->guess = 0;
@@ -268,15 +275,33 @@ float differentiate(const float x, void (*logistic)(const float *, float *, size
 	exit(1);
 }
 
+/*
+ * Handy function for zeroing out a 2d array
+ */
+void zero_2d_arr(float **arr, size_t sequence_length, size_t input_dimension){
+	for(long i = 0; i < sequence_length; i++){
+		for(long j = 0; j < input_dimension; j++){
+			arr[i][j] = 0.0;
+		}
+	}
+}
+
 static void avg_2d_arr(float **arr, float *dest, size_t batches, size_t size){
 	for(int i = 0; i < size; i++)
 		dest[i] = 0.0;
 
+	//printf("avg 2darr before avging:\n");
+	//PRINTLIST(dest, size);
 	for(int batch = 0; batch < batches; batch++){
 		for(int i = 0; i < size; i++){
-			dest[i] += arr[batch][i] / batches;
+			dest[i] += arr[batch][i];
 		}
 	}
+	for(int i = 0; i < size; i++){
+		dest[i] /= (float)batches;
+	}
+	//printf("Made avg 2d arr of size %d:\n", size);
+	//PRINTLIST(dest, size);
 
 }
 
@@ -335,7 +360,9 @@ void mlp_backward(MLP *n){
 	//PRINTLIST(grads, n->output_dimension);
 	propagate_gradients(n, grads, n->batch_size);
 	for(int i = n->depth-1; i > 0; i--){
-		float *avg_ins = n->layers[i].output[MAX_BATCH_SIZE-1];
+		float *avg_ins = n->layers[i-1].output[MAX_BATCH_SIZE-1];
+		//printf("passing avg ins to layer %d\n", i);
+		//PRINTLIST(avg_ins, n->layers[i-1].size);
 		mlp_layer_backward(&n->layers[i], grads, avg_ins, n->learning_rate);
 		grads = n->layers[i].gradient;
 	}
@@ -344,6 +371,8 @@ void mlp_backward(MLP *n){
 
 	//printf("did a backprop!\n");
 	n->b = 0;
+	zero_2d_arr(n->cost_gradient, MAX_BATCH_SIZE, n->output_dimension);
+	zero_2d_arr(n->network_input, MAX_BATCH_SIZE, n->input_dimension);
 }
 
 /*
