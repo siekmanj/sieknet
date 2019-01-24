@@ -14,7 +14,6 @@ Plans for the near future include:
  - [ ] vanilla recurrent neural network (implemented but broken)
  - [ ] gated recurrent unit (GRU)
  - [ ] policy gradients and various RL algorithms
- - [ ] support for batch sizes greater than 1 (currently all updating is done online).
  
  Plans for the distant future include:
  - [ ] Filip Pieknewski's [predictive vision model](https://blog.piekniewski.info/2016/11/04/predictive-vision-in-a-nutshell/)
@@ -43,7 +42,7 @@ float x[2] = {0.5, 0.1}; //network input
 float y[2] = {0.0, 1.0}; //output label
 
 mlp_forward(&n, x); //Run forward pass
-float cost = n.cost(&n, y); //Evaluate cost of network output
+float cost = mlp_cost(&n, y); //Evaluate cost of network output
 mlp_backward(&n); //Run backward pass (update parameters)
 
 dealloc_mlp(&n); //Free the network's memory from the heap
@@ -69,7 +68,7 @@ n.layers[3].logistic = sigmoid; //The output layer of size 5 will now use sigmoi
 Save/load models to disk:
 ```C
 save_mlp(&n, "../model/file.mlp");
-
+dealloc_mlp(&n);
 MLP b = load_mlp("../model/file.mlp");
 ```
 #### Long Short-Term Memory
@@ -96,7 +95,7 @@ n.seq_len = 3; //How long the time sequences in your data are.
 n.stateful = 0; //Reset hidden state & cell state every parameter update.
 for(int i = 0; i < 6; i++){
     lstm_forward(&n, x); //Evaluated every i
-    n.cost(&n, y); //Evaluated every i
+    float c = lstm_cost(&n, y); //Evaluated every i
     lstm_backward(&n); //Because seq_len=3, the backward pass will only be evaluated when i=2 and i=5
 }
 
@@ -109,7 +108,7 @@ n.stateful = 1; //recurrent inputs and cell states won't be reset after a parame
 n.seq_len = 30; //run parameter update (backpropagation through time) every 30 timesteps
 for(int i = 0; /*forever*/; i++){
     lstm_forward(&n, x);
-    n.cost(&n, y);
+    lstm_cost(&n, y);
     lstm_backward(&n); //Evaluated every 30 timesteps, does NOT reset lstm states.
     
     if(sequence_is_over)
