@@ -1,32 +1,17 @@
-
 /* Author: Jonah Siekmann
- * 8/10/2018
+ * 
  * This is an attempt at writing a recurrent neural network (RNN).
  *  Every function beginning with static is meant for internal use only. 
  *  You may call any other function.
  *
- * Some confusion may arise from the fact that many of the functions used in this 
- * implementation are defined in MLP.c, like backpropagate. Instead of rewriting these
- * functions, I have elected to build on the basic multilayer perceptron and re-use 
- * these functions. As of 9/20/2018, this appears to be working in a somewhat stable fashion. 
- * If you get nans at any point, consider lowering your n.plasticity. 
+ * Currently, this implementation does not use backprop through time, and as
+ * such, gradient information will presumably be lost over long time sequences.
+ * I recommend that you use lstm.c instead.
  */
 
 #include "RNN.h"
 #include <math.h>
 #include <string.h>
-
-/* 
- * Description: Initializes a recurrent neural network object.
- */
-static RNN initRNN(){
-  RNN n;
-  n.input = NULL;
-  n.output = NULL;
-  n.performance = 0;
-  n.plasticity = .05;
-  return n;
-}
 
 /*
  * Description: a function called through a macro that allows creation of a network with any arbitrary number of layers.
@@ -45,74 +30,6 @@ RNN rnn_from_arr(size_t arr[], size_t size){
 	}	
 	addLayer(&n, arr[size-1]); //Add an output layer that is not used as a recurrent input.
   return n;
-}
-
-
-/*
- * Description: Calculates the offset at which the hidden state of the next layer starts. 
- * layer: A pointer to the layer for which the recurrent input offset will be calculated.
- */
-size_t recurrent_input_offset(Layer* layer){
-  Layer* current = layer;
-	if(current->output_layer == NULL) return layer->size;
-	while(current->output_layer->output_layer != NULL) current = current->output_layer;
-	
-	size_t recurrent_offset;
-	size_t temp = 0;
-	while(current != layer->input_layer){
-		recurrent_offset = current->size - temp;
-		temp = recurrent_offset;
-		current = current->input_layer;
-	}
-	return recurrent_offset;
-}
-
-/*
- * Description: Sets the activations of the neurons in the input layer of the network.
- * n: The pointer to the rnn.
- * arr: An array of floats (of which all but one should be 0.0, and the other 1.0, depending on your use case)
- * NOTE: setInputs in MLP.c works similarly, but doesn't take into account the fact that the input layer
- *       includes the hidden state of its output layer - therefore the size of the layer will be larger than
- *       the array size, possibly leading to weird behavior.
- */
-void setOneHotInput(RNN *n, float *arr){
-	size_t recurrentInputIndex = recurrent_input_offset(n->input);
-
-	for(int i = 0; i < recurrentInputIndex; i++){
-		n->input->neurons[i].activation = arr[i];
-	}
-}
-
-/*
- * Description: Sets the recurrent inputs in the input layer of the provided layer.
- * layer: The pointer to the layer for which recurrent inputs will be set (layer->input_layer should not be null)
- */
-static void set_recurrent_inputs(Layer* layer){
-	size_t recurrent_offset = recurrent_input_offset(layer->input_layer);
-	if(layer->input_layer != NULL){
-
-		Layer *input_layer = (Layer*)layer->input_layer;
-		for(int i = recurrent_offset; i < input_layer->size; i++){
-			Neuron *recurrent_neuron = &input_layer->neurons[i];
-			Neuron *old_neuron = &layer->neurons[i-recurrent_offset];
-	    //I'm setting inputs instead of activations here because dropout would zero the activations (and dActivations)
-			//This means that the RNN would lose memory if a neuron were to drop out. This is not ideal, as the idea behind
-			//dropout is to regularize the network by treating all neurons the same, not to force the network to forget randomly.
-			recurrent_neuron->input = old_neuron->input;
-		}
-	}
-}
-
-/* 
- * Description: This is the RNN equivalent of descend in mlp.c. It performs a feedforward operation
- *              in which the recurrent inputs of recurrent layers are set, then does backpropagation.
- * n: the pointer to the rnn
- * label: the neuron expected to fire.
- * NOTE: setInputs should be used before calling step().
- */
-float step(RNN *n, int label){
-	feedforward_recurrent(n);
-	return backpropagate(n->output, label, n->plasticity);
 }
 
 /*
