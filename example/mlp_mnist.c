@@ -30,6 +30,7 @@ int main(void) {
 	MLP n = create_mlp(784, 100, 10);
 
 	n.learning_rate = 0.05;
+	//n.batch_size = 1;
 	size_t epochs = 5;
 	int epoch = 0;
 
@@ -45,13 +46,19 @@ int main(void) {
 		printf("Training for %lu epochs.\n", epochs);
 		float avgCost = 0;
 		for(size_t i = 0; i < training_set.numImages * epochs; i++) { // Run for the given number of epochs
-			size_t index = i % training_set.numImages;
+			//size_t index = i % training_set.numImages;
+			size_t index = rand() % training_set.numImages;
 			float *x = img2floatArray(&training_set, index, &height, &width); // Image is returned as a float array
 			int correctlabel = label(&training_set, index); // Retrieve the label from the image set.
 			CREATEONEHOT(y, 10, correctlabel); // Create a float array for cost
 			
 			mlp_forward(&n, x);
-			float c = n.cost(&n, y);
+			float c = mlp_cost(&n, y);
+			//printf("got cost %f\n", c);
+			if(isnan(c)){
+				printf("nan!\n");
+				exit(1);
+			}
 			mlp_backward(&n);
 
 		 avgCost += c;
