@@ -27,10 +27,10 @@ int main(void) {
 	srand(time(NULL));
 
 	//MLP n = loadMLPFromFile("../model/mnist.mlp");
-	MLP n = create_mlp(784, 20, 10);
+	MLP n = create_mlp(784, 100, 10);
 
 	n.learning_rate = 0.05;
-	n.batch_size = 1;
+	//n.batch_size = 1;
 	size_t epochs = 5;
 	int epoch = 0;
 
