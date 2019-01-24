@@ -68,7 +68,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			CREATEONEHOT(y, ASCII_RANGE, char2int(label));
 			
 			lstm_forward(n, x);
-			float c = n->cost(n, y);
+			float c = lstm_cost(n, y);
 			lstm_backward(n);
 
 			if(int2char(label) == '\n') printf("\n");
