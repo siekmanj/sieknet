@@ -14,16 +14,6 @@
 #define DEBUG 0
 #define MAX_GRAD 10
 
-/*
- * Handy function for zeroing out a 2d array
- */
-void zero_2d_arr(float **arr, size_t sequence_length, size_t input_dimension){
-	for(long i = 0; i < sequence_length; i++){
-		for(long j = 0; j < input_dimension; j++){
-			arr[i][j] = 0.0;
-		}
-	}
-}
 
 /*
  * Used to initialize input/forget/output gates
@@ -62,9 +52,9 @@ void wipe(LSTM *n){
 	n->t = 0;
 }	
 
-static float cost_wrapper(LSTM *n, float *y){
+float lstm_cost(LSTM *n, float *y){
 	MLP *mlp = &n->output_layer;
-	float c = mlp->cost(mlp, y);
+	float c = n->cost_fn(mlp->output, y, mlp->cost_gradient, n->output_dimension);
 	mlp_backward(mlp);
 
 	float *grads = mlp->layers[0].gradient;
@@ -158,7 +148,7 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 	n.input_dimension = arr[0];
 	n.output_dimension = arr[len-1];
 	n.depth = len-2;
-	n.cost = cost_wrapper;
+	n.cost_fn = cross_entropy_cost;
 
 	if(len < 3){
 		printf("ERROR: lstm_from_arr(): must have at least input dim, hidden layer size, and output dim (3 layers), but only %lu provided.\n", len);
@@ -203,7 +193,7 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 	output_mlp.params = &n.params[param_idx];
 	output_mlp.output = ALLOCATE(float, arr[len-1]);
 	output_mlp.cost_gradient = ALLOCATE(float, arr[len-1]);
-	output_mlp.cost = cross_entropy_cost;
+	output_mlp.cost_fn = cross_entropy_cost;
 	output_mlp.layers[0] = create_MLP_layer(arr[len-2], arr[len-1], output_mlp.params, softmax);
 	output_mlp.guess = 0;
 	output_mlp.output = output_mlp.layers[0].output;
