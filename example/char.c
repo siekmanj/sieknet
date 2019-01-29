@@ -12,7 +12,7 @@
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 400;
+size_t HIDDEN_LAYER_SIZE = 150;
 size_t NUM_EPOCHS = 5;
 size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 
@@ -44,6 +44,36 @@ void bad_args(char *s, int pos){
 	exit(1);
 }
 
+char *get_sequence(FILE *fp, size_t *size){
+	//find a sequence (delimited by double newline)
+	int last_was_newl = 0;
+	size_t seq_len = 0;
+	while(1){
+		char tmp = fgetc(fp);
+		if(tmp==EOF){
+			if(!seq_len) return NULL;
+			break;
+		}
+		seq_len++;
+		if((tmp == '\n' && (last_was_newl || seq_len > 500))){
+			//done
+			break;
+		}else if(tmp == '\n'){
+			last_was_newl = 1;
+		}else{
+			last_was_newl = 0;
+		}
+		*size = seq_len;
+	}
+	fseek(fp, -(seq_len), SEEK_CUR);
+
+	char *ret = (char*)malloc(seq_len*sizeof(char));
+	for(int i = 0; i < seq_len; i++){
+		ret[i] = fgetc(fp);
+	}
+	return ret;
+}
+
 int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float learning_rate){
 	/* Begin training */
 	wipe(n);
@@ -53,7 +83,6 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 
 	//n->learning_rate = learning_rate;
 	n->stateful = 1;
-	n->seq_len = 200;
 
 	FILE *fp = fopen(datafile, "rb");
 	fseek(fp, 0, SEEK_END);
@@ -63,34 +92,37 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 	for(int i = 0; i < num_epochs; i++){
 		n->learning_rate = learning_schedule[i];
 		FILE *fp = fopen(datafile, "rb");
-		size_t counter = 0;
 		size_t training_iterations = 100;
+		size_t sequence_counter = 0;
 		float avg_cost = 0;
-		float seq_cost = 0;
 		float avg_seq_cost = 0;
-		char input_char = fgetc(fp);
+		char *seq;
 		do{
-			char label = fgetc(fp);
-			CREATEONEHOT(x, ASCII_RANGE, char2int(input_char));
-			CREATEONEHOT(y, ASCII_RANGE, char2int(label));
+			seq = get_sequence(fp, &n->seq_len);
+			float seq_cost = 0;
+			for(int j = 0; j < n->seq_len-1; j++){
+				char input_char = seq[j];
+				char label = seq[j+1];
+				CREATEONEHOT(x, ASCII_RANGE, char2int(input_char));
+				CREATEONEHOT(y, ASCII_RANGE, char2int(label));
+
+				lstm_forward(n, x);
+				float c = lstm_cost(n, y);
+				lstm_backward(n);
 			
-			lstm_forward(n, x);
-			float c = lstm_cost(n, y);
-			lstm_backward(n);
-
-			if(n->guess == char2int(label)) printf("%c", int2char(n->guess));
-			else printf("_");
-
-			avg_cost += c;
-			seq_cost += c;
-			if(!(counter % n->seq_len)){
-				avg_seq_cost += seq_cost / n->seq_len;
-				seq_cost = 0;
+				if(n->guess == char2int(label)) printf("%c", int2char(n->guess));
+				else printf("_");
+				seq_cost += c;
 			}
+			printf("\n");
+			avg_seq_cost += seq_cost / n->seq_len;
+			avg_cost += avg_seq_cost;
+			sequence_counter++;
 
-			if(!((counter++) % (training_iterations*n->seq_len))){
+			if(!(sequence_counter % (training_iterations))){
 				wipe(n);
-				printf("\n***\nEpoch %d %5.2f%% complete, avg cost %f (learning rate %6.5f), avg seq cost %6.5f.\n", i, 100 * ((float)counter)/datafilelen, avg_cost/counter, n->learning_rate, avg_seq_cost / training_iterations);
+				float completion =((float)sequence_counter / (datafilelen/sequence_counter));
+				printf("\n***\nEpoch %d %5.2f%% complete, avg cost %f (learning rate %6.5f), avg seq cost %6.5f.\n", i, 100 * completion, avg_cost/sequence_counter, n->learning_rate, avg_seq_cost / training_iterations);
 				printf("%lu character sample from lstm below:\n", 10*training_iterations);
 				int seed = rand() % 95;
 				for(int j = 0; j < training_iterations*10; j++){
@@ -99,19 +131,17 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 					printf("%c", int2char(n->guess));
 					seed = n->guess;
 				}
-				if(avg_seq_cost/training_iterations > avg_cost/counter){
+				if(avg_seq_cost/training_iterations > avg_cost/sequence_counter){
 					printf("\nWARNING: average sequence cost was HIGHER than epoch average - something is probably wrong!\n");
 				}else{
 					printf("\nautosaving '%s'\n", modelfile);
 					save_lstm(n, modelfile);
 				}
 				printf("\n***\nResuming training...\n");
-				avg_seq_cost = 0;
 				sleep(2);
 			}
-			input_char = label;
 		}
-		while(input_char != EOF);
+		while(seq);
 		fclose(fp);
 	}
 }
