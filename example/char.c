@@ -12,11 +12,11 @@
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 150;
-size_t NUM_EPOCHS = 5;
+size_t HIDDEN_LAYER_SIZE = 500;
+size_t NUM_EPOCHS = 3;
 size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 
-float LEARNING_RATE = 0.01;
+float LEARNING_RATE = 0.005;
 float LEARNING_DECAY = 0.5;
 
 /*
@@ -100,6 +100,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 		do{
 			seq = get_sequence(fp, &n->seq_len);
 			float seq_cost = 0;
+			printf("(sequence len %lu): ", n->seq_len);
 			for(int j = 0; j < n->seq_len-1; j++){
 				char input_char = seq[j];
 				char label = seq[j+1];
@@ -114,9 +115,9 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 				else printf("_");
 				seq_cost += c;
 			}
-			printf("\n");
 			avg_seq_cost += seq_cost / n->seq_len;
-			avg_cost += avg_seq_cost;
+			printf("(cost %f)\n\n", seq_cost / n->seq_len);
+			avg_cost += avg_seq_cost / n->seq_len;
 			sequence_counter++;
 
 			if(!(sequence_counter % (training_iterations))){
@@ -138,6 +139,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 					save_lstm(n, modelfile);
 				}
 				printf("\n***\nResuming training...\n");
+				avg_seq_cost = 0;
 				sleep(2);
 			}
 		}
