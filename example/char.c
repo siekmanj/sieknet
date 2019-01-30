@@ -12,11 +12,11 @@
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 150;
+size_t HIDDEN_LAYER_SIZE = 200;
 size_t NUM_EPOCHS = 5;
 size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 
-float LEARNING_RATE = 0.01;
+float LEARNING_RATE = 0.005;
 float LEARNING_DECAY = 0.5;
 
 /*
@@ -45,25 +45,18 @@ void bad_args(char *s, int pos){
 }
 
 char *get_sequence(FILE *fp, size_t *size){
-	//find a sequence (delimited by double newline)
-	int last_was_newl = 0;
 	size_t seq_len = 0;
 	while(1){
+		seq_len++;
 		char tmp = fgetc(fp);
 		if(tmp==EOF){
 			if(!seq_len) return NULL;
 			break;
 		}
-		seq_len++;
-		if((tmp == '\n' && (last_was_newl || seq_len > 500))){
-			//done
+		if(tmp == '\n')
 			break;
-		}else if(tmp == '\n'){
-			last_was_newl = 1;
-		}else{
-			last_was_newl = 0;
-		}
-		*size = seq_len;
+				
+    *size = seq_len;
 	}
 	fseek(fp, -(seq_len), SEEK_CUR);
 
@@ -71,6 +64,8 @@ char *get_sequence(FILE *fp, size_t *size){
 	for(int i = 0; i < seq_len; i++){
 		ret[i] = fgetc(fp);
 	}
+  //ret[seq_len-1] = '\0';
+  //printf("found sequence '%s'\n", ret);
 	return ret;
 }
 
@@ -116,11 +111,11 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			}
 			printf("\n");
 			avg_seq_cost += seq_cost / n->seq_len;
-			avg_cost += avg_seq_cost;
+			avg_cost += seq_cost / n->seq_len;
 			sequence_counter++;
 
 			if(!(sequence_counter % (training_iterations))){
-				wipe(n);
+				//wipe(n);
 				float completion =((float)sequence_counter / (datafilelen/sequence_counter));
 				printf("\n***\nEpoch %d %5.2f%% complete, avg cost %f (learning rate %6.5f), avg seq cost %6.5f.\n", i, 100 * completion, avg_cost/sequence_counter, n->learning_rate, avg_seq_cost / training_iterations);
 				printf("%lu character sample from lstm below:\n", 10*training_iterations);
@@ -139,6 +134,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 				}
 				printf("\n***\nResuming training...\n");
 				sleep(2);
+        avg_seq_cost = 0;
 			}
 		}
 		while(seq);
