@@ -12,11 +12,11 @@
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 200;
+size_t HIDDEN_LAYER_SIZE = 20;
 size_t NUM_EPOCHS = 5;
 size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 
-float LEARNING_RATE = 0.005;
+float LEARNING_RATE = 0.001;
 float LEARNING_DECAY = 0.5;
 
 /*
@@ -89,6 +89,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 		FILE *fp = fopen(datafile, "rb");
 		size_t training_iterations = 100;
 		size_t sequence_counter = 0;
+    size_t ctr = 0;
 		float avg_cost = 0;
 		float avg_seq_cost = 0;
 		char *seq;
@@ -108,6 +109,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 				if(n->guess == char2int(label)) printf("%c", int2char(n->guess));
 				else printf("_");
 				seq_cost += c;
+        ctr++;
 			}
 			printf("\n");
 			avg_seq_cost += seq_cost / n->seq_len;
@@ -115,8 +117,8 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			sequence_counter++;
 
 			if(!(sequence_counter % (training_iterations))){
-				//wipe(n);
-				float completion =((float)sequence_counter / (datafilelen/sequence_counter));
+				wipe(n);
+				float completion =((float)ctr/datafilelen);
 				printf("\n***\nEpoch %d %5.2f%% complete, avg cost %f (learning rate %6.5f), avg seq cost %6.5f.\n", i, 100 * completion, avg_cost/sequence_counter, n->learning_rate, avg_seq_cost / training_iterations);
 				printf("%lu character sample from lstm below:\n", 10*training_iterations);
 				int seed = rand() % 95;
@@ -166,7 +168,7 @@ int main(int argc, char** argv){
 	fclose(fp);
 
 	LSTM n;
-	if(newlstm) n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
+	if(newlstm) n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
 	else{
 		printf("loading '%s'\n", modelfile);
 		fp = fopen(modelfile, "rb");
