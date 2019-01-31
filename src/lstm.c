@@ -13,6 +13,7 @@
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
 #define DEBUG 1
 #define MAX_GRAD 100
+#define MAX_STATE 15
 
 
 /*
@@ -284,6 +285,9 @@ void lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 #endif
 		c->lstate = c->state[t]; //Set the last timestep's cell state to the current one for the next timestep
 		c->loutput = l->output[t][j];
+
+		if(c->lstate > MAX_STATE) c->lstate = MAX_STATE;
+		if(c->lstate < -MAX_STATE) c->lstate = -MAX_STATE;
 	}
 }
 
