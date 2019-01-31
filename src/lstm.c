@@ -277,7 +277,7 @@ void lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 			printf("                      : made %6.5f from %6.5f * %6.5f + %6.5f * %6.5f\n", c->state[t], a->output[t], i->output[t], f->output[t], c->lstate);
 			exit(1);
 		}
-		if(c->state[t] > 1000 || c->state[t] < -1000){
+		if(c->state[t] > 8000 || c->state[t] < -8000){
 			printf("WARNING: lstm_layer_forward(): c[%ld]->state[%lu] (%6.5f) is unusually large and may lead to exploding gradients!\n", j, t, c->state[t]);
 			printf("                      : made %6.5f from %6.5f * %6.5f + %6.5f * %6.5f\n", c->state[t], a->output[t], i->output[t], f->output[t], c->lstate);
 		}
@@ -408,6 +408,7 @@ void lstm_layer_backward(LSTM_layer *l, size_t max_time, float learning_rate){
  */
 void lstm_backward(LSTM *n){
 	if(n->t >= n->seq_len){
+		//printf("xxxB %lu of %lu!", n->t, n->seq_len);
 		lstm_propagate_gradients(n, n->network_gradient);
 		for(int i = n->depth-1; i >= 0; i--){
 			lstm_layer_backward(&n->layers[i], n->t-1, n->learning_rate);

@@ -12,11 +12,12 @@
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 500;
+size_t HIDDEN_LAYER_SIZE = 150;
 size_t NUM_EPOCHS = 3;
 size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 
-float LEARNING_RATE = 0.005;
+float LEARNING_RATE     = 0.00001;
+float LEARNING_BASELINE = 0.000005;
 float LEARNING_DECAY = 0.5;
 
 /*
@@ -47,18 +48,18 @@ void bad_args(char *s, int pos){
 char *get_sequence(FILE *fp, size_t *size){
 	size_t seq_len = 0;
 	while(1){
-		seq_len++;
 		char tmp = fgetc(fp);
+		//printf("GOT: %c (%d)\n", tmp);
+		seq_len++;
 		if(tmp==EOF){
-			if(!seq_len) return NULL;
-			break;
+			return NULL;
 		}
 		if(tmp == '\n')
 			break;
 				
-    *size = seq_len;
 	}
 	fseek(fp, -(seq_len), SEEK_CUR);
+	*size = seq_len+1;
 
 	char *ret = (char*)malloc(seq_len*sizeof(char));
 	for(int i = 0; i < seq_len; i++){
@@ -74,7 +75,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 	wipe(n);
 	float learning_schedule[num_epochs];
 	for(int i = 0; i < num_epochs; i++)
-		learning_schedule[i] = learning_rate * pow(LEARNING_DECAY, i);
+		learning_schedule[i] = learning_rate * pow(LEARNING_DECAY, i) + LEARNING_BASELINE;
 
 	//n->learning_rate = learning_rate;
 	n->stateful = 1;
@@ -87,19 +88,18 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 	for(int i = 0; i < num_epochs; i++){
 		n->learning_rate = learning_schedule[i];
 		FILE *fp = fopen(datafile, "rb");
-		size_t training_iterations = 100;
+		size_t training_iterations = 50;
 		size_t sequence_counter = 0;
     size_t ctr = 0;
 		float avg_cost = 0;
 		float avg_seq_cost = 0;
-		char *seq;
+		char *seq = get_sequence(fp, &n->seq_len);
 		do{
-			seq = get_sequence(fp, &n->seq_len);
 			float seq_cost = 0;
-			printf("(sequence len %lu): ", n->seq_len);
-			for(int j = 0; j < n->seq_len-1; j++){
-				char input_char = seq[j];
-				char label = seq[j+1];
+			printf("(sequence len %lu): '", n->seq_len);
+			char input_char = '\n';
+			for(int j = 0; j < n->seq_len; j++){
+				char label = seq[j];
 				CREATEONEHOT(x, ASCII_RANGE, char2int(input_char));
 				CREATEONEHOT(y, ASCII_RANGE, char2int(label));
 
@@ -109,9 +109,13 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			
 				if(n->guess == char2int(label)) printf("%c", int2char(n->guess));
 				else printf("_");
+				//printf("%c", label);
 				seq_cost += c;
         ctr++;
+
+				input_char = label;
 			}
+			printf("'\n");
 			avg_seq_cost += seq_cost / n->seq_len;
 			avg_cost += seq_cost / n->seq_len;
 			sequence_counter++;
@@ -121,7 +125,8 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 				float completion =((float)ctr/datafilelen);
 				printf("\n***\nEpoch %d %5.2f%% complete, avg cost %f (learning rate %6.5f), avg seq cost %6.5f.\n", i, 100 * completion, avg_cost/sequence_counter, n->learning_rate, avg_seq_cost / training_iterations);
 				printf("%lu character sample from lstm below:\n", 10*training_iterations);
-				int seed = rand() % 95;
+
+				int seed = 95;
 				for(int j = 0; j < training_iterations*10; j++){
 					CREATEONEHOT(tmp, ASCII_RANGE, seed);
 					lstm_forward(n, tmp);
@@ -139,6 +144,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 				sleep(2);
         avg_seq_cost = 0;
 			}
+			seq = get_sequence(fp, &n->seq_len);
 		}
 		while(seq);
 		fclose(fp);
@@ -169,13 +175,14 @@ int main(int argc, char** argv){
 	fclose(fp);
 
 	LSTM n;
-	if(newlstm) n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
+	if(newlstm) n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
 	else{
 		printf("loading '%s'\n", modelfile);
 		fp = fopen(modelfile, "rb");
 		if(!fp){ printf("Could not open modelfile '%s' - does it exist?\n", modelfile); exit(1);}
 		n = load_lstm(modelfile);
 	}
+	printf("network has %lu params.\n", n.num_params);
 	save_lstm(&n, modelfile);
 
 	train(&n, modelfile, datafile, NUM_EPOCHS, LEARNING_RATE);
