@@ -28,17 +28,17 @@ int data[] = {
 
 int main(void){
 	srand(time(NULL));
-	LSTM n = create_lstm(10, 15, 15, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
+	LSTM n = create_lstm(10, 45, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
 	n.learning_rate = 0.01;
-	n.seq_len = 30;
 
 	float cost = 0;
-	float cost_threshold = 0.1;
+	float cost_threshold = 0.4;
 	int count = 0;
 
 	for(int epoch = 0; epoch < 100000; epoch++){ //Train for 1000 epochs.
 		size_t len = sizeof(data)/sizeof(data[0]);
-//		wipe(&n);
+    n.seq_len = len;
+		wipe(&n);
 		for(int i = 0; i < len; i++){ //Run through the entirety of the training data.
 
 			//Make a one-hot vector and use it to set the activations of the input layer
@@ -52,7 +52,7 @@ int main(void){
 			expected[label] = 1.0;
 			
 			lstm_forward(&n, one_hot);
-			float c = n.cost(&n, expected);
+			float c = lstm_cost(&n, expected);
 			lstm_backward(&n);
 
 			cost += c;
@@ -68,6 +68,19 @@ int main(void){
 
 	  if(cost/count < cost_threshold){
 			printf("\nCost threshold %1.2f reached in %d iterations\n", cost_threshold, count);
+      printf("Running forward:\n");
+      wipe(&n);
+      printf("1, ");
+      int input = 1;
+      for(int i = 0; i < len; i++){
+        float one_hot[10];
+        memset(one_hot, '\0', 10*sizeof(float));
+        one_hot[input] = 1.0;
+
+        lstm_forward(&n, one_hot);
+        printf("%d, ", n.guess);
+        input = n.guess;
+      }
 			exit(0);
 		}
 	}
