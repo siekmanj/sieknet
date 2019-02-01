@@ -12,8 +12,8 @@
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 250;
-size_t NUM_EPOCHS = 3;
+size_t HIDDEN_LAYER_SIZE = 100;
+size_t NUM_EPOCHS = 1;
 size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 
 float LEARNING_RATE     = 0.00005;
@@ -78,7 +78,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 		learning_schedule[i] = learning_rate * pow(LEARNING_DECAY, i) + LEARNING_BASELINE;
 
 	//n->learning_rate = learning_rate;
-	n->stateful = 0;
+	n->stateful = 1;
 
 	FILE *fp = fopen(datafile, "rb");
 	fseek(fp, 0, SEEK_END);
@@ -175,7 +175,7 @@ int main(int argc, char** argv){
 	fclose(fp);
 
 	LSTM n;
-	if(newlstm) n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
+	if(newlstm) n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
 	else{
 		printf("loading '%s'\n", modelfile);
 		fp = fopen(modelfile, "rb");
