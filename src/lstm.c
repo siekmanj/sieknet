@@ -389,10 +389,10 @@ void lstm_layer_backward(LSTM_layer *l, size_t max_time, float learning_rate){
 			}
 			if(t < max_time){
 				for(long k = recurrent_offset; k < l->input_dimension; k++){
-					a->weights[k] += a->gradient[t] * l->output[t][j] * learning_rate;
-					i->weights[k] += i->gradient[t] * l->output[t][j] * learning_rate;
-					f->weights[k] += f->gradient[t] * l->output[t][j] * learning_rate;
-					o->weights[k] += o->gradient[t] * l->output[t][j] * learning_rate;
+					a->weights[k] += a->gradient[t+1] * l->output[t][j] * learning_rate;
+					i->weights[k] += i->gradient[t+1] * l->output[t][j] * learning_rate;
+					f->weights[k] += f->gradient[t+1] * l->output[t][j] * learning_rate;
+					o->weights[k] += o->gradient[t+1] * l->output[t][j] * learning_rate;
 					if(isnan(a->weights[k])){
 						printf("ERROR: layer_backward(): nan'ed a weight while doing nudge, from %6.5f * %6.5f * %6.5f\n", a->gradient[t+1], l->output[t][j], learning_rate);
 						exit(1);
