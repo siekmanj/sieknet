@@ -78,7 +78,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 		learning_schedule[i] = learning_rate * pow(LEARNING_DECAY, i) + LEARNING_BASELINE;
 
 	//n->learning_rate = learning_rate;
-	n->stateful = 1;
+	n->stateful = 0;
 
 	FILE *fp = fopen(datafile, "rb");
 	fseek(fp, 0, SEEK_END);
