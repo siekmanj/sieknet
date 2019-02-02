@@ -12,11 +12,11 @@
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 550;
+size_t HIDDEN_LAYER_SIZE = 175;
 size_t NUM_EPOCHS = 1;
 size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 
-float LEARNING_RATE     = 0.01;
+float LEARNING_RATE     = 0.00001;
 float LEARNING_BASELINE = 0.000005;
 float LEARNING_DECAY = 0.5;
 
@@ -143,6 +143,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 				avg_seq_cost = 0;
 				sleep(1);
         avg_seq_cost = 0;
+				wipe(n);
 			}
 			seq = get_sequence(fp, &n->seq_len);
 		}

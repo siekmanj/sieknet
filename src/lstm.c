@@ -13,7 +13,7 @@
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
 #define DEBUG 1
 #define MAX_GRAD 100
-#define MAX_STATE 25
+#define MAX_STATE 100
 
 
 /*
