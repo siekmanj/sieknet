@@ -11,8 +11,9 @@
 
 #define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
-#define DEBUG 0
-#define MAX_GRAD 10
+#define DEBUG 1
+#define MAX_GRAD 100
+#define MAX_STATE 100
 
 
 /*
@@ -261,7 +262,7 @@ void lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 
 #if DEBUG
 		if(isnan(a->output[t])){
-			printf("ERROR: lstm_layer_forward(): c[%d], a->output[%d] is nan from tanh(%6.5f + %6.5f)\n", j, t, inner_product(a->weights, l->input[t], l->input_dimension), a->bias);
+			printf("ERROR: lstm_layer_forward(): c[%ld], a->output[%lu] is nan from tanh(%6.5f + %6.5f)\n", j, t, inner_product(a->weights, l->input[t], l->input_dimension), *a->bias);
 			printf("from inner product of:\n");
 			for(int i = 0; i < l->input_dimension; i++){
 				printf("%6.5f * %6.5f +\n", a->weights[i], l->input[t][i]);
@@ -269,21 +270,24 @@ void lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 			exit(1);
 		}
 		if(isnan(c->state[t])){
-			printf("ERROR: lstm_layer_forward(): nan while doing c[%d], state[%d] = %6.5f * %6.5f + %6.5f * %6.5f\n", j, t, a->output[t], i->output[t], f->output[t], c->lstate);
+			printf("ERROR: lstm_layer_forward(): nan while doing c[%ld], state[%lu] = %6.5f * %6.5f + %6.5f * %6.5f\n", j, t, a->output[t], i->output[t], f->output[t], c->lstate);
 			exit(1);
 		}
 		if(isnan(l->output[t][j])){
-			printf("ERROR: lstm_layer_forward(): c[%d]->output[%d] is nan from tanh(%6.5f * %6.5f)\n", j, t, c->state[t], o->output[t]);
+			printf("ERROR: lstm_layer_forward(): c[%ld]->output[%lu] is nan from tanh(%6.5f * %6.5f)\n", j, t, c->state[t], o->output[t]);
 			printf("                      : made %6.5f from %6.5f * %6.5f + %6.5f * %6.5f\n", c->state[t], a->output[t], i->output[t], f->output[t], c->lstate);
 			exit(1);
 		}
-		if(c->state[t] > 1000 || c->state[t] < -1000){
-			printf("WARNING: lstm_layer_forward(): c[%d]->state[%d] (%6.5f) is unusually large and may lead to exploding gradients!\n", j, t, c->state[t]);
+		if(c->state[t] > 8000 || c->state[t] < -8000){
+			printf("WARNING: lstm_layer_forward(): c[%ld]->state[%lu] (%6.5f) is unusually large and may lead to exploding gradients!\n", j, t, c->state[t]);
 			printf("                      : made %6.5f from %6.5f * %6.5f + %6.5f * %6.5f\n", c->state[t], a->output[t], i->output[t], f->output[t], c->lstate);
 		}
 #endif
 		c->lstate = c->state[t]; //Set the last timestep's cell state to the current one for the next timestep
 		c->loutput = l->output[t][j];
+
+		if(c->lstate > MAX_STATE) c->lstate = MAX_STATE;
+		if(c->lstate < -MAX_STATE) c->lstate = -MAX_STATE;
 	}
 }
 
@@ -408,6 +412,7 @@ void lstm_layer_backward(LSTM_layer *l, size_t max_time, float learning_rate){
  */
 void lstm_backward(LSTM *n){
 	if(n->t >= n->seq_len){
+		//printf("xxxB %lu of %lu!", n->t, n->seq_len);
 		lstm_propagate_gradients(n, n->network_gradient);
 		for(int i = n->depth-1; i >= 0; i--){
 			lstm_layer_backward(&n->layers[i], n->t-1, n->learning_rate);
