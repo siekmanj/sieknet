@@ -6,7 +6,7 @@
 #include "mlp.h"
 
 #ifndef MAX_UNROLL_LENGTH
-#define MAX_UNROLL_LENGTH 200
+#define MAX_UNROLL_LENGTH 800
 #endif
 
 #define create_lstm(...) lstm_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
