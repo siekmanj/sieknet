@@ -43,11 +43,7 @@ RNN load_rnn(const char *filename);
 void save_rnn(RNN *, const char *filename);
 
 void rnn_forward(RNN *, float *);
-void rnn_backward(RNN *, float *);
-
-//void feedforward_recurrent(RNN *n);
-//void saveRNNToFile(RNN *n, char* filename);
-
-float step(RNN *n, int label);
+float rnn_cost(RNN *, float *);
+void rnn_backward(RNN *);
 
 #endif

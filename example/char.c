@@ -16,7 +16,7 @@ size_t HIDDEN_LAYER_SIZE = 175;
 size_t NUM_EPOCHS = 1;
 size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 
-float LEARNING_RATE     = 0.00001;
+float LEARNING_RATE     = 0.000005;
 float LEARNING_BASELINE = 0.000005;
 float LEARNING_DECAY = 0.5;
 
@@ -74,7 +74,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 	/* Begin training */
 	float learning_schedule[num_epochs];
 	for(int i = 0; i < num_epochs; i++)
-    learning_schedule[i] = learning_rate * pow(LEARNING_DECAY, i) + LEARNING_BASELINE;
+    learning_schedule[i] = learning_rate;// * pow(LEARNING_DECAY, i) + LEARNING_BASELINE;
 
 	n->learning_rate = learning_rate;
 	n->stateful = 1;
@@ -123,7 +123,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			if(!(sequence_counter % (training_iterations))){
 				wipe(n);
 				float completion =((float)ctr/datafilelen);
-				printf("\n***\nEpoch %d %5.2f%% complete, avg cost %f (learning rate %6.5f), avg seq cost %6.5f.\n", i, 100 * completion, avg_cost/sequence_counter, n->learning_rate, avg_seq_cost / training_iterations);
+				printf("\n***\nEpoch %d %5.2f%% complete, avg cost %f (learning rate %8.7f), avg seq cost %6.5f.\n", i, 100 * completion, avg_cost/sequence_counter, n->learning_rate, avg_seq_cost / training_iterations);
 				printf("%lu character sample from lstm below:\n", 10*training_iterations);
 
 				int seed = 95;
