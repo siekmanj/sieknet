@@ -13,6 +13,11 @@
 #include <math.h>
 #include <string.h>
 
+
+RNN_layer create_RNN_layer(){
+
+}
+
 /*
  * Description: a function called through a macro that allows creation of a network with any arbitrary number of layers.
  * arr: The array containing the sizes of each layer, for instance {28*28, 16, 10}.
@@ -32,70 +37,17 @@ RNN rnn_from_arr(size_t arr[], size_t size){
   return n;
 }
 
-/*
- * Description: Calculates the non-recurrent outputs and recurrent outputs
- * note: This function is required because when recurrent inputs are set,
- *       calculate_inputs would overwrite them for the entire layer, not just
- *       for non-recurrent neurons.
- */
-static void calculate_outputs_recurrent(Layer* layer){
-	size_t offset = recurrent_input_offset(layer);	
-	size_t temp = layer->size;
-	layer->size = offset; // Don't want to calculate inputs for recurrent neurons
-	calculate_inputs(layer); //Calculate inputs ONLY for non-recurrent neurons
-	layer->size = temp; //Restore original layer size
-	layer->squish(layer); //Calculate activations for recurrent and non-recurrent neurons
+float rnn_cost(RNN *n, float *y){
+	return 1.0;
 }
 
-/*
- *
- * Description: Performs the feed-forward operation on the network and sets
- *              recurrent inputs from previous hidden state of layers.
- * n: A pointer to the network.
- * NOTE: setInputs should be used before calling feedforward_recurrent().
- */
-void feedforward_recurrent(RNN *n){
-	//start at input layer
-	//Get inputs in output layer, assign them to recurrent neurons
-	//Move neuron pointer to recurrent offset, change size to match
-	//Squish recurrent portion of layer using output layer squish fp
-	//Move neuron pointer back, change size to recurrent offset
-	//Call calculate_inputs() if not input layer
-	//squish regular neurons if not input layer
-	//set size back to full size
-	//In a nutshell: squish recurrent portion of layer, then normal portion of layer
-	Layer *current = n->input;
-	while(current != NULL){
-		Layer *output_layer = current->output_layer;
-		size_t r_offset = recurrent_input_offset(current);
-		size_t tmp = current->size;
+void rnn_forward(RNN *n, float *x){
 
-		if(output_layer){
-			//get recurrent neuron vals for this layer
-			for(int i = r_offset; i < current->size; i++){
-				current->neurons[i].input = output_layer->neurons[i-r_offset].input;
-			}
-			//squish recurrent neuron vals for this layer
-			Neuron *tmp_ptr = current->neurons;
-			current->neurons = &current->neurons[r_offset];
-			current->size = tmp - r_offset;
-			output_layer->squish(current);
-
-			//restore old neuron state
-			current->neurons = tmp_ptr;
-			current->size = tmp;
-		}
-		//calculate non-recurrent activations
-		current->size = r_offset;
-		if(current != n->input){
-			calculate_inputs(current);
-			current->squish(current);
-		}
-		current->size = tmp;
-		current = current->output_layer;
-	}
 }
 
+void rnn_backward(RNN *n){
+
+}
 /*
  * IO FUNCTIONS FOR READING AND WRITING TO A FILE
  * NOTE: Since these are copy+pasted from MLP.c, they will be replaced once I find a cleaner solution.
