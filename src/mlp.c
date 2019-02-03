@@ -11,7 +11,7 @@
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
 #define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
 
-#define MAX_GRAD 100
+#define MAX_GRAD 5
 #define DEBUG 0
 
 /*
@@ -32,6 +32,10 @@ float inner_product(const float *x, const float *y, size_t length){
 void sigmoid(const float *z, float *dest, size_t dim){
 	for(int i = 0; i < dim; i++){
 		dest[i] = (1 / (1 + exp(-z[i])));
+		if(isnan(dest[i])){
+			printf("ERROR: sigmoid(): nan from 1 / (1 + exp(-%6.5f))\n", z[i]);
+			exit(1);
+		}
 	}
 }
 
@@ -68,6 +72,10 @@ void softmax(const float *z, float *dest, size_t dim){
 
 	for(int i = 0; i < dim; i++){
 		dest[i] = exp(z[i]) / sum;
+		if(isnan(dest[i])){
+			printf("ERROR: softmax(): nan from exp(%6.5f) / %6.5f\n", z[i], sum);
+			exit(1);
+		}
 	}
 }
 
