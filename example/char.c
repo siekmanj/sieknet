@@ -12,13 +12,13 @@
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 75;
-size_t NUM_EPOCHS = 1;
+size_t HIDDEN_LAYER_SIZE = 250;
+size_t NUM_EPOCHS = 2;
 size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 
-float LEARNING_RATE     = 0.000005;
-float LEARNING_BASELINE = 0.000005;
-float LEARNING_DECAY = 0.5;
+float LEARNING_RATE     = 0.0000005;
+float LEARNING_BASELINE = 0.0000005;
+float LEARNING_DECAY = 0.6;
 
 /*
  * This file is for training an LSTM character-by-character on any text (ascii) file provided.
@@ -187,6 +187,6 @@ int main(int argc, char** argv){
 	save_lstm(&n, modelfile);
 
 	train(&n, modelfile, datafile, NUM_EPOCHS, LEARNING_RATE);
-	printf("training finished! LSTM saved to '%s'\n", modelfile);
+	printf("training finished! LSTM file is: '%s'\n", modelfile);
 
 }
