@@ -12,11 +12,11 @@
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 250;
+size_t HIDDEN_LAYER_SIZE = 50;
 size_t NUM_EPOCHS = 3;
 size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 
-float LEARNING_RATE     = 0.00005;
+float LEARNING_RATE     = 0.005;
 float LEARNING_BASELINE = 0.000005;
 float LEARNING_DECAY = 0.5;
 
