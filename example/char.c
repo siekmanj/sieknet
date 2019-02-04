@@ -72,12 +72,11 @@ char *get_sequence(FILE *fp, size_t *size){
 
 int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float learning_rate){
 	/* Begin training */
-	wipe(n);
 	float learning_schedule[num_epochs];
 	for(int i = 0; i < num_epochs; i++)
-		learning_schedule[i] = learning_rate * pow(LEARNING_DECAY, i) + LEARNING_BASELINE;
+    learning_schedule[i] = learning_rate;// * pow(LEARNING_DECAY, i) + LEARNING_BASELINE;
 
-	//n->learning_rate = learning_rate;
+	n->learning_rate = learning_rate;
 	n->stateful = 1;
 
 	FILE *fp = fopen(datafile, "rb");
@@ -94,6 +93,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 		float avg_cost = 0;
 		float avg_seq_cost = 0;
 		char *seq = get_sequence(fp, &n->seq_len);
+    wipe(n);
 		do{
 			float seq_cost = 0;
 			printf("(sequence len %lu): '", n->seq_len);
@@ -123,7 +123,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			if(!(sequence_counter % (training_iterations))){
 				wipe(n);
 				float completion =((float)ctr/datafilelen);
-				printf("\n***\nEpoch %d %5.2f%% complete, avg cost %f (learning rate %6.5f), avg seq cost %6.5f.\n", i, 100 * completion, avg_cost/sequence_counter, n->learning_rate, avg_seq_cost / training_iterations);
+				printf("\n***\nEpoch %d %5.2f%% complete, avg cost %f (learning rate %8.7f), avg seq cost %6.5f.\n", i, 100 * completion, avg_cost/sequence_counter, n->learning_rate, avg_seq_cost / training_iterations);
 				printf("%lu character sample from lstm below:\n", 10*training_iterations);
 
 				int seed = 95;
@@ -141,8 +141,9 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 				}
 				printf("\n***\nResuming training...\n");
 				avg_seq_cost = 0;
-				sleep(2);
+				sleep(1);
         avg_seq_cost = 0;
+				wipe(n);
 			}
 			seq = get_sequence(fp, &n->seq_len);
 		}
@@ -175,7 +176,7 @@ int main(int argc, char** argv){
 	fclose(fp);
 
 	LSTM n;
-	if(newlstm) n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
+	if(newlstm) n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
 	else{
 		printf("loading '%s'\n", modelfile);
 		fp = fopen(modelfile, "rb");
