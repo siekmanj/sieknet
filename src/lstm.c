@@ -190,7 +190,7 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 	output_mlp.num_params = (arr[len-2]+1)*arr[len-1];
 	output_mlp.input_dimension = arr[len-2];
 	output_mlp.output_dimension = arr[len-1];
-	output_mlp.learning_rate = n.learning_rate/10.0;
+	output_mlp.learning_rate = n.learning_rate/1.0;
 	output_mlp.params = &n.params[param_idx];
 	output_mlp.output = ALLOCATE(float, arr[len-1]);
 	output_mlp.cost_gradient = ALLOCATE(float, arr[len-1]);
