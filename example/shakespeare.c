@@ -82,7 +82,7 @@ int main(void){
 			CREATEONEHOT(y, strlen(alphabet), label);
 
 			lstm_forward(&n, x);
-			float cost_local = n.cost(&n, y);
+			float cost_local = lstm_cost(&n, y);
 			lstm_backward(&n);
 			
 			/****************************************************/
