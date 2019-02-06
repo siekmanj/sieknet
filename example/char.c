@@ -12,7 +12,7 @@
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 75;
+size_t HIDDEN_LAYER_SIZE = 125;
 size_t NUM_EPOCHS = 1;
 size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 
