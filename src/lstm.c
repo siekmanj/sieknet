@@ -12,7 +12,7 @@
 #define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
 #define DEBUG 1
-#define MAX_GRAD 1
+#define MAX_GRAD 2
 #define MAX_STATE 10
 
 
@@ -99,6 +99,7 @@ LSTM_layer create_LSTM_layer(size_t input_dim, size_t size, float *param_addr){
 		float *forget_gate_bias = &param_addr[param_idx];
 		float *forget_gate_weights = &param_addr[param_idx+1];
 		xavier_init(&param_addr[param_idx], (l.input_dimension+1), size);
+		*forget_gate_bias = 1.0;
 		param_idx += l.input_dimension+1;
 		
 		float *output_gate_bias = &param_addr[param_idx];
