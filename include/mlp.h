@@ -12,6 +12,8 @@
 
 typedef struct neuron{
 	//float input; //needed for efficient softmax
+	float *weight_grads;
+	float *bias_grad;
 	float *weights;
 	float *bias;
 } Neuron;
@@ -42,6 +44,7 @@ typedef struct mlp{
 
 	float learning_rate;
 	float *params;
+	float *param_grad;
 	float *output;
 
 	float *cost_gradient;
@@ -51,14 +54,11 @@ typedef struct mlp{
 MLP mlp_from_arr(size_t arr[], size_t size);
 MLP load_mlp(const char *filename);
 
-MLP_layer create_MLP_layer(size_t, size_t, float *, void(*)(const float *, float *, size_t));
+MLP_layer create_MLP_layer(size_t, size_t, float *, float *, void(*)(const float *, float *, size_t));
 
 void mlp_forward(MLP *, float *);
 void mlp_backward(MLP *);
 float mlp_cost(MLP *, float *);
-
-//void mlp_layer_forward(MLP_layer *, float *, size_t);
-//void mlp_layer_backward(MLP_layer *, float *, float);
 
 void save_mlp(const MLP *n, const char* filename);
 
