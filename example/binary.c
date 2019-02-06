@@ -3,9 +3,10 @@
  * This is a toy problem - training an mlp to convert a 4-bit binary string to a decimal number between 0 and 15.
  */
 
+#include <mlp.h>
+#include <optimizer.h>
 #include <stdio.h>
 #include <math.h>
-#include <mlp.h>
 #include <string.h>
 
 #define CREATEONEHOT(name, size, index) float name[size]; memset(name, '\0', size*sizeof(float)); name[index] = 1.0;
@@ -14,10 +15,12 @@ int main(){
 	srand(time(NULL));
 
 	MLP n = create_mlp(4, 32, 16);
+	SGD optimizer = init_sgd(n.params, n.param_grad, n.num_params);
+
 	//MLP n = load_mlp("../model/bin.mlp");
 
 	n.learning_rate = 0.1;
-	n.layers[0].logistic = relu;
+	//n.layers[0].logistic = relu;
 	float avg_cost;
 	for(int i = 0; i < 100000; i++){ //Run the network for a while
 		//Create a random 4-bit binary number
@@ -33,6 +36,8 @@ int main(){
 		mlp_forward(&n, x);
 		float cost = mlp_cost(&n, y);
 		mlp_backward(&n);
+
+		optimizer.step(optimizer);
 
 		avg_cost += cost;
 
