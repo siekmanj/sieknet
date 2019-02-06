@@ -31,7 +31,7 @@ int main(){
 		CREATEONEHOT(y, 16, (int)ans);
 
 		mlp_forward(&n, x);
-		float cost = n.cost(&n, y);
+		float cost = mlp_cost(&n, y);
 		mlp_backward(&n);
 
 		avg_cost += cost;
