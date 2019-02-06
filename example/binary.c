@@ -15,12 +15,12 @@ int main(){
 	srand(time(NULL));
 
 	MLP n = create_mlp(4, 32, 16);
-	SGD optimizer = init_sgd(n.params, n.param_grad, n.num_params);
+	Momentum optimizer = init_momentum(n.params, n.param_grad, n.num_params);
 
 	//MLP n = load_mlp("../model/bin.mlp");
 
-	n.learning_rate = 0.1;
-	//n.layers[0].logistic = relu;
+	//n.learning_rate = 0.1;
+	n.layers[0].logistic = relu;
 	float avg_cost;
 	for(int i = 0; i < 100000; i++){ //Run the network for a while
 		//Create a random 4-bit binary number
