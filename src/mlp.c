@@ -189,7 +189,7 @@ MLP_layer create_MLP_layer(size_t input_dimension, size_t num_neurons, float *pa
  */
 MLP mlp_from_arr(size_t arr[], size_t size){
 	MLP n;
-	n.learning_rate = 0.1;
+	//n.learning_rate = 0.1;
 	n.input_dimension = arr[0];
 	n.output_dimension = arr[size-1];
 	n.depth = size-1;

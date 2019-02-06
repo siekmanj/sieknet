@@ -19,7 +19,7 @@
 /*
  * Used to initialize input/forget/output gates
  */
-static Gate createGate(float *weights, float *bias, size_t sequence_length){
+static Gate createGate(float *weights, float *bias, float *weight_grad, float *bias_grad, size_t sequence_length){
 	Gate g;
 	g.output = ALLOCATE(float, sequence_length);
 	g.dOutput = ALLOCATE(float, sequence_length);
@@ -27,6 +27,9 @@ static Gate createGate(float *weights, float *bias, size_t sequence_length){
 
 	g.weights = weights;
 	g.bias = bias;
+
+	g.bias_grad = bias_grad;
+	g.weight_grad = weight_grad;
 
 	return g;
 }
@@ -76,7 +79,7 @@ float lstm_cost(LSTM *n, float *y){
 /*
  * Used to initialize & allocate memory for a layer of LSTM cells
  */
-LSTM_layer create_LSTM_layer(size_t input_dim, size_t size, float *param_addr){
+LSTM_layer create_LSTM_layer(size_t input_dim, size_t size, float *param_addr, float *param_grad){
 	LSTM_layer l;
 	l.input_dimension = input_dim + size;
 
@@ -89,28 +92,40 @@ LSTM_layer create_LSTM_layer(size_t input_dim, size_t size, float *param_addr){
 		float *input_nonl_bias = &param_addr[param_idx];
 		float *input_nonl_weights = &param_addr[param_idx+1];
 		xavier_init(&param_addr[param_idx], (l.input_dimension+1), size);
+
+		float *input_nonl_bias_grad = &param_grad[param_idx];
+		float *input_nonl_weight_grad = &param_grad[param_idx+1];
 		param_idx += l.input_dimension+1;
 
 		float *input_gate_bias = &param_addr[param_idx];
 		float *input_gate_weights = &param_addr[param_idx+1];
 		xavier_init(&param_addr[param_idx], (l.input_dimension+1), size);
+
+		float *input_gate_bias_grad = &param_grad[param_idx];
+		float *input_gate_weight_grad = &param_grad[param_idx+1];
 		param_idx += l.input_dimension+1;
 		
 		float *forget_gate_bias = &param_addr[param_idx];
 		float *forget_gate_weights = &param_addr[param_idx+1];
 		xavier_init(&param_addr[param_idx], (l.input_dimension+1), size);
+
+		float *forget_gate_bias_grad = &param_grad[param_idx];
+		float *forget_gate_weight_grad = &param_grad[param_idx+1];
 		param_idx += l.input_dimension+1;
 		
 		float *output_gate_bias = &param_addr[param_idx];
 		float *output_gate_weights = &param_addr[param_idx+1];
 		xavier_init(&param_addr[param_idx], (l.input_dimension+1), size);
+
+		float *output_gate_bias_grad = &param_grad[param_idx];
+		float *output_gate_weight_grad = &param_grad[param_idx+1];
 		param_idx += l.input_dimension+1;
 		
 		//Allocate gates
-		cell->input_nonl = createGate(input_nonl_weights, input_nonl_bias, MAX_UNROLL_LENGTH);
-		cell->input_gate = createGate(input_gate_weights, input_gate_bias, MAX_UNROLL_LENGTH);
-		cell->forget_gate = createGate(forget_gate_weights, forget_gate_bias, MAX_UNROLL_LENGTH);
-		cell->output_gate = createGate(output_gate_weights, output_gate_bias, MAX_UNROLL_LENGTH);
+		cell->input_nonl = createGate(input_nonl_weights, input_nonl_bias, input_nonl_bias_grad, input_nonl_weight_grad, MAX_UNROLL_LENGTH);
+		cell->input_gate = createGate(input_gate_weights, input_gate_bias, input_gate_bias_grad, input_gate_weight_grad, MAX_UNROLL_LENGTH);
+		cell->forget_gate = createGate(forget_gate_weights, forget_gate_bias, forget_gate_bias_grad, forget_gate_weight_grad, MAX_UNROLL_LENGTH);
+		cell->output_gate = createGate(output_gate_weights, output_gate_bias, output_gate_bias_grad, output_gate_weight_grad, MAX_UNROLL_LENGTH);
 
 		cell->state = ALLOCATE(float, MAX_UNROLL_LENGTH);
 		cell->dstate = ALLOCATE(float, MAX_UNROLL_LENGTH);
@@ -164,10 +179,11 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 
 	n.layers = ALLOCATE(LSTM_layer, len-2);
 	n.params = ALLOCATE(float, num_params);
+	n.param_grad = ALLOCATE(float, num_params);
 	
 	int param_idx = 0;
 	for(int i = 1; i < len-1; i++){
-		LSTM_layer l = create_LSTM_layer(arr[i-1], arr[i], &n.params[param_idx]);
+		LSTM_layer l = create_LSTM_layer(arr[i-1], arr[i], &n.params[param_idx], &n.param_grad[param_idx]);
 		param_idx += (4*(arr[i-1]+arr[i]+1))*arr[i];
 		n.layers[i-1] = l;
 	}	

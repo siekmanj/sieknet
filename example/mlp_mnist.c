@@ -7,6 +7,7 @@
  */
 
 #include <mlp.h>
+#include <optimizer.h>
 #include <math.h>
 #include <mnist.h>
 #include <stdio.h>
@@ -27,9 +28,12 @@ int main(void) {
 	srand(time(NULL));
 
 	//MLP n = loadMLPFromFile("../model/mnist.mlp");
-	MLP n = create_mlp(784, 100, 10);
+	MLP n = create_mlp(784, 250, 10);
+	SGD o = init_sgd(n.params, n.param_grad, n.num_params);
+	//Momentum o = init_momentum(n.params, n.param_grad, n.num_params);
+	//o.alpha = 0.00075;
+	//o.beta = 0.99;
 
-	n.learning_rate = 0.05;
 	//n.batch_size = 1;
 	size_t epochs = 5;
 	int epoch = 0;
@@ -45,6 +49,7 @@ int main(void) {
 		}
 		printf("Training for %lu epochs.\n", epochs);
 		float avgCost = 0;
+		clock_t start = clock();
 		for(size_t i = 0; i < training_set.numImages * epochs; i++) { // Run for the given number of epochs
 			//size_t index = i % training_set.numImages;
 			size_t index = rand() % training_set.numImages;
@@ -60,12 +65,15 @@ int main(void) {
 				exit(1);
 			}
 			mlp_backward(&n);
+			o.step(o);
 
 		 avgCost += c;
 
 			// Save the state of the network at the end of each epoch.
 			if(i % training_set.numImages == 0 && i != 0) {
-				printf("Epoch %d finished, cost %f.\n", epoch++, avgCost / i);
+				float secs = (float)(clock() - start) / CLOCKS_PER_SEC;
+				printf("Epoch %d finished in %6.5f seconds, cost %f.\n", epoch++, secs, avgCost / i);
+				start = clock();
 			}
 		}
 	}
