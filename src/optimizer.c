@@ -8,6 +8,7 @@
 static float sgd_step(SGD o){
 	float entropy = 0;
 	for(int i = 0; i < o.num_params; i++){
+    //printf("GRAD %d is %f!!!\n", i, o.gradient[i]);
 		o.weights[i] += o.learning_rate * o.gradient[i];
 		//entropy += o.learning_rate * o.gradient[i];
 		o.gradient[i] = 0.0;
@@ -18,10 +19,12 @@ static float sgd_step(SGD o){
 static float momentum_step(Momentum o){
 	float entropy = 0;
 	for(int i = 0; i < o.num_params; i++){
-		o.z[i] = o.beta * o.z[i] + o.gradient[i];
-		o.weights[i] += o.alpha * o.z[i];
+    //if(o.gradient[i] > 0 || o.gradient[i] < 0){
+      o.z[i] = o.beta * o.z[i] + o.gradient[i];
+      o.weights[i] += o.alpha * o.z[i];
+      o.gradient[i] = 0.0;
+    //}
 		//entropy += o.alpha * o.z[i];
-		o.gradient[i] = 0.0;
 	}
 	return entropy;
 }
