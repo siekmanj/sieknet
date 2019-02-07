@@ -12,7 +12,7 @@
 
 typedef struct neuron{
 	//float input; //needed for efficient softmax
-	float *weight_grads;
+	float *weight_grad;
 	float *bias_grad;
 	float *weights;
 	float *bias;

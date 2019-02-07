@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#define create_optimizer(TYPE, network) init_## TYPE (network.params, network.param_grad, network.num_params)
+
 typedef struct sgd{
 	float *weights;
 	float *gradient;
@@ -27,7 +29,7 @@ typedef struct adam{
 	/*...*/
 } Adam;
 
-SGD init_sgd(float *, float *, size_t);
-Momentum init_momentum(float *, float *, size_t);
+SGD init_SGD(float *, float *, size_t);
+Momentum init_Momentum(float *, float *, size_t);
 
 #endif

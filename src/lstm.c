@@ -157,10 +157,10 @@ LSTM_layer create_LSTM_layer(size_t input_dim, size_t size, float *param_addr, f
 LSTM lstm_from_arr(size_t *arr, size_t len){
 	LSTM n;
 	n.t = 0;
-	n.collapse = 0;
+	//n.collapse = 0;
 	n.stateful = 0;
 	n.seq_len = 25;
-	n.learning_rate = 0.01;
+	//n.learning_rate = 0.01;
 	n.input_dimension = arr[0];
 	n.output_dimension = arr[len-1];
 	n.depth = len-2;
@@ -206,12 +206,13 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 	output_mlp.num_params = (arr[len-2]+1)*arr[len-1];
 	output_mlp.input_dimension = arr[len-2];
 	output_mlp.output_dimension = arr[len-1];
-	output_mlp.learning_rate = n.learning_rate/10.0;
+	//output_mlp.learning_rate = n.learning_rate/10.0;
 	output_mlp.params = &n.params[param_idx];
+  output_mlp.param_grad = &n.param_grad[param_idx];
 	output_mlp.output = ALLOCATE(float, arr[len-1]);
 	output_mlp.cost_gradient = ALLOCATE(float, arr[len-1]);
 	output_mlp.cost_fn = cross_entropy_cost;
-	output_mlp.layers[0] = create_MLP_layer(arr[len-2], arr[len-1], output_mlp.params, softmax);
+	output_mlp.layers[0] = create_MLP_layer(arr[len-2], arr[len-1], output_mlp.params, output_mlp.param_grad, softmax);
 	output_mlp.guess = 0;
 	output_mlp.output = output_mlp.layers[0].output;
 	n.output_layer = output_mlp;
@@ -388,7 +389,7 @@ void lstm_propagate_gradients(LSTM *n, float **network_grads){
 /*
  * Perform parameter update step for a single layer
  */
-void lstm_layer_backward(LSTM_layer *l, size_t max_time, float learning_rate){
+void lstm_layer_backward(LSTM_layer *l, size_t max_time){
 	int recurrent_offset = l->input_dimension - l->size;
 	for(long t = 0; t <= max_time; t++){
 		for(long j = 0; j < l->size; j++){
@@ -398,27 +399,27 @@ void lstm_layer_backward(LSTM_layer *l, size_t max_time, float learning_rate){
 			Gate *f = &c->forget_gate;
 			Gate *o = &c->output_gate;
 			for(long k = 0; k < recurrent_offset; k++){
-				a->weights[k] += a->gradient[t] * l->input[t][k] * learning_rate;
-				i->weights[k] += i->gradient[t] * l->input[t][k] * learning_rate;
-				f->weights[k] += f->gradient[t] * l->input[t][k] * learning_rate;
-				o->weights[k] += o->gradient[t] * l->input[t][k] * learning_rate;
+				a->weight_grad[k] += a->gradient[t] * l->input[t][k];
+				i->weight_grad[k] += i->gradient[t] * l->input[t][k];
+				f->weight_grad[k] += f->gradient[t] * l->input[t][k];
+				o->weight_grad[k] += o->gradient[t] * l->input[t][k];
 			}
 			if(t < max_time){
 				for(long k = recurrent_offset; k < l->input_dimension; k++){
-					a->weights[k] += a->gradient[t+1] * l->output[t][j] * learning_rate;
-					i->weights[k] += i->gradient[t+1] * l->output[t][j] * learning_rate;
-					f->weights[k] += f->gradient[t+1] * l->output[t][j] * learning_rate;
-					o->weights[k] += o->gradient[t+1] * l->output[t][j] * learning_rate;
+					a->weight_grad[k] += a->gradient[t+1] * l->output[t][j];
+					i->weight_grad[k] += i->gradient[t+1] * l->output[t][j];
+					f->weight_grad[k] += f->gradient[t+1] * l->output[t][j];
+					o->weight_grad[k] += o->gradient[t+1] * l->output[t][j];
 					if(isnan(a->weights[k])){
-						printf("ERROR: layer_backward(): nan'ed a weight while doing nudge, from %6.5f * %6.5f * %6.5f\n", a->gradient[t+1], l->output[t][j], learning_rate);
+						printf("ERROR: layer_backward(): nan'ed a weight grad, from %6.5f * %6.5f\n", a->gradient[t+1], l->output[t][j]);
 						exit(1);
 					}
 				}
 			}
-			*a->bias += a->gradient[t] * learning_rate;
-			*i->bias += i->gradient[t] * learning_rate;
-			*f->bias += f->gradient[t] * learning_rate;
-			*o->bias += o->gradient[t] * learning_rate;
+			*a->bias_grad += a->gradient[t];
+			*i->bias_grad += i->gradient[t];
+			*f->bias_grad += f->gradient[t];
+			*o->bias_grad += o->gradient[t];
 		}
 	}
 }
@@ -431,7 +432,7 @@ void lstm_backward(LSTM *n){
 		//printf("xxxB %lu of %lu!", n->t, n->seq_len);
 		lstm_propagate_gradients(n, n->network_gradient);
 		for(int i = n->depth-1; i >= 0; i--){
-			lstm_layer_backward(&n->layers[i], n->t-1, n->learning_rate);
+			lstm_layer_backward(&n->layers[i], n->t-1);
 		}
 		for(int i = 0; i < n->depth; i++){
 			LSTM_layer *l = &n->layers[i];

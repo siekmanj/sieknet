@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 
+
 static float sgd_step(SGD o){
 	float entropy = 0;
 	for(int i = 0; i < o.num_params; i++){
@@ -25,7 +26,7 @@ static float momentum_step(Momentum o){
 	return entropy;
 }
 
-SGD init_sgd(float *weights, float *gradient, size_t num_params){
+SGD init_SGD(float *weights, float *gradient, size_t num_params){
 	SGD o;
 	o.weights = weights;
 	o.gradient = gradient;
@@ -35,7 +36,7 @@ SGD init_sgd(float *weights, float *gradient, size_t num_params){
 	return o;
 }
 
-Momentum init_momentum(float *weights, float *gradient, size_t num_params){
+Momentum init_Momentum(float *weights, float *gradient, size_t num_params){
 	Momentum o;
 	o.weights = weights;
 	o.gradient = gradient;

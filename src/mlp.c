@@ -160,7 +160,7 @@ MLP_layer create_MLP_layer(size_t input_dimension, size_t num_neurons, float *pa
 		xavier_init(&params[param_idx], input_dimension+1, num_neurons);
 
 		neurons[i].bias_grad = &param_grad[param_idx];
-		neurons[i].weight_grads = &param_grad[param_idx+1];
+		neurons[i].weight_grad = &param_grad[param_idx+1];
 		param_idx += input_dimension + 1;
 	}
 	//layer.input = NULL; //set in forward pass
@@ -367,7 +367,7 @@ void mlp_layer_backward(MLP_layer *l, float *grads/*, float *avg_ins, float lear
 		for(int j = 0; j < l->input_dimension; j++){
 			//float x = avg_ins[j];
 			float x = l->input[j];
-			l->neurons[i].weight_grads[j] += gradient * d_output * x;// * learning_rate;
+			l->neurons[i].weight_grad[j] += gradient * d_output * x;// * learning_rate;
 		}
 		*l->neurons[i].bias_grad += gradient * d_output;// * learning_rate;
 	}
