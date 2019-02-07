@@ -31,8 +31,10 @@ int main(void){
 	srand(time(NULL));
 	LSTM n = create_lstm(10, 45, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
 	//n.learning_rate = 0.01;
-  SGD o = create_optimizer(SGD, n);
-  o.learning_rate = 0.01;
+  Momentum o = create_optimizer(Momentum, n);
+  o.alpha = 0.0005;
+  o.beta = 0.99;
+  //o.learning_rate = 0.01;
 
 	float cost = 0;
 	float cost_threshold = 0.4;
@@ -58,7 +60,7 @@ int main(void){
 			float c = lstm_cost(&n, expected);
 			lstm_backward(&n);
 
-      if(!n.t) o.step(o);
+      o.step(o);
 
 			cost += c;
 
