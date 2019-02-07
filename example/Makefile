@@ -23,9 +23,8 @@ mlp_mnist:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MNIST_SRC) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 binary:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
-
 sequence:
-	$(CC) $(CFLAGS) $(INCLUDE) $(MLP_SRC) $(LSTM_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
+	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(LSTM_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 
 
 

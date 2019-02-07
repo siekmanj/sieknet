@@ -14,12 +14,9 @@
 int main(){
 	srand(time(NULL));
 
-	MLP n = create_mlp(4, 32, 16);
-	Momentum optimizer = init_momentum(n.params, n.param_grad, n.num_params);
+	MLP n = create_mlp(4, 16);
+  Momentum o = create_optimizer(Momentum, n);
 
-	//MLP n = load_mlp("../model/bin.mlp");
-
-	//n.learning_rate = 0.1;
 	n.layers[0].logistic = relu;
 	float avg_cost;
 	for(int i = 0; i < 100000; i++){ //Run the network for a while
@@ -37,14 +34,14 @@ int main(){
 		float cost = mlp_cost(&n, y);
 		mlp_backward(&n);
 
-		optimizer.step(optimizer);
+		o.step(o);
 
 		avg_cost += cost;
 
 		//Debug stuff
 		if(!(i % 1000)){
 			printf("CURRENTLY ON EXAMPLE %d\n", i);
-			printf("Label %2d, guess %2d, Cost: %5.3f, avg: %5.3f\n\n(ENTER to continue, CTRL+C to quit)\n", (int)ans, n.guess, cost, avg_cost/i);
+			printf("Label %2d, guess %2lu, Cost: %5.3f, avg: %5.3f\n\n(ENTER to continue, CTRL+C to quit)\n", (int)ans, n.guess, cost, avg_cost/i);
 			getchar();
 		}	
 	}
