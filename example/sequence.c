@@ -32,7 +32,7 @@ int main(void){
 	LSTM n = create_lstm(10, 45, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
 	//n.learning_rate = 0.01;
   Momentum o = create_optimizer(Momentum, n);
-  o.alpha = 0.0005;
+  o.alpha = 0.0001;
   o.beta = 0.99;
   //o.learning_rate = 0.01;
 
