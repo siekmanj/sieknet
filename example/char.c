@@ -5,7 +5,9 @@
 #include <time.h>
 #include <math.h>
 #include <string.h>
-#include "lstm.h"
+
+#include <lstm.h>
+#include <optimizer.h>
 
 
 #define CREATEONEHOT(name, size, index) float name[size]; memset(name, '\0', size*sizeof(float)); name[index] = 1.0;
@@ -16,9 +18,10 @@ size_t HIDDEN_LAYER_SIZE = 75;
 size_t NUM_EPOCHS = 1;
 size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 
-float LEARNING_RATE     = 0.001;
-float LEARNING_BASELINE = 0.000005;
-float LEARNING_DECAY = 0.5;
+float LEARNING_RATE = 0.0005;
+float MOMENTUM      = 0.99;
+//float LEARNING_BASELINE = 0.000005;
+//float LEARNING_DECAY = 0.5;
 
 /*
  * This file is for training an LSTM character-by-character on any text (ascii) file provided.
@@ -72,11 +75,12 @@ char *get_sequence(FILE *fp, size_t *size){
 
 int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float learning_rate){
 	/* Begin training */
-	float learning_schedule[num_epochs];
-	for(int i = 0; i < num_epochs; i++)
-    learning_schedule[i] = learning_rate;// * pow(LEARNING_DECAY, i) + LEARNING_BASELINE;
+	//float learning_schedule[num_epochs];
+	//for(int i = 0; i < num_epochs; i++)
+  //  learning_schedule[i] = learning_rate;// * pow(LEARNING_DECAY, i) + LEARNING_BASELINE;
 
-	n->learning_rate = learning_rate;
+	//n->learning_rate = learning_rate;
+	Momentum o = create_optimizer(Momentum, *n);
 	n->stateful = 1;
 
 	FILE *fp = fopen(datafile, "rb");
@@ -85,7 +89,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 	fclose(fp);
 
 	for(int i = 0; i < num_epochs; i++){
-		n->learning_rate = learning_schedule[i];
+		//n->learning_rate = learning_schedule[i];
 		FILE *fp = fopen(datafile, "rb");
 		size_t training_iterations = 100;
 		size_t sequence_counter = 0;
@@ -106,6 +110,8 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 				lstm_forward(n, x);
 				float c = lstm_cost(n, y);
 				lstm_backward(n);
+
+				if(!n->t) o.step(o);
 			
 				if(n->guess == char2int(label)) printf("%c", int2char(n->guess));
 				else printf("_");
@@ -123,7 +129,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			if(!(sequence_counter % (training_iterations))){
 				wipe(n);
 				float completion =((float)ctr/datafilelen);
-				printf("\n***\nEpoch %d %5.2f%% complete, avg cost %f (learning rate %8.7f), avg seq cost %6.5f.\n", i, 100 * completion, avg_cost/sequence_counter, n->learning_rate, avg_seq_cost / training_iterations);
+				printf("\n***\nEpoch %d %5.2f%% complete, avg cost %f (learning rate %8.7f), avg seq cost %6.5f.\n", i, 100 * completion, avg_cost/sequence_counter, LEARNING_RATE, avg_seq_cost / training_iterations);
 				printf("%lu character sample from lstm below:\n", 10*training_iterations);
 
 				int seed = 95;
