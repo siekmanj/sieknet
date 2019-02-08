@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define create_optimizer(TYPE, network) init_## TYPE (network.params, network.param_grad, network.num_params)
+#define create_optimizer(TYPE, network) init_## TYPE ((network).params, (network).param_grad, (network).num_params)
 
 typedef struct sgd{
 	float *weights;
