@@ -122,10 +122,10 @@ LSTM_layer create_LSTM_layer(size_t input_dim, size_t size, float *param_addr, f
 		param_idx += l.input_dimension+1;
 		
 		//Allocate gates
-		cell->input_nonl = createGate(input_nonl_weights, input_nonl_bias, input_nonl_bias_grad, input_nonl_weight_grad, MAX_UNROLL_LENGTH);
-		cell->input_gate = createGate(input_gate_weights, input_gate_bias, input_gate_bias_grad, input_gate_weight_grad, MAX_UNROLL_LENGTH);
-		cell->forget_gate = createGate(forget_gate_weights, forget_gate_bias, forget_gate_bias_grad, forget_gate_weight_grad, MAX_UNROLL_LENGTH);
-		cell->output_gate = createGate(output_gate_weights, output_gate_bias, output_gate_bias_grad, output_gate_weight_grad, MAX_UNROLL_LENGTH);
+		cell->input_nonl = createGate(input_nonl_weights, input_nonl_bias, input_nonl_weight_grad, input_nonl_bias_grad, MAX_UNROLL_LENGTH);
+		cell->input_gate = createGate(input_gate_weights, input_gate_bias, input_gate_weight_grad, input_gate_bias_grad, MAX_UNROLL_LENGTH);
+		cell->forget_gate = createGate(forget_gate_weights, forget_gate_bias, forget_gate_weight_grad, forget_gate_bias_grad, MAX_UNROLL_LENGTH);
+		cell->output_gate = createGate(output_gate_weights, output_gate_bias, output_gate_weight_grad,  output_gate_bias_grad, MAX_UNROLL_LENGTH);
 
 		cell->state = ALLOCATE(float, MAX_UNROLL_LENGTH);
 		cell->dstate = ALLOCATE(float, MAX_UNROLL_LENGTH);
@@ -180,6 +180,8 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 	n.layers = ALLOCATE(LSTM_layer, len-2);
 	n.params = ALLOCATE(float, num_params);
 	n.param_grad = ALLOCATE(float, num_params);
+
+	memset(n.param_grad, '\0', num_params*sizeof(float));
 	
 	int param_idx = 0;
 	for(int i = 1; i < len-1; i++){
@@ -429,7 +431,7 @@ void lstm_layer_backward(LSTM_layer *l, size_t max_time){
  */
 void lstm_backward(LSTM *n){
 	if(n->t >= n->seq_len){
-		//printf("xxxB %lu of %lu!", n->t, n->seq_len);
+		printf("BACKPROP %lu of %lu!", n->t, n->seq_len);
 		lstm_propagate_gradients(n, n->network_gradient);
 		for(int i = n->depth-1; i >= 0; i--){
 			lstm_layer_backward(&n->layers[i], n->t-1);
