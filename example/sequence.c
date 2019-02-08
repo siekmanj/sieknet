@@ -31,10 +31,15 @@ int main(void){
 	srand(time(NULL));
 	LSTM n = create_lstm(10, 45, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
 	//n.learning_rate = 0.01;
-  Momentum o = create_optimizer(Momentum, n);
-  o.alpha = 0.0001;
-  o.beta = 0.99;
-  //o.learning_rate = 0.01;
+  //Momentum o = create_optimizer(Momentum, n);
+  //o.alpha = 0.0001;
+  //o.beta = 0.99;
+	//SGD o = create_optimizer(SGD, n);
+ 	//o.learning_rate = 0.05;
+	Momentum o = create_optimizer(Momentum, n);
+	o.alpha = 0.001;
+	//SGD o1 = init_SGD(n.params, n.param_grad, n.num_params - n.output_layer.num_params);
+	//SGD o2 = init_SGD(n.output_layer.params, n.output_layer.param_grad, n.output_layer.num_params);
 
 	float cost = 0;
 	float cost_threshold = 0.4;
@@ -60,7 +65,10 @@ int main(void){
 			float c = lstm_cost(&n, expected);
 			lstm_backward(&n);
 
-      o.step(o);
+			//printf("t: %lu, mlp paramgrad: %f, lstm paramgrad: %f\n", n.t, n.output_layer.param_grad[0], n.param_grad[10]);
+			//o2.step(o2);
+      //if(!n.t && i) o1.step(o1);
+			if(!n.t) o.step(o);
 
 			cost += c;
 
@@ -75,7 +83,7 @@ int main(void){
 
 	  if(cost/count < cost_threshold){
 			printf("\nCost threshold %1.2f reached in %d iterations\n", cost_threshold, count);
-      printf("Running forward:\n");
+      printf("Running sequence:\n");
       wipe(&n);
       printf("1, ");
       int input = 1;
@@ -88,6 +96,7 @@ int main(void){
         printf("%d, ", n.guess);
         input = n.guess;
       }
+			printf("\n");
 			exit(0);
 		}
 	}
