@@ -90,6 +90,14 @@ void xavier_init(float *params, size_t input_dim, size_t layer_size){
 	}
 }
 
+/*
+ * Does zero-init on a vector
+ */
+void zero_init(float *x, size_t dim){
+	for(int i = 0; i < dim; i++)
+		x[i] = 0.0;
+}
+
 
 /*
  * Calculates the gradients wrt cost function given a label vector y.
@@ -136,7 +144,7 @@ float mlp_cost(MLP *n, float *y){
 /* 
  * Creates a layer object
  */
-MLP_layer create_MLP_layer(size_t input_dimension, size_t num_neurons, float *params, void(*logistic)(const float *, float *, size_t)){
+MLP_layer create_MLP_layer(size_t input_dimension, size_t num_neurons, float *params, float *param_grad, void(*logistic)(const float *, float *, size_t)){
 	MLP_layer layer;
 
 	//Allocate every neuron in the layer
@@ -150,6 +158,9 @@ MLP_layer create_MLP_layer(size_t input_dimension, size_t num_neurons, float *pa
 		neurons[i].weights = &params[param_idx+1];
 		//Xavier (or Xavier-like) bias+weight initialization
 		xavier_init(&params[param_idx], input_dimension+1, num_neurons);
+
+		neurons[i].bias_grad = &param_grad[param_idx];
+		neurons[i].weight_grad = &param_grad[param_idx+1];
 		param_idx += input_dimension + 1;
 	}
 	//layer.input = NULL; //set in forward pass
@@ -178,7 +189,7 @@ MLP_layer create_MLP_layer(size_t input_dimension, size_t num_neurons, float *pa
  */
 MLP mlp_from_arr(size_t arr[], size_t size){
 	MLP n;
-	n.learning_rate = 0.1;
+	//n.learning_rate = 0.1;
 	n.input_dimension = arr[0];
 	n.output_dimension = arr[size-1];
 	n.depth = size-1;
@@ -193,8 +204,8 @@ MLP mlp_from_arr(size_t arr[], size_t size){
 	}
 
 	n.num_params = num_params;
-	//n.params = (float*)malloc(num_params*sizeof(float)); //contains weights and biases of every layer
 	n.params = ALLOCATE(float, num_params);
+	n.param_grad = ALLOCATE(float, num_params);
 
 	n.cost_gradient = (float*)malloc(n.output_dimension * sizeof(float));
 	/*
@@ -218,13 +229,14 @@ MLP mlp_from_arr(size_t arr[], size_t size){
 			size_t input_dimension = arr[i-1];
 
 			float *param_addr = &n.params[param_idx];
+			float *grad_addr = &n.param_grad[param_idx];
 
 			param_idx += layer_size * (input_dimension+1);
 
 			if(i < size-1)
-				l = create_MLP_layer(input_dimension, layer_size, param_addr, sigmoid);
+				l = create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, sigmoid);
 			else
-				l = create_MLP_layer(input_dimension, layer_size, param_addr, softmax);
+				l = create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, softmax);
 			
 			n.layers[i-1] = l;
 	}
@@ -345,7 +357,7 @@ void propagate_gradients(MLP *n, float *gradient/*, size_t batches*/){
 /*
  * Calculates the backward pass for a single layer (does parameter update)
  */
-void mlp_layer_backward(MLP_layer *l, float *grads/*, float *avg_ins*/, float learning_rate){
+void mlp_layer_backward(MLP_layer *l, float *grads/*, float *avg_ins, float learning_rate*/){
 	//float *avg_outs = l->output[MAX_BATCH_SIZE-1];
 	float *avg_outs = l->output;
 	for(int i = 0; i < l->size; i++){
@@ -355,9 +367,9 @@ void mlp_layer_backward(MLP_layer *l, float *grads/*, float *avg_ins*/, float le
 		for(int j = 0; j < l->input_dimension; j++){
 			//float x = avg_ins[j];
 			float x = l->input[j];
-			l->neurons[i].weights[j] += gradient * d_output * x * learning_rate;
+			l->neurons[i].weight_grad[j] += gradient * d_output * x;// * learning_rate;
 		}
-		*l->neurons[i].bias += gradient * d_output * learning_rate;
+		*l->neurons[i].bias_grad += gradient * d_output;// * learning_rate;
 	}
 }
 
@@ -374,7 +386,7 @@ void mlp_backward(MLP *n){
 	propagate_gradients(n, grads/*, n->batch_size*/);
 	for(int i = n->depth-1; i >= 0; i--){
 		//float *avg_ins = n->layers[i-1].output[MAX_BATCH_SIZE-1];
-		mlp_layer_backward(&n->layers[i], grads/*, avg_ins*/, n->learning_rate);
+		mlp_layer_backward(&n->layers[i], grads/*, avg_ins, n->learning_rate*/);
 		grads = n->layers[i].gradient;
 	}
 	//float *avg_ins = n->network_input[MAX_BATCH_SIZE-1];
