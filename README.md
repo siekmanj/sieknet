@@ -69,8 +69,8 @@ dealloc_mlp(&n); //Free the network's memory from the heap
 You can also just run the forward pass:
 ```C
 while(1){
-		mlp_forward(&n, x);
-		printf("network output: %d\n", n.guess);
+	mlp_forward(&n, x);
+	printf("network output: %d\n", n.guess);
 }
 ```
 
@@ -115,14 +115,14 @@ o.beta = 0.99;
 n.seq_len = 3; //How long the time sequences in your data are.
 n.stateful = 0; //Reset hidden state & cell state every parameter update.
 for(int i = 0; i < 6; i++){
-		lstm_forward(&n, x); //Evaluated every i
-		float c = lstm_cost(&n, y); //Evaluated every i
-		lstm_backward(&n); //Because seq_len=3, the backward pass will only be evaluated when i=2 and i=5
+	lstm_forward(&n, x); //Evaluated every i
+	float c = lstm_cost(&n, y); //Evaluated every i
+	lstm_backward(&n); //Because seq_len=3, the backward pass will only be evaluated when i=2 and i=5
 
-		//Strictly speaking, you can run o.step(o) every timestep, as n.param_grad will be zeroed, so no updates will occur.
-		//However, it is inefficient to do so, and may interfere with momentum's averaging.
-		//Therefore, I recommend that you only run a parameter update when n.t is zero - having been reset by lstm_backward.
-		if(!n.t) o.step(o); //Only run optimizer after gradient is calculated and n.t is reset to 0.
+	//Strictly speaking, you can run o.step(o) every timestep, as n.param_grad will be zeroed, so no updates will occur.
+	//However, it is inefficient to do so, and may interfere with momentum's averaging.
+	//Therefore, I recommend that you only run a parameter update when n.t is zero - having been reset by lstm_backward.
+	if(!n.t) o.step(o); //Only run optimizer after gradient is calculated and n.t is reset to 0.
 }
 
 ```
@@ -133,13 +133,13 @@ You will need to decide how long to make your seq_len. If you use a sequence len
 n.stateful = 1; //recurrent inputs and cell states won't be reset after a parameter update.
 n.seq_len = 30; //run parameter update (backpropagation through time) every 30 timesteps
 for(int i = 0; /*forever*/; i++){
-		lstm_forward(&n, x);
-		lstm_cost(&n, y);
-		lstm_backward(&n); //Evaluated every 30 timesteps, does NOT reset lstm states.
-		if(!n.t) o.step(o); //Only run optimizer after gradient is calculated and n.t is reset to 0.
+	lstm_forward(&n, x);
+	lstm_cost(&n, y);
+	lstm_backward(&n); //Evaluated every 30 timesteps, does NOT reset lstm states.
+	if(!n.t) o.step(o); //Only run optimizer after gradient is calculated and n.t is reset to 0.
 		
-		if(sequence_is_over)
-			wipe(&n);
+	if(sequence_is_over)
+		wipe(&n);
 }
 ```
 If you choose to do this, you will need to reset the states at some point yourself using `wipe()`, as shown above.
@@ -147,8 +147,8 @@ If you choose to do this, you will need to reset the states at some point yourse
 If you just want to run the network without training, you can do so like this:
 ```C
 for(int i = 0; /*forever*/; i++){
-		lstm_forward(&n, x);
-		printf("network output: %d\n", n.guess);
+	lstm_forward(&n, x);
+	printf("network output: %d\n", n.guess);
 }
 ```
 Saving and loading the network is straightforward:
