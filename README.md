@@ -69,8 +69,8 @@ dealloc_mlp(&n); //Free the network's memory from the heap
 You can also just run the forward pass:
 ```C
 while(1){
-    mlp_forward(&n, x);
-    printf("network output: %d\n", n.guess);
+		mlp_forward(&n, x);
+		printf("network output: %d\n", n.guess);
 }
 ```
 
@@ -115,9 +115,9 @@ o.beta = 0.99;
 n.seq_len = 3; //How long the time sequences in your data are.
 n.stateful = 0; //Reset hidden state & cell state every parameter update.
 for(int i = 0; i < 6; i++){
-    lstm_forward(&n, x); //Evaluated every i
-    float c = lstm_cost(&n, y); //Evaluated every i
-    lstm_backward(&n); //Because seq_len=3, the backward pass will only be evaluated when i=2 and i=5
+		lstm_forward(&n, x); //Evaluated every i
+		float c = lstm_cost(&n, y); //Evaluated every i
+		lstm_backward(&n); //Because seq_len=3, the backward pass will only be evaluated when i=2 and i=5
 
 		//Strictly speaking, you can run o.step(o) every timestep, as n.param_grad will be zeroed, so no updates will occur.
 		//However, it is inefficient to do so, and may interfere with momentum's averaging.
@@ -133,13 +133,13 @@ You will need to decide how long to make your seq_len. If you use a sequence len
 n.stateful = 1; //recurrent inputs and cell states won't be reset after a parameter update.
 n.seq_len = 30; //run parameter update (backpropagation through time) every 30 timesteps
 for(int i = 0; /*forever*/; i++){
-    lstm_forward(&n, x);
-    lstm_cost(&n, y);
-    lstm_backward(&n); //Evaluated every 30 timesteps, does NOT reset lstm states.
+		lstm_forward(&n, x);
+		lstm_cost(&n, y);
+		lstm_backward(&n); //Evaluated every 30 timesteps, does NOT reset lstm states.
 		if(!n.t) o.step(o); //Only run optimizer after gradient is calculated and n.t is reset to 0.
-    
-    if(sequence_is_over)
-      wipe(&n);
+		
+		if(sequence_is_over)
+			wipe(&n);
 }
 ```
 If you choose to do this, you will need to reset the states at some point yourself using `wipe()`, as shown above.
@@ -147,8 +147,8 @@ If you choose to do this, you will need to reset the states at some point yourse
 If you just want to run the network without training, you can do so like this:
 ```C
 for(int i = 0; /*forever*/; i++){
-    lstm_forward(&n, x);
-    printf("network output: %d\n", n.guess);
+		lstm_forward(&n, x);
+		printf("network output: %d\n", n.guess);
 }
 ```
 Saving and loading the network is straightforward:
@@ -162,32 +162,32 @@ Various demonstrations of how to use the library can be found in `/example/`, al
 ## References
 I have used the following resources extensively in the course of this project:
 
-  * Michael Nielsen's excellent [online book](http://www.neuralnetworksanddeeplearning.com)
-  * 3blue1brown's [YouTube series](https://www.youtube.com/watch?v=aircAruvnKk&list=PLZHQObOWTQDNU6R1_67000Dx_ZCJB-3pi)
-  * Wikipedia's article on [Recurrent Neural Networks](https://en.wikipedia.org/wiki/Recurrent_neural_network) 
-  * Andrej Karpathy's [article on RNN's](http://karpathy.github.io/2015/05/21/rnn-effectiveness/)
-  * Eli Bendersky's article on the [softmax function](https://eli.thegreenplace.net/2016/the-softmax-function-and-its-derivative/)
-  * Aidan Gomez's blog post on [backpropagating an LSTM cell](https://blog.aidangomez.ca/2016/04/17/Backpropogating-an-LSTM-A-Numerical-Example/)
+	* Michael Nielsen's excellent [online book](http://www.neuralnetworksanddeeplearning.com)
+	* 3blue1brown's [YouTube series](https://www.youtube.com/watch?v=aircAruvnKk&list=PLZHQObOWTQDNU6R1_67000Dx_ZCJB-3pi)
+	* Wikipedia's article on [Recurrent Neural Networks](https://en.wikipedia.org/wiki/Recurrent_neural_network) 
+	* Andrej Karpathy's [article on RNN's](http://karpathy.github.io/2015/05/21/rnn-effectiveness/)
+	* Eli Bendersky's article on the [softmax function](https://eli.thegreenplace.net/2016/the-softmax-function-and-its-derivative/)
+	* Aidan Gomez's blog post on [backpropagating an LSTM cell](https://blog.aidangomez.ca/2016/04/17/Backpropogating-an-LSTM-A-Numerical-Example/)
 
-      
+			
 Here is a short sample from an lstm trained for 3 epochs on shakespeare's complete works:
 
-    IMOGEN. I'll be stay songer for beardess
-      And stranger be some before that be
-      If is the servents and bearded
-      As books bearthers. I'll be for hath before beard
-      And stronger that be staing.
-      As I have be the forthers,
-      And streath of my bearded be for
-      And streather.
-      As I see that be some before beard
-      As forthing be some beforest beard
-      As forthing bearst for his beath
-      As be bounders forthers,
-      As be againg to be stords
-      And streather. I'll be some be for here.
-    Enter GERIAN. I'll be as all be forthing bears
-      And stranger.
-      As I stall be best be forthers,
-      And stranger be to stronger.
-      As I seed be as all be the forthy sours
+		IMOGEN. I'll be stay songer for beardess
+			And stranger be some before that be
+			If is the servents and bearded
+			As books bearthers. I'll be for hath before beard
+			And stronger that be staing.
+			As I have be the forthers,
+			And streath of my bearded be for
+			And streather.
+			As I see that be some before beard
+			As forthing be some beforest beard
+			As forthing bearst for his beath
+			As be bounders forthers,
+			As be againg to be stords
+			And streather. I'll be some be for here.
+		Enter GERIAN. I'll be as all be forthing bears
+			And stranger.
+			As I stall be best be forthers,
+			And stranger be to stronger.
+			As I seed be as all be the forthy sours
