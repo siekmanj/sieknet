@@ -11,10 +11,11 @@
 
 
 #define CREATEONEHOT(name, size, index) float name[size]; memset(name, '\0', size*sizeof(float)); name[index] = 1.0;
+#define NEWLSEQ 0
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 75;
+size_t HIDDEN_LAYER_SIZE = 300;
 size_t NUM_EPOCHS = 1;
 size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 
@@ -22,6 +23,7 @@ float LEARNING_RATE = 0.0005;
 float MOMENTUM      = 0.99;
 //float LEARNING_BASELINE = 0.000005;
 //float LEARNING_DECAY = 0.5;
+size_t SEQ_LEN = 100;
 
 /*
  * This file is for training an LSTM character-by-character on any text (ascii) file provided.
@@ -49,6 +51,7 @@ void bad_args(char *s, int pos){
 }
 
 char *get_sequence(FILE *fp, size_t *size){
+#if NEWLSEQ
 	size_t seq_len = 0;
 	while(1){
 		char tmp = fgetc(fp);
@@ -63,13 +66,20 @@ char *get_sequence(FILE *fp, size_t *size){
 	}
 	fseek(fp, -(seq_len), SEEK_CUR);
 	*size = seq_len+1;
-
 	char *ret = (char*)malloc(seq_len*sizeof(char));
 	for(int i = 0; i < seq_len; i++){
 		ret[i] = fgetc(fp);
 	}
-  //ret[seq_len-1] = '\0';
-  //printf("found sequence '%s'\n", ret);
+#else
+  char *ret = (char*)malloc(*size*sizeof(char));
+  for(int i = 0; i < *size; i++){
+    ret[i] = fgetc(fp);
+    if(ret[i] == EOF){
+      *size = 0;
+			return NULL;
+    }
+  }
+#endif
 	return ret;
 }
 
@@ -79,8 +89,10 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 	//for(int i = 0; i < num_epochs; i++)
   //  learning_schedule[i] = learning_rate;// * pow(LEARNING_DECAY, i) + LEARNING_BASELINE;
 
-	//n->learning_rate = learning_rate;
 	Momentum o = create_optimizer(Momentum, *n);
+	o.alpha = LEARNING_RATE;
+	o.beta = MOMENTUM;
+  n->seq_len = SEQ_LEN;
 	n->stateful = 1;
 
 	FILE *fp = fopen(datafile, "rb");
@@ -97,11 +109,11 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 		float avg_cost = 0;
 		float avg_seq_cost = 0;
 		char *seq = get_sequence(fp, &n->seq_len);
+		char input_char = '\n';
     wipe(n);
 		do{
 			float seq_cost = 0;
 			printf("(sequence len %lu): '", n->seq_len);
-			char input_char = '\n';
 			for(int j = 0; j < n->seq_len; j++){
 				char label = seq[j];
 				CREATEONEHOT(x, ASCII_RANGE, char2int(input_char));
@@ -182,7 +194,7 @@ int main(int argc, char** argv){
 	fclose(fp);
 
 	LSTM n;
-	if(newlstm) n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
+	if(newlstm) n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
 	else{
 		printf("loading '%s'\n", modelfile);
 		fp = fopen(modelfile, "rb");
@@ -193,6 +205,6 @@ int main(int argc, char** argv){
 	save_lstm(&n, modelfile);
 
 	train(&n, modelfile, datafile, NUM_EPOCHS, LEARNING_RATE);
-	printf("training finished! LSTM file is: '%s'\n", modelfile);
+	printf("training finished! LSTM saved to '%s'\n", modelfile);
 
 }
