@@ -17,6 +17,9 @@ typedef struct gate{
 	float *gradient;
 	float *weights;
 	float *bias;
+
+	float *weight_grad;
+	float *bias_grad;
 } Gate;
 
 typedef struct cell{
@@ -42,10 +45,11 @@ typedef struct lstm_layer{
 
 typedef struct lstm{
 	float *params;
+	float *param_grad;
 	float **network_gradient;
 	float **network_input;
 	
-	int collapse;
+	//int collapse;
 	int stateful;
 	int guess;
 	
@@ -57,7 +61,7 @@ typedef struct lstm{
 	size_t depth;
 	size_t t;
 
-	float learning_rate;
+	//float learning_rate;
 	LSTM_layer *layers;
 
 	MLP output_layer;
