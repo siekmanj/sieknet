@@ -111,6 +111,7 @@ LSTM_layer create_LSTM_layer(size_t input_dim, size_t size, float *param_addr, f
 
 		float *forget_gate_bias_grad = &param_grad[param_idx];
 		float *forget_gate_weight_grad = &param_grad[param_idx+1];
+		*forget_gate_bias = 1.0;
 		param_idx += l.input_dimension+1;
 		
 		float *output_gate_bias = &param_addr[param_idx];
@@ -208,7 +209,6 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 	output_mlp.num_params = (arr[len-2]+1)*arr[len-1];
 	output_mlp.input_dimension = arr[len-2];
 	output_mlp.output_dimension = arr[len-1];
-	//output_mlp.learning_rate = n.learning_rate/10.0;
 	output_mlp.params = &n.params[param_idx];
   output_mlp.param_grad = &n.param_grad[param_idx];
 	output_mlp.output = ALLOCATE(float, arr[len-1]);
@@ -431,7 +431,7 @@ void lstm_layer_backward(LSTM_layer *l, size_t max_time){
  */
 void lstm_backward(LSTM *n){
 	if(n->t >= n->seq_len){
-		printf("BACKPROP %lu of %lu!", n->t, n->seq_len);
+		//printf("BACKPROP %lu of %lu!", n->t, n->seq_len);
 		lstm_propagate_gradients(n, n->network_gradient);
 		for(int i = n->depth-1; i >= 0; i--){
 			lstm_layer_backward(&n->layers[i], n->t-1);
