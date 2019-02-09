@@ -5,12 +5,13 @@ This is a neural network and deep learning library written in C which implements
 Features include:
  - [x] basic multiplayer perceptron (MLP)
  - [x] long short-term memory (LSTM)
- - [x] backpropagation (gradient descent)
+ - [x] stochastic gradient descent
+ - [x] stochastic gradient descent with momentum
  - [x] backpropagation through time (BPTT)
  
 Plans for the near future include:
- - [ ] Adam stochastic optimizer
- - [ ] Momentum stochastic optimizer
+ - [ ] nesterov's accelerated gradient optimizer
+ - [ ] adam stochastic optimizer
  - [ ] vanilla recurrent neural network (implemented but broken)
  - [ ] gated recurrent unit (GRU)
  - [ ] policy gradients and various RL algorithms
@@ -23,6 +24,20 @@ Plans for the near future include:
 Everything is written so as to be easily modifiable. Parameters are stored in one large array similar to [Genann](https://github.com/codeplea/genann), so as to allow for alternative training methods like a genetic algorithm.
 
 ## Usage
+#### Optimizers
+All networks have a member array that stores the parameters of the network (`n.params`), and an array that stores the gradient of the loss function with respect to the parameters (`n.param_grad`). The `n.param_grad` array is calculated and updated by the networks' `xyz_backward` functions. The two arrays correspond to each other - i.e., the ith index of `n.param_grad` is the gradient of the ith index of `n.params`. This makes writing optimizers particularly straightforward and modular. So far, I have implemented two - stochastic gradient descent and sgd + momentum.
+
+You can create an optimizer using the `create_optimizer` macro, which takes as arguments the type of optimizer and the network it is optimizing (passed by value).
+
+```C
+SGD o1 = create_optimizer(SGD, neural_network); //create a stochastic gradient descent optimizer.
+Momentum o2 = create_optimizer(Momentum, neural_network); //create a momentum optimizer
+
+o1.step(o1); //Perform a parameter update with sgd using n.param_grad.
+o2.step(o2); //Perform a parameter update with momentum using n.param_grad.
+
+```
+
 #### Multilayer Perceptron
 Create a 2-layer mlp with an input dimension of 784 neurons:
 ```C
@@ -33,17 +48,20 @@ Create a 3-layer network with an input dimension of 784 neurons:
 MLP n = create_mlp(784, 35, 25, 10);
 ```
 
-Run a single forward/backward step:
+Run a single forward/backward step, and update the parameters:
 ```C
-MLP n = create_mlp(2, 16, 2);
-n.learning_rate = 0.01; //Set the learning rate
+MLP n = create_mlp(2, 16, 2); //Create a 2-layer network with hidden layer size 16.
+SGD o = create_optimizer(SGD, n); //Create a stochastic gradient descent optimizer object.
+o.learning_rate = 0.01; 
 
 float x[2] = {0.5, 0.1}; //network input
 float y[2] = {0.0, 1.0}; //output label
 
 mlp_forward(&n, x); //Run forward pass
 float cost = mlp_cost(&n, y); //Evaluate cost of network output
-mlp_backward(&n); //Run backward pass (update parameters)
+mlp_backward(&n); //Run backward pass (calculate n.param_grad)
+
+o.step(o); //Update the parameters of the network using gradients calculated in mlp_backward.
 
 dealloc_mlp(&n); //Free the network's memory from the heap
 ```
@@ -69,7 +87,7 @@ Save/load models to disk:
 ```C
 save_mlp(&n, "../model/file.mlp");
 dealloc_mlp(&n);
-MLP b = load_mlp("../model/file.mlp");
+n = load_mlp("../model/file.mlp");
 ```
 #### Long Short-Term Memory
 You can create an LSTM just like an MLP. The first number provided will be the input dimension to the network, subsequent numbers will be the size of hidden layers, and the final number will be the size of the softmax output layer.
@@ -90,19 +108,27 @@ The syntax looks a little bit gross, however. This is because the LSTM implement
 Using the forward/backward pass functions:
 ```C
 LSTM n = create_lstm(2, 5, 2);
-n.learning_rate = 0.01; //The learning rate the network will use
+Momentum o = create_optimizer(Momentum, n); //Create a momentum optimizer
+o.alpha = 0.01;
+o.beta = 0.99;
+
 n.seq_len = 3; //How long the time sequences in your data are.
 n.stateful = 0; //Reset hidden state & cell state every parameter update.
 for(int i = 0; i < 6; i++){
     lstm_forward(&n, x); //Evaluated every i
     float c = lstm_cost(&n, y); //Evaluated every i
     lstm_backward(&n); //Because seq_len=3, the backward pass will only be evaluated when i=2 and i=5
+
+		//Strictly speaking, you can run o.step(o) every timestep, as n.param_grad will be zeroed, so no updates will occur.
+		//However, it is inefficient to do so, and may interfere with momentum's averaging.
+		//Therefore, I recommend that you only run a parameter update when n.t is zero - having been reset by lstm_backward.
+		if(!n.t) o.step(o); //Only run optimizer after gradient is calculated and n.t is reset to 0.
 }
 
 ```
-Note that your `n.seq_len` determines when the backward pass is run. In the above example, the parameter update (`lstm_backward()`) is evaluated every third timestep.
+Note that your `n.seq_len` determines when the backward pass is run. In the above example, the gradient calculation (`lstm_backward()`) is evaluated every third timestep.
 
-You will need to decide how long to make your seq_len, but I recommend somewhere between 10 and 35. If you use a sequence length longer than 35, you may run into the exploding gradient problem. If your sequence data is longer than 35 timesteps, you can use the `n.stateful` flag to stop recurrent inputs and cell states from being zeroed out after a parameter update.
+You will need to decide how long to make your seq_len. If you use a sequence length longer than a few hundred, you may run into the exploding gradient problem. If your sequence data is particularly long, you can use the `n.stateful` flag to stop recurrent inputs and cell states from being zeroed out after a parameter update.
 ```C
 n.stateful = 1; //recurrent inputs and cell states won't be reset after a parameter update.
 n.seq_len = 30; //run parameter update (backpropagation through time) every 30 timesteps
@@ -110,14 +136,13 @@ for(int i = 0; /*forever*/; i++){
     lstm_forward(&n, x);
     lstm_cost(&n, y);
     lstm_backward(&n); //Evaluated every 30 timesteps, does NOT reset lstm states.
+		if(!n.t) o.step(o); //Only run optimizer after gradient is calculated and n.t is reset to 0.
     
     if(sequence_is_over)
       wipe(&n);
 }
 ```
 If you choose to do this, you will need to reset the states at some point yourself using `wipe()`, as shown above.
-
-If you absolutely need to train over sequences longer than 35 timesteps, the library supports up to 200 timesteps. There is a `#define MAX_UNROLL_LENGTH 200` in `/include/lstm.h` which you can modify if you need more than that. I don't recommend doing this, as backpropagation through time is a fairly memory-intensive algorithm.
 
 If you just want to run the network without training, you can do so like this:
 ```C
@@ -130,7 +155,7 @@ Saving and loading the network is straightforward:
 ```C
 save_lstm(&n, "../your/file.lstm");
 dealloc_lstm(&n);
-LSTM n = load_lstm("../your/file.lstm");
+n = load_lstm("../your/file.lstm");
 ```
 Various demonstrations of how to use the library can be found in `/example/`, along with a makefile for compiling them.
 
