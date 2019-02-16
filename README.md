@@ -24,7 +24,7 @@ Plans for the near future include:
 Everything is written so as to be easily modifiable. Parameters are stored in one large array similar to [Genann](https://github.com/codeplea/genann), so as to allow for alternative training methods like a genetic algorithm.
 
 ## Usage
-#### Optimizers
+### Optimizers
 All networks have a member array that stores the parameters of the network (`n.params`), and an array that stores the gradient of the loss function with respect to the parameters (`n.param_grad`). The `n.param_grad` array is calculated and updated by the networks' `xyz_backward` functions. The two arrays correspond to each other - i.e., the ith index of `n.param_grad` is the gradient of the ith index of `n.params`. This makes writing optimizers particularly straightforward and modular. So far, I have implemented two - stochastic gradient descent and sgd + momentum.
 
 You can create an optimizer using the `create_optimizer` macro, which takes as arguments the type of optimizer and the network it is optimizing (passed by value).
@@ -38,7 +38,7 @@ o2.step(o2); //Perform a parameter update with momentum using n.param_grad.
 
 ```
 
-#### Multilayer Perceptron
+### Multilayer Perceptron
 Create a 2-layer mlp with an input dimension of 784 neurons:
 ```C
 MLP n = create_mlp(784, 50, 10);
@@ -169,25 +169,42 @@ I have used the following resources extensively in the course of this project:
 	* Eli Bendersky's article on the [softmax function](https://eli.thegreenplace.net/2016/the-softmax-function-and-its-derivative/)
 	* Aidan Gomez's blog post on [backpropagating an LSTM cell](https://blog.aidangomez.ca/2016/04/17/Backpropogating-an-LSTM-A-Numerical-Example/)
 
-			
-Here is a short sample from an lstm trained for 3 epochs on shakespeare's complete works:
+## Samples			
+Here is a short sample from an lstm trained on shakespeare's complete works:
 
-		IMOGEN. I'll be stay songer for beardess
-			And stranger be some before that be
-			If is the servents and bearded
-			As books bearthers. I'll be for hath before beard
-			And stronger that be staing.
-			As I have be the forthers,
-			And streath of my bearded be for
-			And streather.
-			As I see that be some before beard
-			As forthing be some beforest beard
-			As forthing bearst for his beath
-			As be bounders forthers,
-			As be againg to be stords
-			And streather. I'll be some be for here.
-		Enter GERIAN. I'll be as all be forthing bears
-			And stranger.
-			As I stall be best be forthers,
-			And stranger be to stronger.
-			As I seed be as all be the forthy sours
+    PRINCE. My lord, now, then him in the with thee,
+      For speak to the with the part of the wide,
+      And with the with a straing to the with the wears and the
+      sweet the with the with thee truity, and like the mack
+      this the with
+      two in betwee the with the discoure did the words
+      Thou are not the with with that the with the wit
+      sating to prison?
+    FALSTAFF. You are the with him the with the body
+      make in the with the?
+      He will you after thou doth my like and the wite;
+      You are let the will become poor and like a such of
+      the with the with this with him the will be him
+      turn the with the with that the well!
+    HOSTESS. No lustion to the within their king of endurs
+      the with the wise the
+      the with his a bount of themself-
+      good true thee did the witch good-ly the within to the was a comfuls
+      to the within the with eyes and the withins and
+      the will appears, as the wide to himself
+Here is a short sample from an lstm trained on the bible:
+     
+    21:22 And then his son, and through the God of the son. 
+    22:22 Rend they shall be to be said, When the sead of the brother which is was the thildren of the son of Judah,
+    22:20 And they priest the son of Asseemy to Zenah, and they shall be according, and them he said, 
+    22:25 And turne, and the son of Ashemes, and the sears, remembered the son of Abraham,
+    22:22 In they shall be and the sead in the princes to their son of David be said, 
+    32:22 And they said unto the son of Asster the son of of a aspenters, and they that were before the years,
+    22:22 And all the redeemed of dead, and tree ten the shewed when they said.
+
+Here is a short sample from an lstm trained on trump tweets:
+
+    The Fake a great the Fake News and Republicans will be and the Fake News Marking and the Fake Newss and the Fake Kenney Border and the Fake Government #MAGA 
+    The Foxar to state to the total Putings for World. The Debal Security and the Fake News Mark Canferer #MAGA 
+    The Democrats so much to the same to the State of the Fake Media News Market
+    The Fake News-- and 4 alanch to running tough and a $500 and over a great the highest to the Fake News Marker Care
