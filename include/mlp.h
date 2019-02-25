@@ -1,42 +1,51 @@
 #ifndef MLP_H
 #define MLP_H
 
+#define GPU
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
 
-// some magic
-//#define MAX_BATCH_SIZE 500
+#ifdef GPU
+#include <CL/cl.h>
+#endif
+
 #define create_mlp(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
+#ifndef GPU
 typedef struct neuron{
-	//float input; //needed for efficient softmax
 	float *weight_grad;
 	float *bias_grad;
 	float *weights;
 	float *bias;
 } Neuron;
+#endif
 
 typedef struct layer{
+#ifndef GPU
 	Neuron *neurons;
 	float *gradient;
 	float *z;
-	//float **input;
-	//float **output;
 	float *output;
 	float *input;
+	void (*logistic)(const float *, float *, size_t);
+#else
+  cl_mem gradient;
+  cl_mem z;
+  cl_mem output;
+  cl_mem input;
+  cl_kernel logistic;
+#endif
 	size_t size;
 	size_t input_dimension;
-	void (*logistic)(const float *, float *, size_t);
 } MLP_layer;
 
 
 typedef struct mlp{
 	MLP_layer *layers;
 	size_t depth;
-	//size_t b;
-	//size_t batch_size;
 	size_t num_params;
 	size_t input_dimension;
 	size_t output_dimension;
@@ -49,6 +58,11 @@ typedef struct mlp{
 
 	float *cost_gradient;
 	float (*cost_fn)(float *y, const float *l, float *dest, size_t);
+
+#ifdef GPU
+  cl_context context;
+  cl_command_queue q;
+#endif
 } MLP;
 
 MLP mlp_from_arr(size_t arr[], size_t size);

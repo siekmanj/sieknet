@@ -142,9 +142,10 @@ float mlp_cost(MLP *n, float *y){
 }
 
 /* 
- * Creates a layer object
+ * Creates mlp layer using cpu
  */
-MLP_layer create_MLP_layer(size_t input_dimension, size_t num_neurons, float *params, float *param_grad, void(*logistic)(const float *, float *, size_t)){
+#ifndef GPU
+MLP_layer CPU_create_MLP_layer(size_t input_dimension, size_t num_neurons, float *params, float *param_grad, void(*logistic)(const float *, float *, size_t)){
 	MLP_layer layer;
 
 	//Allocate every neuron in the layer
@@ -183,6 +184,9 @@ MLP_layer create_MLP_layer(size_t input_dimension, size_t num_neurons, float *pa
 	layer.logistic = logistic; //Set layer activation function
 	return layer;
 }
+#else
+MLP_layer GPU_create_MLP_layer(size_t input_dimension, size_t num_neurons, float *params, float *param_grad, size_t param_offset, cl_kernel logistic);
+#endif
 
 /*
  * A function called through the createMLP() macro that allows creation of a network with any arbitrary number of layers.
