@@ -58,7 +58,7 @@ typedef struct mlp{
 	float *param_grad;
 #else
   cl_context context;
-  cl_command_queue q;
+  cl_command_queue queue;
 	cl_mem param_grad;
 #endif
 	float *cost_gradient;

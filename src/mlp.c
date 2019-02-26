@@ -332,9 +332,9 @@ void cpu_mlp_layer_backward(MLP_layer *l, float *grads){
 void cpu_mlp_backward(MLP *n){
 
 	float *grads = n->cost_gradient;
-	propagate_gradients(n, grads);
+	cpu_propagate_gradients(n, grads);
 	for(int i = n->depth-1; i >= 0; i--){
-		mlp_layer_backward(&n->layers[i], grads);
+		cpu_mlp_layer_backward(&n->layers[i], grads);
 		grads = n->layers[i].gradient;
 	}
 }
@@ -379,7 +379,7 @@ static cl_context create_opencl_context(){
 	
 	cl_device_id devices[num_devices];
 
-	status &= clGetDeviceIDs(platforms[9], CL_DEVICE_TYPE_GPU, num_devices, devices, NULL);
+	status &= clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, num_devices, devices, NULL);
 
 	const cl_context_properties cfg[] = {CL_CONTEXT_PLATFORM, (cl_context_properties)platforms[0], 0, 0};
 
@@ -393,7 +393,63 @@ static cl_context create_opencl_context(){
 	}
 	return context;
 }
+
+static cl_command_queue make_opencl_queue(cl_context c){
+	cl_uint num_platforms, num_devices;
+	int status = clGetPlatformIDs(0, NULL, &num_platforms);
+
+	cl_platform_id platforms[num_platforms];
+
+	status &= clGetPlatformIDs(num_platforms, platforms, NULL);
+	status &= clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, 0, NULL, &num_devices);
+	
+	cl_device_id devices[num_devices];
+
+	status &= clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, num_devices, devices, NULL);
+
+	int err;
+	cl_command_queue queue = clCreateCommandQueue(c, devices[0], 0, &err);
+
+	status &= err;
+	if(status != CL_SUCCESS){
+		printf("fucked up!\n");
+		exit(1);
+	}
+	return queue;
+}
+
+MLP gpu_mlp_from_arr(size_t arr[], size_t size){
+	MLP n;
+	n.context = create_opencl_context();
+	n.queue = create_opencl_queue(n.context);
+
+
+}
 #endif
+
+MLP mlp_from_arr(size_t arr[], size_t size){
+#ifndef GPU
+	return cpu_mlp_from_arr(arr, size);
+#else
+	return gpu_mlp_from_arr(arr, size);
+#endif
+}
+
+void mlp_forward(MLP *n, float *x){
+#ifndef GPU
+	cpu_mlp_forward(n, x);
+#else
+	gpu_mlp_forward(n, x);
+#endif
+}
+
+void mlp_backward(MLP *n){
+#ifndef GPU
+	cpu_mlp_backward(n);
+#else
+	gpu_mlp_backward(n);
+#endif
+}
 
  /*
 	* IO FUNCTIONS FOR READING AND WRITING TO A FILE
