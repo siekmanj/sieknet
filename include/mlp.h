@@ -53,22 +53,22 @@ typedef struct mlp{
 
 	float learning_rate;
 	float *params;
-	float *param_grad;
 	float *output;
-
-	float *cost_gradient;
-	float (*cost_fn)(float *y, const float *l, float *dest, size_t);
-
-#ifdef GPU
+#ifndef GPU
+	float *param_grad;
+#else
   cl_context context;
   cl_command_queue q;
+	cl_mem param_grad;
 #endif
+	float *cost_gradient;
+	float (*cost_fn)(float *y, const float *l, float *dest, size_t);
 } MLP;
 
 MLP mlp_from_arr(size_t arr[], size_t size);
 MLP load_mlp(const char *filename);
 
-MLP_layer create_MLP_layer(size_t, size_t, float *, float *, void(*)(const float *, float *, size_t));
+MLP_layer CPU_create_MLP_layer(size_t, size_t, float *, float *, void(*)(const float *, float *, size_t));
 
 void mlp_forward(MLP *, float *);
 void mlp_backward(MLP *);

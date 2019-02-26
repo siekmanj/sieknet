@@ -15,9 +15,9 @@ int main(){
 	srand(time(NULL));
 
 	MLP n = create_mlp(4, 16);
-  Momentum o = create_optimizer(Momentum, n);
+  //Momentum o = create_optimizer(Momentum, n);
 
-	n.layers[0].logistic = relu;
+	//n.layers[0].logistic = relu;
 	float avg_cost;
 	for(int i = 0; i < 100000; i++){ //Run the network for a while
 		//Create a random 4-bit binary number
@@ -34,7 +34,7 @@ int main(){
 		float cost = mlp_cost(&n, y);
 		mlp_backward(&n);
 
-		o.step(o);
+		//o.step(o);
 
 		avg_cost += cost;
 
