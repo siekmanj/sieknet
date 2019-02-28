@@ -214,7 +214,7 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 	output_mlp.output = ALLOCATE(float, arr[len-1]);
 	output_mlp.cost_gradient = ALLOCATE(float, arr[len-1]);
 	output_mlp.cost_fn = cross_entropy_cost;
-	output_mlp.layers[0] = create_MLP_layer(arr[len-2], arr[len-1], output_mlp.params, output_mlp.param_grad, softmax);
+	output_mlp.layers[0] = cpu_create_MLP_layer(arr[len-2], arr[len-1], output_mlp.params, output_mlp.param_grad, softmax);
 	output_mlp.guess = 0;
 	output_mlp.output = output_mlp.layers[0].output;
 	n.output_layer = output_mlp;
