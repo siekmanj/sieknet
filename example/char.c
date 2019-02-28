@@ -19,7 +19,7 @@ size_t HIDDEN_LAYER_SIZE = 300;
 size_t NUM_EPOCHS = 1;
 size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 
-float LEARNING_RATE = 0.0005;
+float LEARNING_RATE = 0.0001;
 float MOMENTUM      = 0.99;
 //float LEARNING_BASELINE = 0.000005;
 //float LEARNING_DECAY = 0.5;

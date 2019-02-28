@@ -1,7 +1,7 @@
 #ifndef MLP_H
 #define MLP_H
 
-#define GPU
+//#define GPU
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -68,7 +68,7 @@ typedef struct mlp{
 MLP mlp_from_arr(size_t arr[], size_t size);
 MLP load_mlp(const char *filename);
 
-MLP_layer CPU_create_MLP_layer(size_t, size_t, float *, float *, void(*)(const float *, float *, size_t));
+MLP_layer cpu_create_MLP_layer(size_t, size_t, float *, float *, void(*)(const float *, float *, size_t));
 
 void mlp_forward(MLP *, float *);
 void mlp_backward(MLP *);
