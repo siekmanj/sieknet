@@ -27,4 +27,5 @@ int main(){
 
 	float x[4] = {1.0, 2.0, 1.0, 0.0};
 	mlp_forward(&n, x);
+	printf("exit!\n");
 }
