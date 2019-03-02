@@ -27,41 +27,6 @@ float inner_product(const float *x, const float *y, size_t length){
 }
 
 
-/*
- * Calculates the activations of a layer with sigmoid.
- */
-void sigmoid(const float *z, float *dest, size_t dim){
-	for(int i = 0; i < dim; i++){
-		dest[i] = SIGMOID(z[i]);
-		if(isnan(dest[i])){
-			printf("ERROR: sigmoid(): nan from 1 / (1 + exp(-%6.5f))\n", z[i]);
-			exit(1);
-		}
-	}
-}
-
-/*
- * Calculates the activations of a layer using ReLu.
- */
-void relu(const float *z, float *dest, size_t dim){
-	for(int i = 0; i < dim; i++){
-		float x = z[i];
-		if(x < 0) dest[i] = 0;
-		else dest[i] = x;
-	}
-}
-
-/*
- * Calculates the activations of a layer using tanh.
- */
-void hypertan(const float *z, float *dest, size_t dim){
-	for(int i = 0; i < dim; i++){
-		float x = z[i];
-		if(x > 7.0) dest[i] = 0.999998;
-		else if(x < -7.0) dest[i] = -0.999998;
-		else dest[i] = ((exp(x) - exp(-x))/(exp(x) + exp(-x)));
-	}
-}
 
 /*
  * Calculates the activation of a given neuron using softmax.
@@ -138,22 +103,6 @@ float cross_entropy_cost(float *o, const float *y, float *dest, size_t dim){
 	return sum;
 }
 
-/*
- * Calculates logistic function derivatives in terms of logistic output
- */
-float differentiate(const float x, void (*logistic)(const float *, float *, size_t)){
-	if(logistic == hypertan)
-		return 1 - x*x;
-	if(logistic == softmax || logistic == sigmoid)
-		return x * (1 - x);
-	if(logistic == relu){
-		if(x > 0) return 1;
-		else return 0;
-	}
-		
-	printf("ERROR: differentiate(): derivative of logistic function not implemented!\n");
-	exit(1);
-}
 
 /*
  * Handy function for zeroing out a 2d array
@@ -173,6 +122,59 @@ float mlp_cost(MLP *n, float *y){
 
 /********* BEGIN CPU-ONLY FUNCTIONS **********/
 #ifndef GPU
+
+/*
+ * Calculates the activations of a layer with sigmoid.
+ */
+void sigmoid(const float *z, float *dest, size_t dim){
+	for(int i = 0; i < dim; i++){
+		dest[i] = SIGMOID(z[i]);
+		if(isnan(dest[i])){
+			printf("ERROR: sigmoid(): nan from 1 / (1 + exp(-%6.5f))\n", z[i]);
+			exit(1);
+		}
+	}
+}
+
+/*
+ * Calculates the activations of a layer using ReLu.
+ */
+void relu(const float *z, float *dest, size_t dim){
+	for(int i = 0; i < dim; i++){
+		float x = z[i];
+		if(x < 0) dest[i] = 0;
+		else dest[i] = x;
+	}
+}
+
+/*
+ * Calculates the activations of a layer using tanh.
+ */
+void hypertan(const float *z, float *dest, size_t dim){
+	for(int i = 0; i < dim; i++){
+		float x = z[i];
+		if(x > 7.0) dest[i] = 0.999998;
+		else if(x < -7.0) dest[i] = -0.999998;
+		else dest[i] = ((exp(x) - exp(-x))/(exp(x) + exp(-x)));
+	}
+}
+
+/*
+ * Calculates logistic function derivatives in terms of logistic output
+ */
+float differentiate(const float x, void (*logistic)(const float *, float *, size_t)){
+	if(logistic == hypertan)
+		return 1 - x*x;
+	if(logistic == softmax || logistic == sigmoid)
+		return x * (1 - x);
+	if(logistic == relu){
+		if(x > 0) return 1;
+		else return 0;
+	}
+		
+	printf("ERROR: differentiate(): derivative of logistic function not implemented!\n");
+	exit(1);
+}
 
 /* 
  * Creates mlp layer for cpu
@@ -327,7 +329,7 @@ void cpu_mlp_layer_backward(MLP_layer *l, float *grads){
 }
 
 /*
- * Does backward pass for entire network (does paramter update)
+ * Does backward pass for entire network (calculates n.param_grad)
  */
 void cpu_mlp_backward(MLP *n){
 
@@ -359,6 +361,83 @@ void dealloc_mlp(MLP *n){
 
 /********* BEGIN GPU-ONLY FUNCTIONS **********/
 #ifdef GPU
+void check_error(int err, char *str){
+  if(err != CL_SUCCESS){
+    printf("ERROR: '%s': ", str);
+    switch(err){
+      case CL_INVALID_PROGRAM:
+        printf("CL_INVALID_PROGRAM.\n");
+        break;
+      case CL_INVALID_PROGRAM_EXECUTABLE:
+        printf("CL_INVALID_PROGRAM_EXECUTABLE.\n");
+        break;
+      case CL_INVALID_KERNEL_NAME:
+        printf("CL_INVALID_KERNEL_NAME.\n");
+        break;
+      case CL_INVALID_KERNEL_DEFINITION:
+        printf("CL_INVALID_KERNEL_DEFINITION.\n");
+        break;
+      case CL_INVALID_VALUE:
+        printf("CL_INVALID_VALUE.\n");
+        break;
+      case CL_OUT_OF_HOST_MEMORY:
+        printf("CL_OUT_OF_HOST_MEMORY.\n");
+        break;
+      case CL_INVALID_COMMAND_QUEUE:
+        printf("CL_INVALID_COMMAND_QUEUE.\n");
+        break;
+      case CL_INVALID_KERNEL:
+        printf("CL_INVALID_KERNEL.\n");
+        break;
+      case CL_INVALID_CONTEXT:
+        printf("CL_INVALID_CONTEXT.\n");
+        break;
+      case CL_INVALID_KERNEL_ARGS:
+        printf("CL_INVALID_KERNEL_ARGS.\n");
+        break;
+      case CL_INVALID_WORK_DIMENSION:
+        printf("CL_INVALID_WORK_DIMENSION.\n");
+        break;
+      case CL_INVALID_WORK_GROUP_SIZE:
+        printf("CL_INVALID_WORK_GROUP_SIZE.\n");
+        break;
+      case CL_INVALID_WORK_ITEM_SIZE:
+        printf("CL_INVALID_WORK_ITEM_SIZE.\n");
+        break;
+      case CL_INVALID_GLOBAL_OFFSET:
+        printf("CL_INVALID_GLOBAL_OFFSET.\n");
+        break;
+			case CL_INVALID_DEVICE:
+				printf("CL_INVALID_DEVICE.\n");
+				break;
+			case CL_INVALID_BINARY:
+				printf("CL_INVALID_BINARY.\n");
+				break;
+			case CL_INVALID_BUILD_OPTIONS:
+				printf("CL_INVALID_BUILD_OPTIONS.\n");
+				break;
+			case CL_INVALID_OPERATION:
+				printf("CL_INVALID_OPERATION.\n");
+				break;
+			case CL_COMPILER_NOT_AVAILABLE:
+				printf("CL_COMPILER_NOT_AVAILABLE.\n");
+				break;
+			case CL_BUILD_PROGRAM_FAILURE:
+				printf("CL_BUILD_PROGRAM_FAILURE.\n");
+				break;
+      default:
+        printf("default err.\n");
+        break;
+    }
+    exit(1);
+  }
+}
+
+
+cl_context SIEKNET_GLOBAL_CONTEXT;
+cl_command_queue SIEKNET_GLOBAL_QUEUE;
+
+cl_kernel linear, hypertan, sigmoid, relu;
 
 /* 
  * Creates mlp layer for gpu
@@ -390,9 +469,13 @@ static cl_context create_opencl_context(){
 	if(status != CL_SUCCESS){
 		printf("fucked up!\n");
 		exit(1);
+	}else{
+		printf("successfully created opencl context.\n");
 	}
 	return context;
 }
+
+
 
 static cl_command_queue make_opencl_queue(cl_context c){
 	cl_uint num_platforms, num_devices;
@@ -418,13 +501,71 @@ static cl_command_queue make_opencl_queue(cl_context c){
 	return queue;
 }
 
+void gpu_setup(){
+	SIEKNET_GLOBAL_CONTEXT = create_opencl_context();
+	SIEKNET_GLOBAL_QUEUE = make_opencl_queue(SIEKNET_GLOBAL_CONTEXT);
+
+	char *forward_kernel = "../src/forward_kernel.cl";
+	char *backward_kernel ="../src/backward_kernel.cl";
+
+	FILE *fp = fopen(forward_kernel, "rb");
+	if(!fp){
+		printf("couldn't find '%s'.\n", forward_kernel);
+		exit(1);
+	}
+	fseek(fp, 0, SEEK_END);
+	size_t kernelfilelen = ftell(fp);
+	fclose(fp);
+	
+	char *clfile = (char*)malloc(sizeof(char) * (kernelfilelen + 1));
+	fp = fopen(forward_kernel, "rb");
+	for(int i = 0; i < kernelfilelen; i++){
+		clfile[i] = fgetc(fp);
+	}
+	fclose(fp);
+	clfile[kernelfilelen] = '\0';
+
+	printf("got kernel file:\n%s\n", clfile);
+	
+	
+	int err = 0;
+	cl_program forward = clCreateProgramWithSource(SIEKNET_GLOBAL_CONTEXT, 1, (const char**)&clfile, NULL, &err);
+	check_error(err, "couldn't create program");
+
+	check_error(clBuildProgram(forward, 0, NULL, NULL, NULL, NULL), "couldn't build!");
+
+	linear = clCreateKernel(forward, "linear_kernel", &err);
+	check_error(err, "couldn't make linear kern");
+
+	sigmoid = clCreateKernel(forward, "sigmoid_kernel", &err);
+	check_error(err, "couldn't make sigmoid kernel");
+
+	printf("made it to the end of gpu setup!\n");
+
+}
+
 MLP gpu_mlp_from_arr(size_t arr[], size_t size){
 	MLP n;
-	n.context = create_opencl_context();
-	n.queue = create_opencl_queue(n.context);
+	n.num_params = 0;
+	for(int i = 1; i < size; i++){
+		n.num_params += (arr[i-1]+1)*arr[i];
+	}
+
+	int err = 0;
+	n.gpu_params = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE, sizeof(float) * n.num_params, NULL, &err);
+	n.param_grad = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE, sizeof(float) * n.num_params, NULL, &err);
 
 
 }
+
+void gpu_mlp_forward(MLP *n, float *x){
+
+}
+
+void gpu_mlp_backward(MLP *n){
+
+}
+
 #endif
 
 MLP mlp_from_arr(size_t arr[], size_t size){
