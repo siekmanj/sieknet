@@ -250,7 +250,8 @@ MLP cpu_mlp_from_arr(size_t arr[], size_t size){
 			if(i < size-1)
 				l = cpu_create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, sigmoid);
 			else
-				l = cpu_create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, softmax);
+				l = cpu_create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, sigmoid);
+				//l = cpu_create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, softmax);
 			
 			n.layers[i-1] = l;
 	}
@@ -536,6 +537,7 @@ void gpu_setup(){
 
 }
 
+size_t NUMPARAMS = 0;
 MLP gpu_mlp_from_arr(size_t arr[], size_t size){
 	MLP n;
 	n.input_dimension = arr[0];
@@ -568,11 +570,12 @@ MLP gpu_mlp_from_arr(size_t arr[], size_t size){
 
 		l.logistic = sigmoid;
 		l.param_offset = param_idx;
-		param_idx += (arr[i-1]+1)*arr[i];
-		xavier_init(&n.params[param_idx], arr[i-1], arr[i]);
-		printf("%f\n", n.params[param_idx]);
+		for(int j = 0; j < l.size; j++){
+			xavier_init(&n.params[param_idx + j * (arr[i-1]+1)], arr[i-1]+1, arr[i]);
+		}
 	
 		n.layers[i-1] = l;
+		param_idx += (arr[i-1]+1)*arr[i];
 	}
 
 	n.gpu_params = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * n.num_params, n.params, &err);
@@ -585,41 +588,32 @@ MLP gpu_mlp_from_arr(size_t arr[], size_t size){
 	check_error(err, "creating temp input buffer");
 
 	n.output = ALLOCATE(float, n.output_dimension);
+	NUMPARAMS = n.num_params;
+
 	return n;
 }
 
+#define ARR_FROM_GPU(clmem, size, name) float name[size]; clEnqueueReadBuffer(SIEKNET_GLOBAL_QUEUE, clmem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL); 
+
 void gpu_mlp_layer_forward(MLP_layer *l, cl_mem input, cl_mem params){
-	printf("setting arg0\n");
-	cl_mem z = l->z;
 	check_error(clSetKernelArg(linear, 0, sizeof(cl_mem), &input), "arg0");
-	printf("setting arg1\n");
-	check_error(clSetKernelArg(linear, 1, sizeof(cl_mem), &z), "arg1");
-	printf("setting arg2\n");
+	check_error(clSetKernelArg(linear, 1, sizeof(cl_mem), &l->z), "arg1");
 	check_error(clSetKernelArg(linear, 2, sizeof(cl_mem), &params), "arg2");
-	printf("setting arg3\n");
-	check_error(clSetKernelArg(linear, 3, sizeof(int), &l->size), "arg3");
-	printf("setting arg4\n");
-	clSetKernelArg(linear, 4, sizeof(int), &l->param_offset);
-
-	printf("setting arg 0\n");
-	clSetKernelArg(l->logistic, 0, sizeof(cl_mem), &l->z);
-	printf("setting arg 1\n");
-	clSetKernelArg(l->logistic, 1, sizeof(cl_mem), &l->output);
-
-	printf("enqueueing linear\n");
+	check_error(clSetKernelArg(linear, 3, sizeof(int), &l->input_dimension), "arg3");
+	check_error(clSetKernelArg(linear, 4, sizeof(int), &l->param_offset), "arg4");
 	check_error(clEnqueueNDRangeKernel(SIEKNET_GLOBAL_QUEUE, linear, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue linear kernel");
-	printf("enqueueing logistic\n");
+	
+	check_error(clSetKernelArg(l->logistic, 0, sizeof(cl_mem), &l->z), "logistic 0");
+	check_error(clSetKernelArg(l->logistic, 1, sizeof(cl_mem), &l->output), "logistic 1");
 	check_error(clEnqueueNDRangeKernel(SIEKNET_GLOBAL_QUEUE, l->logistic, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue logistic kernel");
 
 }
 
 void gpu_mlp_forward(MLP *n, float *x){
-	printf("copying input\n");
 	check_error(clEnqueueWriteBuffer(SIEKNET_GLOBAL_QUEUE, n->network_input, 1, 0, sizeof(float) * n->input_dimension, x, 0, NULL, NULL), "enqueuing network input");
 
 	cl_mem input = n->network_input;
 	for(int i = 0; i < n->depth; i++){
-		printf("doing layer %d\n", i+1);
 		MLP_layer *l = &n->layers[i];
 		gpu_mlp_layer_forward(l, input, n->gpu_params);
 		input = l->output;
@@ -627,11 +621,10 @@ void gpu_mlp_forward(MLP *n, float *x){
 	
 	clEnqueueReadBuffer(SIEKNET_GLOBAL_QUEUE, input, 1, 0, sizeof(float) * n->output_dimension, n->output, 0, NULL, NULL);
 	n->guess = 0;
-	for(int i = 0; i < n->output_dimension; i++){
-		printf("%f\n", n->output[i]);
+	for(int i = 0; i < n->output_dimension; i++)
 		if(n->output[n->guess] < n->output[i])
 			n->guess = i;
-	}
+	
 	
 }
 
