@@ -1,12 +1,13 @@
 #ifndef MLP_H
 #define MLP_H
 
-//#define GPU
 
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+
+#include <conf.h>
 
 #ifdef GPU
 #include <CL/cl.h>
@@ -57,13 +58,16 @@ typedef struct mlp{
 #ifndef GPU
 	float *param_grad;
 #else
-  cl_context context;
-  cl_command_queue queue;
+	cl_mem gpu_params;
 	cl_mem param_grad;
 #endif
 	float *cost_gradient;
 	float (*cost_fn)(float *y, const float *l, float *dest, size_t);
 } MLP;
+
+#ifdef GPU
+void gpu_setup();
+#endif
 
 MLP mlp_from_arr(size_t arr[], size_t size);
 MLP load_mlp(const char *filename);
@@ -80,14 +84,19 @@ void xavier_init(float *, size_t, size_t);
 void zero_2d_arr(float **, size_t, size_t);
 
 //These are activation functions
+#ifndef GPU
 void hypertan(const float *, float *, const size_t);
 void sigmoid(const float *, float *, const size_t);
 void softmax(const float *, float *, const size_t);
 void relu(const float *, float *, const size_t);
 
+void dealloc_mlp(MLP *);
+#else
+cl_kernel linear, hypertan, sigmoid, relu;
+#endif
+
 float inner_product(const float *, const float *, size_t);
 
 float cross_entropy_cost(float *, const float *, float *, size_t);
-void dealloc_mlp(MLP *);
 
 #endif

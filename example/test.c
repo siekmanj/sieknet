@@ -20,11 +20,11 @@ float uniform(float minimum, float maximum){
 		return center - ((((float)rand())/RAND_MAX)) * max_mag;
 }
 int main(){
+	gpu_setup();
 	srand(time(NULL));
 
 	MLP n = create_mlp(4, 6);
 
+	float x[4] = {1.0, 2.0, 1.0, 0.0};
 	mlp_forward(&n, x);
-	//float cost = mlp_cost(&n, y);
-	//mlp_backward(&n);
 }

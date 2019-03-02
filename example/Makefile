@@ -7,7 +7,7 @@ SRC_DIR=../src
 DAT_DIR=../data
 
 INCLUDE=-I../include
-LIBS=-lm
+LIBS=-lm -lOpenCL
 CFLAGS=-O3
 
 LSTM_SRC=$(SRC_DIR)/lstm.c
@@ -25,6 +25,8 @@ binary:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 sequence:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(LSTM_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
+test:
+	$(CC) $(CFLAGS) $(INCLUDE) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 
 
 
