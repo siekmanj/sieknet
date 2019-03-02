@@ -14,9 +14,7 @@ __kernel void sigmoid_kernel(__global float *x, __global float *y){
 	y[i] = (1/(1+exp(-x[i])));
 }
 
-/*
-__kernel void relu_kernel(__global float *x, __global float *y){
+__kernel void propagate_grads(__global float *grads, __global float *output, int nonlinearity_type, int param_offset, int size){
 	const int i = get_global_id(0);
-	y[i] = 
+	
 }
-*/
