@@ -10,6 +10,7 @@
 #include <conf.h>
 
 #ifdef GPU
+#define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 #include <CL/cl.h>
 #endif
 
@@ -38,6 +39,7 @@ typedef struct layer{
   cl_mem output;
   cl_mem input;
   cl_kernel logistic;
+	int param_offset;
 #endif
 	size_t size;
 	size_t input_dimension;
@@ -60,6 +62,7 @@ typedef struct mlp{
 #else
 	cl_mem gpu_params;
 	cl_mem param_grad;
+	cl_mem network_input;
 #endif
 	float *cost_gradient;
 	float (*cost_fn)(float *y, const float *l, float *dest, size_t);
@@ -92,7 +95,7 @@ void relu(const float *, float *, const size_t);
 
 void dealloc_mlp(MLP *);
 #else
-cl_kernel linear, hypertan, sigmoid, relu;
+cl_kernel hypertan, sigmoid, relu;
 #endif
 
 float inner_product(const float *, const float *, size_t);
