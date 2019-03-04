@@ -28,7 +28,7 @@ int main(){
 	int input_dim = 100;
 	int trials = 50;
 
-	MLP n = create_mlp(input_dim, 1000, 1000, 10);
+	MLP n = create_mlp(input_dim, 10000, 10000, 10);
 
 	float avg_time = 0;
 	
@@ -40,6 +40,8 @@ int main(){
 	for(int i = 0; i < trials; i++){
     clock_t start = clock();
 		mlp_forward(&n, x);
+		mlp_cost(&n, x);
+		mlp_backward(&n);
     avg_time += ((float)(clock() - start)) / CLOCKS_PER_SEC;
 	}
 	printf("avg time over %d trials: %f\n", trials, avg_time);

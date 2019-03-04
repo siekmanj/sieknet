@@ -75,7 +75,7 @@ __kernel void sigmoid_kernel(__global float *x, __global float *y){
 	y[i] = activate(x[i], sigmoid);
 }
 
-__kernel void propagate_grads(__global float *grads, __global float *output, __global float *dest, __global float *params, Nonlinearity nonlinearity_type, int layer_param_idx, int neurons, int dim){
+__kernel void propagate_grads(__global float *grads, __global float *output, __global float *dest, __global float *params, __global float *param_grads, Nonlinearity nonlinearity_type, int layer_param_idx, int neurons, int dim){
 	const int i = get_global_id(0);
 
 	dest[i] = 0;
@@ -84,7 +84,12 @@ __kernel void propagate_grads(__global float *grads, __global float *output, __g
 		float w = params[w_idx];
 		float d = differentiate(output[j], nonlinearity_type);
 		float g = grads[j];
-		dest[i] = w * d * g;
+		dest[i] += w * d * g;
+
+		param_grads[w_idx] += 
+	}
+	for(int j = 0; j < neurons; j++){
+
 	}
 }
 
