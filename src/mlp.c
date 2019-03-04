@@ -7,7 +7,6 @@
 #include <mlp.h>
 #include <math.h>
 #include <string.h>
-#include <nonlinear.h>
 
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
 #define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
@@ -31,7 +30,7 @@ float inner_product(const float *x, const float *y, size_t length){
 /*
  * Calculates the activation of a given neuron using softmax.
  */
-void softmax(const float *z, float *dest, size_t dim){
+void fn_softmax(const float *z, float *dest, size_t dim){
 	double sum = 0;
 	for(int i = 0; i < dim; i++)
 		sum += exp(z[i]);
@@ -126,7 +125,7 @@ float mlp_cost(MLP *n, float *y){
 /*
  * Calculates the activations of a layer with sigmoid.
  */
-void sigmoid(const float *z, float *dest, size_t dim){
+void fn_sigmoid(const float *z, float *dest, size_t dim){
 	for(int i = 0; i < dim; i++){
 		dest[i] = SIGMOID(z[i]);
 		if(isnan(dest[i])){
@@ -139,7 +138,7 @@ void sigmoid(const float *z, float *dest, size_t dim){
 /*
  * Calculates the activations of a layer using ReLu.
  */
-void relu(const float *z, float *dest, size_t dim){
+void fn_relu(const float *z, float *dest, size_t dim){
 	for(int i = 0; i < dim; i++){
 		float x = z[i];
 		if(x < 0) dest[i] = 0;
@@ -150,7 +149,7 @@ void relu(const float *z, float *dest, size_t dim){
 /*
  * Calculates the activations of a layer using tanh.
  */
-void hypertan(const float *z, float *dest, size_t dim){
+void fn_hypertan(const float *z, float *dest, size_t dim){
 	for(int i = 0; i < dim; i++){
 		float x = z[i];
 		if(x > 7.0) dest[i] = 0.999998;
@@ -161,7 +160,6 @@ void hypertan(const float *z, float *dest, size_t dim){
 
 /*
  * Calculates logistic function derivatives in terms of logistic output
- */
 float differentiate(const float x, void (*logistic)(const float *, float *, size_t)){
 	if(logistic == hypertan)
 		return 1 - x*x;
@@ -175,11 +173,12 @@ float differentiate(const float x, void (*logistic)(const float *, float *, size
 	printf("ERROR: differentiate(): derivative of logistic function not implemented!\n");
 	exit(1);
 }
+ */
 
 /* 
  * Creates mlp layer for cpu
  */
-MLP_layer cpu_create_MLP_layer(size_t input_dimension, size_t num_neurons, float *params, float *param_grad, void(*logistic)(const float *, float *, size_t)){
+MLP_layer cpu_create_MLP_layer(size_t input_dimension, size_t num_neurons, float *params, float *param_grad, Nonlinearity logistic){
 	MLP_layer layer;
 
 	Neuron* neurons = ALLOCATE(Neuron, num_neurons);
@@ -267,8 +266,11 @@ void cpu_mlp_layer_forward(MLP_layer *l, float *x){
 	for(int i = 0; i < l->size; i++){
 		float *w = l->neurons[i].weights; 
 		l->z[i] = inner_product(x, w, l->input_dimension) + *l->neurons[i].bias;
+		if(l->logistic != softmax)
+			l->output[i] = activate(l->z[i], l->logistic);
 	}
-	l->logistic(l->z, l->output, l->size); //Apply this layer's logistic function
+	//l->logistic(l->z, l->output, l->size); //Apply this layer's logistic function
+
 }
 
 /*
@@ -290,7 +292,6 @@ void cpu_mlp_forward(MLP *n, float *input){
 
 /*
  * Propagates gradients throughout network using the chain rule (does not do parameter update)
- */
 void cpu_propagate_gradients(MLP *n, float *gradient){
 	float *grads = gradient;
 	for(int i = n->depth-1; i >= 0; i--){
@@ -312,16 +313,34 @@ void cpu_propagate_gradients(MLP *n, float *gradient){
 	}
 }
 
+		for(int k = 0; k < l->size; k++){
+			l->gradient[j] = 0;
+			for(int j = 0; j < l->input_dimension; j++){
+				float w = l->neurons[k].weights[j];
+				float d = differentiate(avg[k], l->logistic);
+				float g = grads[k];
+				l->gradient[j] += w * d * g;
+			}
+ */
+
 /*
  * Calculates the backward pass for a single layer (does parameter update)
  */
 void cpu_mlp_layer_backward(MLP_layer *l, float *grads){
 	float *avg_outs = l->output;
+	for(int j = 0; j < l->input_dimension; j++)
+		l->gradient[j] = 0;
+
 	for(int i = 0; i < l->size; i++){
 		float gradient = grads[i]; //gradient of this neuron's output with respect to cost
 		float d_output = differentiate(avg_outs[i], l->logistic);
 
 		for(int j = 0; j < l->input_dimension; j++){
+			float w = l->neurons[i].weights[j];
+			float d = d_output;
+			float g = gradient;
+			l->gradient[j] += w * d * g;
+
 			float x = l->input[j];
 			l->neurons[i].weight_grad[j] += gradient * d_output * x;
 		}
@@ -335,7 +354,7 @@ void cpu_mlp_layer_backward(MLP_layer *l, float *grads){
 void cpu_mlp_backward(MLP *n){
 
 	float *grads = n->cost_gradient;
-	cpu_propagate_gradients(n, grads);
+	//cpu_propagate_gradients(n, grads);
 	for(int i = n->depth-1; i >= 0; i--){
 		cpu_mlp_layer_backward(&n->layers[i], grads);
 		grads = n->layers[i].gradient;
@@ -449,6 +468,7 @@ void check_error(int err, char *str){
 
 static cl_context SIEKNET_GLOBAL_CONTEXT;
 static cl_command_queue SIEKNET_GLOBAL_QUEUE;
+static cl_device_id SIEKNET_GLOBAL_DEVICE;
 
 static cl_kernel linear;
 
@@ -493,6 +513,7 @@ static cl_command_queue make_opencl_queue(cl_context c){
 
 	int err;
 	cl_command_queue queue = clCreateCommandQueue(c, devices[0], 0, &err);
+	SIEKNET_GLOBAL_DEVICE = devices[0];
 
 	return queue;
 }
@@ -501,43 +522,78 @@ void gpu_setup(){
 	SIEKNET_GLOBAL_CONTEXT = create_opencl_context();
 	SIEKNET_GLOBAL_QUEUE = make_opencl_queue(SIEKNET_GLOBAL_CONTEXT);
 
-	char *forward_kernel = "../src/forward_kernel.cl";
-	char *backward_kernel ="../src/backward_kernel.cl";
+	char *kernel = "../include/nonlinear.h";
 
-	FILE *fp = fopen(forward_kernel, "rb");
+	char *def = "#define SIEKNET_BUILD_KERNEL\n";
+	char *marker = "//SIEKNET KERNEL START\n";
+	char *end = "//SIEKNET KERNEL END\n";
+	             //SIEKNET KERNEL END
+
+	FILE *fp = fopen(kernel, "rb");
 	if(!fp){
-		printf("couldn't find '%s'.\n", forward_kernel);
+		printf("couldn't find '%s'.\n", kernel);
 		exit(1);
 	}
 	fseek(fp, 0, SEEK_END);
-	size_t kernelfilelen = ftell(fp);
+	size_t kernelfilelen = ftell(fp) + strlen(def);
 	fclose(fp);
 	
 	char *clfile = (char*)malloc(sizeof(char) * (kernelfilelen + 1));
-	fp = fopen(forward_kernel, "rb");
-	for(int i = 0; i < kernelfilelen; i++){
-		clfile[i] = fgetc(fp);
+	strcpy(clfile, def);
+	fp = fopen(kernel, "rb");
+
+	char kernel_start_marker[1000];
+	char kernel_end_marker[1000];
+	do{
+		if(!fgets(kernel_start_marker, 1000, fp)){
+			throw_err("unable to read kernel file, missing kernel start marker.\n");
+		}
 	}
+	while(strcmp(kernel_start_marker, marker));
+
+	do{
+		if(!fgets(kernel_end_marker, 1000, fp)){
+			throw_err("unable to read kernel file, missing kernel end marker.\n");
+		}
+		char static_check[8];
+		memset(static_check, '\0', 8);
+		int x = 6;
+		while(x-->0)
+			static_check[x] = kernel_end_marker[x];
+
+		if(!strcmp("static", static_check))
+			strcat(clfile, kernel_end_marker + strlen("static")+1);
+		else
+			strcat(clfile, kernel_end_marker);
+	}
+	while(strcmp(kernel_end_marker, end));
 	fclose(fp);
-	clfile[kernelfilelen] = '\0';
 
 	int err = 0;
-	cl_program forward = clCreateProgramWithSource(SIEKNET_GLOBAL_CONTEXT, 1, (const char**)&clfile, NULL, &err);
-	check_error(err, "couldn't create program");
+	//printf("got program:\n%s\n", clfile);
 
-	check_error(clBuildProgram(forward, 0, NULL, NULL, NULL, NULL), "couldn't build!");
+	cl_program prog = clCreateProgramWithSource(SIEKNET_GLOBAL_CONTEXT, 1, (const char**)&clfile, NULL, &err);
+	//printf("printing debug:\n");
+	err = clBuildProgram(prog, 0, NULL, NULL, NULL, NULL);
 
-	linear = clCreateKernel(forward, "linear_kernel", &err);
+	size_t len = 0;
+	check_error(clGetProgramBuildInfo(prog, SIEKNET_GLOBAL_DEVICE, CL_PROGRAM_BUILD_LOG, 0, NULL, &len), "getting length of compiler output");
+	char *buffer = calloc(len, sizeof(char));
+	check_error(clGetProgramBuildInfo(prog,  SIEKNET_GLOBAL_DEVICE, CL_PROGRAM_BUILD_LOG, len, buffer, NULL), "copying compiler output to buffer");
+	printf("<OPENCL COMPILER OUTPUT:\n%s<END OPENCL COMPILER OUTPUT>\n", buffer);
+
+	check_error(err, "couldn't build program");
+
+	linear = clCreateKernel(prog, "linear_kernel", &err);
 	check_error(err, "couldn't make linear kern");
 
-	sigmoid = clCreateKernel(forward, "sigmoid_kernel", &err);
+	fn_sigmoid = clCreateKernel(prog, "sigmoid_kernel", &err);
 	check_error(err, "couldn't make sigmoid kernel");
 
 	printf("made it to the end of gpu setup!\n");
 
 }
 
-size_t NUMPARAMS = 0;
 MLP gpu_mlp_from_arr(size_t arr[], size_t size){
 	MLP n;
 	n.input_dimension = arr[0];
@@ -587,13 +643,32 @@ MLP gpu_mlp_from_arr(size_t arr[], size_t size){
 	n.network_input = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE, sizeof(float) * n.input_dimension, NULL, &err);
 	check_error(err, "creating temp input buffer");
 
+	n.network_grad = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE, sizeof(float) * n.output_dimension, NULL, &err);
+	check_error(err, "creating network grad buffer on line ");
+
 	n.output = ALLOCATE(float, n.output_dimension);
-	NUMPARAMS = n.num_params;
+	n.cost_gradient = ALLOCATE(float, n.output_dimension);
+	n.cost_fn = cross_entropy_cost;
 
 	return n;
 }
 
 #define ARR_FROM_GPU(clmem, size, name) float name[size]; clEnqueueReadBuffer(SIEKNET_GLOBAL_QUEUE, clmem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL); 
+
+cl_kernel get_kernel(Nonlinearity n){
+	switch(n){
+		case sigmoid:
+			return fn_sigmoid;
+			break;
+		case relu:
+			return fn_relu;
+			break;
+		case hypertan:
+			return fn_hypertan;
+			break;
+	}
+	return 0;
+}
 
 void gpu_mlp_layer_forward(MLP_layer *l, cl_mem input, cl_mem params){
 	check_error(clSetKernelArg(linear, 0, sizeof(cl_mem), &input), "arg0");
@@ -603,14 +678,14 @@ void gpu_mlp_layer_forward(MLP_layer *l, cl_mem input, cl_mem params){
 	check_error(clSetKernelArg(linear, 4, sizeof(int), &l->param_offset), "arg4");
 	check_error(clEnqueueNDRangeKernel(SIEKNET_GLOBAL_QUEUE, linear, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue linear kernel");
 	
-	check_error(clSetKernelArg(l->logistic, 0, sizeof(cl_mem), &l->z), "logistic 0");
-	check_error(clSetKernelArg(l->logistic, 1, sizeof(cl_mem), &l->output), "logistic 1");
-	check_error(clEnqueueNDRangeKernel(SIEKNET_GLOBAL_QUEUE, l->logistic, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue logistic kernel");
+	check_error(clSetKernelArg(get_kernel(l->logistic), 0, sizeof(cl_mem), &l->z), "logistic 0");
+	check_error(clSetKernelArg(get_kernel(l->logistic), 1, sizeof(cl_mem), &l->output), "logistic 1");
+	check_error(clEnqueueNDRangeKernel(SIEKNET_GLOBAL_QUEUE, get_kernel(l->logistic), 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue logistic kernel");
 
 }
 
 void gpu_mlp_forward(MLP *n, float *x){
-	check_error(clEnqueueWriteBuffer(SIEKNET_GLOBAL_QUEUE, n->network_input, 1, 0, sizeof(float) * n->input_dimension, x, 0, NULL, NULL), "enqueuing network input");
+	check_error(clEnqueueWriteBuffer(SIEKNET_GLOBAL_QUEUE, n->network_input, 0, 0, sizeof(float) * n->input_dimension, x, 0, NULL, NULL), "enqueuing network input");
 
 	cl_mem input = n->network_input;
 	for(int i = 0; i < n->depth; i++){
@@ -628,7 +703,28 @@ void gpu_mlp_forward(MLP *n, float *x){
 	
 }
 
+void gpu_propagate_gradients(MLP *n, cl_mem grad){
+	
+}
+
+void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem param_grad){
+
+}
+
 void gpu_mlp_backward(MLP *n){
+	printf("gpu backward\n");
+	check_error(clEnqueueWriteBuffer(SIEKNET_GLOBAL_QUEUE, n->network_grad, 0, 0, sizeof(float) * n->output_dimension, n->cost_gradient, 0, NULL, NULL), "enqueuing network grads");
+
+	gpu_propagate_gradients(n, n->network_grad);
+
+	cl_mem grads = n->network_grad;
+	int l_idx = n->depth;
+	while(l_idx --> 0){ //l_idx goes to 0!
+		printf("%d.\n", l_idx);
+		MLP_layer *l = &n->layers[l_idx];
+		gpu_mlp_layer_backward(l, grads, n->param_grad);
+		grads = l->gradient;
+	}
 
 }
 

@@ -8,6 +8,7 @@
 #include <time.h>
 
 #include <conf.h>
+#include <nonlinear.h>
 
 #ifdef GPU
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
@@ -32,15 +33,16 @@ typedef struct layer{
 	float *z;
 	float *output;
 	float *input;
-	void (*logistic)(const float *, float *, size_t);
+	//void (*logistic)(const float *, float *, size_t);
 #else
   cl_mem gradient;
   cl_mem z;
   cl_mem output;
   cl_mem input;
-  cl_kernel logistic;
+  //cl_kernel logistic;
 	int param_offset;
 #endif
+	Nonlinearity logistic;
 	size_t size;
 	size_t input_dimension;
 } MLP_layer;
@@ -63,6 +65,7 @@ typedef struct mlp{
 	cl_mem gpu_params;
 	cl_mem param_grad;
 	cl_mem network_input;
+	cl_mem network_grad;
 #endif
 	float *cost_gradient;
 	float (*cost_fn)(float *y, const float *l, float *dest, size_t);
@@ -75,7 +78,7 @@ void gpu_setup();
 MLP mlp_from_arr(size_t arr[], size_t size);
 MLP load_mlp(const char *filename);
 
-MLP_layer cpu_create_MLP_layer(size_t, size_t, float *, float *, void(*)(const float *, float *, size_t));
+MLP_layer cpu_create_MLP_layer(size_t, size_t, float *, float *, Nonlinearity);
 
 void mlp_forward(MLP *, float *);
 void mlp_backward(MLP *);
@@ -88,18 +91,19 @@ void zero_2d_arr(float **, size_t, size_t);
 
 //These are activation functions
 #ifndef GPU
-void hypertan(const float *, float *, const size_t);
-void sigmoid(const float *, float *, const size_t);
-void softmax(const float *, float *, const size_t);
-void relu(const float *, float *, const size_t);
+void fn_hypertan(const float *, float *, const size_t);
+void fn_sigmoid(const float *, float *, const size_t);
+void fn_softmax(const float *, float *, const size_t);
+void fn_relu(const float *, float *, const size_t);
 
 void dealloc_mlp(MLP *);
 #else
-cl_kernel hypertan, sigmoid, relu;
+cl_kernel fn_hypertan;
+cl_kernel fn_sigmoid;
+cl_kernel fn_relu;
 #endif
 
 float inner_product(const float *, const float *, size_t);
-
 float cross_entropy_cost(float *, const float *, float *, size_t);
 
 #endif
