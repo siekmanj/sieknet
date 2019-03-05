@@ -8,6 +8,10 @@
 #include <math.h>
 #include <string.h>
 
+#ifdef GPU
+#include <opencl_utils.h>
+#endif
+
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
 #define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
 
@@ -24,9 +28,6 @@ float inner_product(const float *x, const float *y, size_t length){
 	}
 	return sum;
 }
-
-
-
 /*
  * Calculates the activation of a given neuron using softmax.
  */
@@ -339,12 +340,12 @@ void cpu_mlp_layer_backward(MLP_layer *l, float *grads){
 			float w = l->neurons[i].weights[j];
 			float d = d_output;
 			float g = gradient;
-			l->gradient[j] += w * d * g;
-
 			float x = l->input[j];
-			l->neurons[i].weight_grad[j] += gradient * d_output * x;
+
+			l->gradient[j] += w * d * g;
+			l->neurons[i].weight_grad[j] = x * d * g;
 		}
-		*l->neurons[i].bias_grad += gradient * d_output;
+		*l->neurons[i].bias_grad = gradient * d_output;
 	}
 }
 
@@ -381,213 +382,35 @@ void dealloc_mlp(MLP *n){
 
 /********* BEGIN GPU-ONLY FUNCTIONS **********/
 #ifdef GPU
-void check_error(int err, char *str){
-  if(err != CL_SUCCESS){
-    printf("ERROR: '%s': ", str);
-    switch(err){
-      case CL_INVALID_PROGRAM:
-        printf("CL_INVALID_PROGRAM.\n");
-        break;
-      case CL_INVALID_PROGRAM_EXECUTABLE:
-        printf("CL_INVALID_PROGRAM_EXECUTABLE.\n");
-        break;
-      case CL_INVALID_KERNEL_NAME:
-        printf("CL_INVALID_KERNEL_NAME.\n");
-        break;
-      case CL_INVALID_KERNEL_DEFINITION:
-        printf("CL_INVALID_KERNEL_DEFINITION.\n");
-        break;
-      case CL_INVALID_VALUE:
-        printf("CL_INVALID_VALUE.\n");
-        break;
-      case CL_OUT_OF_HOST_MEMORY:
-        printf("CL_OUT_OF_HOST_MEMORY.\n");
-        break;
-      case CL_INVALID_COMMAND_QUEUE:
-        printf("CL_INVALID_COMMAND_QUEUE.\n");
-        break;
-      case CL_INVALID_KERNEL:
-        printf("CL_INVALID_KERNEL.\n");
-        break;
-			case CL_INVALID_ARG_INDEX:
-				printf("CL_INVALID_ARG_INDEX.\n");
-				break;
-			case CL_INVALID_ARG_VALUE:
-				printf("CL_INVALID_ARG_VALUE.\n");
-				break;
-			case CL_INVALID_MEM_OBJECT:
-				printf("CL_INVALID_MEM_OBJECT.\n");
-				break;
-			case CL_INVALID_ARG_SIZE:
-				printf("CL_INVALID_ARG_SIZE.\n");
-				break;
-      case CL_INVALID_CONTEXT:
-        printf("CL_INVALID_CONTEXT.\n");
-        break;
-      case CL_INVALID_KERNEL_ARGS:
-        printf("CL_INVALID_KERNEL_ARGS.\n");
-        break;
-      case CL_INVALID_WORK_DIMENSION:
-        printf("CL_INVALID_WORK_DIMENSION.\n");
-        break;
-      case CL_INVALID_WORK_GROUP_SIZE:
-        printf("CL_INVALID_WORK_GROUP_SIZE.\n");
-        break;
-      case CL_INVALID_WORK_ITEM_SIZE:
-        printf("CL_INVALID_WORK_ITEM_SIZE.\n");
-        break;
-      case CL_INVALID_GLOBAL_OFFSET:
-        printf("CL_INVALID_GLOBAL_OFFSET.\n");
-        break;
-			case CL_INVALID_DEVICE:
-				printf("CL_INVALID_DEVICE.\n");
-				break;
-			case CL_INVALID_BINARY:
-				printf("CL_INVALID_BINARY.\n");
-				break;
-			case CL_INVALID_BUILD_OPTIONS:
-				printf("CL_INVALID_BUILD_OPTIONS.\n");
-				break;
-			case CL_INVALID_OPERATION:
-				printf("CL_INVALID_OPERATION.\n");
-				break;
-			case CL_COMPILER_NOT_AVAILABLE:
-				printf("CL_COMPILER_NOT_AVAILABLE.\n");
-				break;
-			case CL_BUILD_PROGRAM_FAILURE:
-				printf("CL_BUILD_PROGRAM_FAILURE.\n");
-				break;
-      default:
-        printf("default err.\n");
-        break;
-    }
-    exit(1);
-  }
-}
-
 
 static cl_context SIEKNET_GLOBAL_CONTEXT;
 static cl_command_queue SIEKNET_GLOBAL_QUEUE;
 static cl_device_id SIEKNET_GLOBAL_DEVICE;
 
-static cl_kernel linear;
+static cl_kernel mlp_forward_kernel;
+static cl_kernel mlp_backward_kernel;
 
 /* 
  * Creates mlp layer for gpu
  */
-
-static cl_context create_opencl_context(){
-	cl_uint num_platforms, num_devices;
-	int status = clGetPlatformIDs(0, NULL, &num_platforms);
-
-	cl_platform_id platforms[num_platforms];
-
-	check_error(clGetPlatformIDs(num_platforms, platforms, NULL), "couldn't get platforms");
-	check_error(clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, 0, NULL, &num_devices), "couldn't count devices");
-	
-	cl_device_id devices[num_devices];
-
-	check_error(clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, num_devices, devices, NULL), "couldn't get device ids.");
-
-	const cl_context_properties cfg[] = {CL_CONTEXT_PLATFORM, (cl_context_properties)platforms[0], 0, 0};
-
-	cl_context context = clCreateContext(cfg, num_devices, devices, NULL, NULL, &status);
-
-	check_error(status, "couldn't make context");
-	printf("successfully created opencl context.\n");
-	return context;
-}
-
-static cl_command_queue make_opencl_queue(cl_context c){
-	cl_uint num_platforms, num_devices;
-	int status = clGetPlatformIDs(0, NULL, &num_platforms);
-
-	cl_platform_id platforms[num_platforms];
-
-	check_error(clGetPlatformIDs(num_platforms, platforms, NULL), "couldn't get platform ids");
-	check_error(clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, 0, NULL, &num_devices), "couldn't count gpu device ids");
-	
-	cl_device_id devices[num_devices];
-
-	check_error(clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, num_devices, devices, NULL), "couldn't get gpu devices");
-
-	int err;
-	cl_command_queue queue = clCreateCommandQueue(c, devices[0], 0, &err);
-	SIEKNET_GLOBAL_DEVICE = devices[0];
-
-	return queue;
-}
-
 void gpu_setup(){
 	SIEKNET_GLOBAL_CONTEXT = create_opencl_context();
 	SIEKNET_GLOBAL_QUEUE = make_opencl_queue(SIEKNET_GLOBAL_CONTEXT);
 
-	char *kernel = "../include/nonlinear.h";
-
-	char *def = "#define SIEKNET_BUILD_KERNEL\n";
-	char *marker = "//SIEKNET KERNEL START\n";
-	char *end = "//SIEKNET KERNEL END\n";
-	             //SIEKNET KERNEL END
-
-	FILE *fp = fopen(kernel, "rb");
-	if(!fp){
-		printf("couldn't find '%s'.\n", kernel);
-		exit(1);
-	}
-	fseek(fp, 0, SEEK_END);
-	size_t kernelfilelen = ftell(fp) + strlen(def);
-	fclose(fp);
-	
-	char *clfile = (char*)malloc(sizeof(char) * (kernelfilelen + 1));
-	strcpy(clfile, def);
-	fp = fopen(kernel, "rb");
-
-	char kernel_start_marker[1000];
-	char kernel_end_marker[1000];
-	do{
-		if(!fgets(kernel_start_marker, 1000, fp)){
-			throw_err("unable to read kernel file, missing kernel start marker.\n");
-		}
-	}
-	while(strcmp(kernel_start_marker, marker));
-
-	do{
-		if(!fgets(kernel_end_marker, 1000, fp)){
-			throw_err("unable to read kernel file, missing kernel end marker.\n");
-		}
-		char static_check[8];
-		memset(static_check, '\0', 8);
-		int x = 6;
-		while(x-->0)
-			static_check[x] = kernel_end_marker[x];
-
-		if(!strcmp("static", static_check))
-			strcat(clfile, kernel_end_marker + strlen("static")+1);
-		else
-			strcat(clfile, kernel_end_marker);
-	}
-	while(strcmp(kernel_end_marker, end));
-	fclose(fp);
+	char *kernels[] = {"../include/nonlinear.h", "../src/mlp.cl", "../src/logistic.cl"};
 
 	int err = 0;
-	//printf("got program:\n%s\n", clfile);
 
-	cl_program prog = clCreateProgramWithSource(SIEKNET_GLOBAL_CONTEXT, 1, (const char**)&clfile, NULL, &err);
-	//printf("printing debug:\n");
-	err = clBuildProgram(prog, 0, NULL, NULL, NULL, NULL);
+	printf("building prog\n");
+	char *src = get_kernel_source(kernels, 3);
+	printf("got src:\n%s", src);
+	cl_program prog = build_program(SIEKNET_GLOBAL_CONTEXT, get_device(), src);
+	free(src);
 
-	size_t len = 0;
-	check_error(clGetProgramBuildInfo(prog, SIEKNET_GLOBAL_DEVICE, CL_PROGRAM_BUILD_LOG, 0, NULL, &len), "getting length of compiler output");
-	char *buffer = calloc(len, sizeof(char));
-	check_error(clGetProgramBuildInfo(prog,  SIEKNET_GLOBAL_DEVICE, CL_PROGRAM_BUILD_LOG, len, buffer, NULL), "copying compiler output to buffer");
-	printf("<OPENCL COMPILER OUTPUT:\n%s<END OPENCL COMPILER OUTPUT>\n", buffer);
-
-	check_error(err, "couldn't build program");
-
-	linear = clCreateKernel(prog, "linear_kernel", &err);
+	mlp_forward_kernel = clCreateKernel(prog, "mlp_forward_kernel", &err);
 	check_error(err, "couldn't make linear kern");
 
-	fn_sigmoid = clCreateKernel(prog, "sigmoid_kernel", &err);
+	logistic_kernel = clCreateKernel(prog, "logistic_kernel", &err);
 	check_error(err, "couldn't make sigmoid kernel");
 
 	printf("made it to the end of gpu setup!\n");
@@ -655,32 +478,18 @@ MLP gpu_mlp_from_arr(size_t arr[], size_t size){
 
 #define ARR_FROM_GPU(clmem, size, name) float name[size]; clEnqueueReadBuffer(SIEKNET_GLOBAL_QUEUE, clmem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL); 
 
-cl_kernel get_kernel(Nonlinearity n){
-	switch(n){
-		case sigmoid:
-			return fn_sigmoid;
-			break;
-		case relu:
-			return fn_relu;
-			break;
-		case hypertan:
-			return fn_hypertan;
-			break;
-	}
-	return 0;
-}
-
 void gpu_mlp_layer_forward(MLP_layer *l, cl_mem input, cl_mem params){
-	check_error(clSetKernelArg(linear, 0, sizeof(cl_mem), &input), "arg0");
-	check_error(clSetKernelArg(linear, 1, sizeof(cl_mem), &l->z), "arg1");
-	check_error(clSetKernelArg(linear, 2, sizeof(cl_mem), &params), "arg2");
-	check_error(clSetKernelArg(linear, 3, sizeof(int), &l->input_dimension), "arg3");
-	check_error(clSetKernelArg(linear, 4, sizeof(int), &l->param_offset), "arg4");
-	check_error(clEnqueueNDRangeKernel(SIEKNET_GLOBAL_QUEUE, linear, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue linear kernel");
+	check_error(clSetKernelArg(mlp_forward_kernel, 0, sizeof(cl_mem), &input), "setting forward kernel arg0");
+	check_error(clSetKernelArg(mlp_forward_kernel, 1, sizeof(cl_mem), &l->z), "setting forward kernel arg1");
+	check_error(clSetKernelArg(mlp_forward_kernel, 2, sizeof(cl_mem), &params), "setting forward kernel arg2");
+	check_error(clSetKernelArg(mlp_forward_kernel, 3, sizeof(int), &l->input_dimension), "setting forward kernel arg3");
+	check_error(clSetKernelArg(mlp_forward_kernel, 4, sizeof(int), &l->param_offset), "setting forward kernel arg4");
+	check_error(clEnqueueNDRangeKernel(SIEKNET_GLOBAL_QUEUE, mlp_forward_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue linear kernel");
 	
-	check_error(clSetKernelArg(get_kernel(l->logistic), 0, sizeof(cl_mem), &l->z), "logistic 0");
-	check_error(clSetKernelArg(get_kernel(l->logistic), 1, sizeof(cl_mem), &l->output), "logistic 1");
-	check_error(clEnqueueNDRangeKernel(SIEKNET_GLOBAL_QUEUE, get_kernel(l->logistic), 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue logistic kernel");
+	check_error(clSetKernelArg(logistic_kernel, 0, sizeof(cl_mem), &l->z), "setting logistic arg 0");
+	check_error(clSetKernelArg(logistic_kernel, 1, sizeof(cl_mem), &l->output), "setting logistic arg 1");
+	check_error(clSetKernelArg(logistic_kernel, 2, sizeof(Nonlinearity), &l->logistic), "setting logistic arg 1");
+	check_error(clEnqueueNDRangeKernel(SIEKNET_GLOBAL_QUEUE, logistic_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue logistic kernel");
 
 }
 
@@ -699,30 +508,31 @@ void gpu_mlp_forward(MLP *n, float *x){
 	for(int i = 0; i < n->output_dimension; i++)
 		if(n->output[n->guess] < n->output[i])
 			n->guess = i;
-	
-	
 }
 
-void gpu_propagate_gradients(MLP *n, cl_mem grad){
-	
-}
-
-void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem param_grad){
-
+void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem param_grad){
+	check_error(clSetKernelArg(mlp_backward_kernel, 0, sizeof(cl_mem), &grad));
+	check_error(clSetKernelArg(mlp_backward_kernel, 1, sizeof(cl_mem), &l->input));
+	check_error(clSetKernelArg(mlp_backward_kernel, 2, sizeof(cl_mem), &l->output));
+	check_error(clSetKernelArg(mlp_backward_kernel, 3, sizeof(cl_mem), &l->gradient));
+	check_error(clSetKernelArg(mlp_backward_kernel, 4, sizeof(cl_mem), &params));
+	check_error(clSetKernelArg(mlp_backward_kernel, 5, sizeof(cl_mem), &param_grad));
+	check_error(clSetKernelArg(mlp_backward_kernel, 6, sizeof(Nonlinearity), l->logistic));
+	check_error(clSetKernelArg(mlp_backward_kernel, 7, sizeof(int), l->param_offset));
+	check_error(clSetKernelArg(mlp_backward_kernel, 8, sizeof(int), l->size));
+	check_error(clSetKernelArg(mlp_backward_kernel, 9, sizeof(int), l->input_dimension));
 }
 
 void gpu_mlp_backward(MLP *n){
 	printf("gpu backward\n");
 	check_error(clEnqueueWriteBuffer(SIEKNET_GLOBAL_QUEUE, n->network_grad, 0, 0, sizeof(float) * n->output_dimension, n->cost_gradient, 0, NULL, NULL), "enqueuing network grads");
 
-	gpu_propagate_gradients(n, n->network_grad);
-
 	cl_mem grads = n->network_grad;
 	int l_idx = n->depth;
 	while(l_idx --> 0){ //l_idx goes to 0!
 		printf("%d.\n", l_idx);
 		MLP_layer *l = &n->layers[l_idx];
-		gpu_mlp_layer_backward(l, grads, n->param_grad);
+		gpu_mlp_layer_backward(l, grads, n->params, n->param_grad);
 		grads = l->gradient;
 	}
 

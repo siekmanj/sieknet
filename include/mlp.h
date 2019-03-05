@@ -33,14 +33,12 @@ typedef struct layer{
 	float *z;
 	float *output;
 	float *input;
-	//void (*logistic)(const float *, float *, size_t);
 #else
+	int param_offset;
   cl_mem gradient;
   cl_mem z;
   cl_mem output;
   cl_mem input;
-  //cl_kernel logistic;
-	int param_offset;
 #endif
 	Nonlinearity logistic;
 	size_t size;
@@ -98,9 +96,7 @@ void fn_relu(const float *, float *, const size_t);
 
 void dealloc_mlp(MLP *);
 #else
-cl_kernel fn_hypertan;
-cl_kernel fn_sigmoid;
-cl_kernel fn_relu;
+cl_kernel logistic_kernel;
 #endif
 
 float inner_product(const float *, const float *, size_t);

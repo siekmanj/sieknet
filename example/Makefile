@@ -14,6 +14,7 @@ LSTM_SRC=$(SRC_DIR)/lstm.c
 MLP_SRC=$(SRC_DIR)/mlp.c
 MNIST_SRC=$(SRC_DIR)/mnist.c
 OPTIM_SRC=$(SRC_DIR)/optimizer.c
+CL_SRC=$(SRC_DIR)/opencl_utils.c
 
 char:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
@@ -26,7 +27,7 @@ binary:
 sequence:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(LSTM_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 test:
-	$(CC) $(CFLAGS) $(INCLUDE) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
+	$(CC) $(CFLAGS) $(INCLUDE) $(MLP_SRC) $(CL_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 
 
 
