@@ -11,7 +11,18 @@ __kernel void mlp_forward_kernel(__global float *x, __global float *z, __global 
 	z[i] = sum + params[w_idx]; //wx + b
 }
 
-__kernel void mlp_backward_kernel(__global float *grads, __global float *input, __global float *output, __global float *dest, __global float *params, __global float *param_grads, Nonlinearity nonlinearity_type, int layer_param_idx, int neurons, int dim){
+__kernel void mlp_backward_kernel(
+																	__global float *grads, 
+																	__global float *input, 
+																	__global float *output, 
+																	__global float *dest, 
+																	__global float *params, 
+																	__global float *param_grads, 
+																	Nonlinearity nonlinearity_type, 
+																	int layer_param_idx,
+																	int neurons, 
+																	int dim
+																){
 	const int i = get_global_id(0);
 
 	dest[i] = 0;
@@ -22,7 +33,6 @@ __kernel void mlp_backward_kernel(__global float *grads, __global float *input, 
 		float g = grads[j];
 		float x = input[i];
 		dest[i] += w * d * g;
-
 		param_grads[w_idx+1] = x * d * g;
 	}
 }
