@@ -29,7 +29,7 @@ int main(){
 	int trials = 50;
 
 	MLP n = create_mlp(input_dim, 4);
-	SGD o = create_optimizer(SGD, n);
+	//SGD o = create_optimizer(SGD, n);
 
 	float avg_time = 0;
 	
@@ -43,14 +43,18 @@ int main(){
 		mlp_forward(&n, x);
 		mlp_cost(&n, x);
 		mlp_backward(&n);
-		o.step(o);
+		//o.step(o);
     avg_time += ((float)(clock() - start)) / CLOCKS_PER_SEC;
 	}
 #ifdef GPU
 	getp(&n);
 #endif
 	for(int i = 0; i < n.num_params; i++){
+#ifndef GPU
+		printf("param %d: %f\n", i, n.param_grads[i]);
+#else
 		printf("param %d: %f\n", i, n.params[i]);
+#endif
 	}
 	printf("avg time over %d trials: %f\n", trials, avg_time);
 

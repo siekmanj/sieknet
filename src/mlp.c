@@ -484,6 +484,7 @@ MLP gpu_mlp_from_arr(size_t arr[], size_t size, int initialize){
 #define ARR_FROM_GPU(clmem, size, name) float name[size]; clEnqueueReadBuffer(SIEKNET_GLOBAL_QUEUE, clmem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL); 
 
 void gpu_mlp_layer_forward(MLP_layer *l, cl_mem input, cl_mem params){
+	l->input = input;
 	check_error(clSetKernelArg(mlp_forward_kernel, 0, sizeof(cl_mem), &input), "setting forward kernel arg0");
 	check_error(clSetKernelArg(mlp_forward_kernel, 1, sizeof(cl_mem), &l->z), "setting forward kernel arg1");
 	check_error(clSetKernelArg(mlp_forward_kernel, 2, sizeof(cl_mem), &params), "setting forward kernel arg2");
@@ -493,7 +494,7 @@ void gpu_mlp_layer_forward(MLP_layer *l, cl_mem input, cl_mem params){
 	
 	check_error(clSetKernelArg(logistic_kernel, 0, sizeof(cl_mem), &l->z), "setting logistic arg 0");
 	check_error(clSetKernelArg(logistic_kernel, 1, sizeof(cl_mem), &l->output), "setting logistic arg 1");
-	check_error(clSetKernelArg(logistic_kernel, 2, sizeof(Nonlinearity), &l->logistic), "setting logistic arg 1");
+	check_error(clSetKernelArg(logistic_kernel, 2, sizeof(Nonlinearity), &l->logistic), "setting logistic arg 2");
 	check_error(clEnqueueNDRangeKernel(SIEKNET_GLOBAL_QUEUE, logistic_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue logistic kernel");
 
 }
@@ -516,20 +517,22 @@ void gpu_mlp_forward(MLP *n, float *x){
 }
 
 void getp(MLP *n){
-	clEnqueueReadBuffer(SIEKNET_GLOBAL_QUEUE, n->gpu_params, 1, 0, sizeof(float) * n->num_params, n->params, 0, NULL, NULL);
+	clEnqueueReadBuffer(SIEKNET_GLOBAL_QUEUE, n->param_grad, 1, 0, sizeof(float) * n->num_params, n->params, 0, NULL, NULL);
 }
 
 void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem param_grad){
-	check_error(clSetKernelArg(mlp_backward_kernel, 0, sizeof(cl_mem), &grad), "setting backward kernel arg 0");
-	check_error(clSetKernelArg(mlp_backward_kernel, 1, sizeof(cl_mem), &l->input), "setting backward kernel arg 1");
-	check_error(clSetKernelArg(mlp_backward_kernel, 2, sizeof(cl_mem), &l->output), "setting backward kernel arg 2");
-	check_error(clSetKernelArg(mlp_backward_kernel, 3, sizeof(cl_mem), &l->gradient), "setting backward kernel arg 3");
-	check_error(clSetKernelArg(mlp_backward_kernel, 4, sizeof(cl_mem), &params), "setting backward kernel arg 4");
-	check_error(clSetKernelArg(mlp_backward_kernel, 5, sizeof(cl_mem), &param_grad), "setting backward kernel arg 5");
-	check_error(clSetKernelArg(mlp_backward_kernel, 6, sizeof(Nonlinearity), &l->logistic), "setting backward kernel arg 6");
-	check_error(clSetKernelArg(mlp_backward_kernel, 7, sizeof(int), &l->param_offset), "setting backward kernel arg 7");
-	check_error(clSetKernelArg(mlp_backward_kernel, 8, sizeof(int), &l->size), "setting backward kernel arg 8");
-	check_error(clSetKernelArg(mlp_backward_kernel, 9, sizeof(int), &l->input_dimension), "setting backward kernel arg 9");
+	check_error(clSetKernelArg(mlp_input_gradient_kernel, 0, sizeof(cl_mem), &grad), "setting input grad kernel arg 0");
+	check_error(clSetKernelArg(mlp_input_gradient_kernel, 1, sizeof(cl_mem), &l->output), "setting input grad kernel arg 1");
+	check_error(clSetKernelArg(mlp_input_gradient_kernel, 2, sizeof(cl_mem), &params), "setting input grad kernel arg 2");
+	check_error(clSetKernelArg(mlp_input_gradient_kernel, 3, sizeof(cl_mem), &l->gradient), "setting input grad kernel arg 3");
+	check_error(clSetKernelArg(mlp_input_gradient_kernel, 4, sizeof(int), &l->param_offset), "setting input grad kernel arg 4");
+	check_error(clSetKernelArg(mlp_input_gradient_kernel, 5, sizeof(int), &l->size), "setting input grad kernel arg 5");
+	check_error(clSetKernelArg(mlp_input_gradient_kernel, 6, sizeof(int), &l->input_dimension), "setting input grad kernel arg 6");
+
+	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 0, sizeof(cl_mem), &grad), "setting param grad kernel arg 0");
+	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 1, sizeof(cl_mem), &l->output), "setting param grad kernel arg 1");
+	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 2, sizeof(cl_mem), &l->input), "setting param grad kernel arg 1");
+	check_error(clEnqueueNDRangeKernel(SIEKNET_GLOBAL_QUEUE, mlp_backward_kernel, 1, NULL, &l->input_dimension, NULL, 0, NULL, NULL), "couldn't enqueue mlp backward kernel");
 }
 
 void gpu_mlp_backward(MLP *n){

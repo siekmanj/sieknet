@@ -27,7 +27,7 @@ binary:
 sequence:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(LSTM_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 test:
-	$(CC) $(CFLAGS) $(INCLUDE) $(MLP_SRC) $(CL_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
+	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(CL_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 
 
 

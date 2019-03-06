@@ -3,6 +3,7 @@
 #ifndef OPENCL_UTILS
 #define OPENCL_UTILS
 
+#define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 #include <CL/cl.h>
 
 char *get_kernel_source(char **, size_t);
