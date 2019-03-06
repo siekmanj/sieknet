@@ -1,7 +1,7 @@
 #ifndef SIEKNETCONF_H
 #define SIEKNETCONF_H
 
-//#define GPU
+#define GPU
 //#define DEBUG
 //#define MAX_GRAD 1
 
