@@ -213,7 +213,7 @@ MLP_layer cpu_create_MLP_layer(size_t input_dimension, size_t num_neurons, float
 /*
  * A function called through the createMLP() macro that allows creation of a network with any arbitrary number of layers.
  */
-MLP cpu_mlp_from_arr(size_t arr[], size_t size){
+MLP cpu_mlp_from_arr(size_t arr[], size_t size, int initialize){
 	MLP n;
 	n.input_dimension = arr[0];
 	n.output_dimension = arr[size-1];
@@ -401,14 +401,15 @@ void gpu_setup(){
 
 	int err = 0;
 
-	printf("building prog\n");
 	char *src = get_kernel_source(kernels, 3);
-	printf("got src:\n%s", src);
 	cl_program prog = build_program(SIEKNET_GLOBAL_CONTEXT, get_device(), src);
 	free(src);
 
 	mlp_forward_kernel = clCreateKernel(prog, "mlp_forward_kernel", &err);
-	check_error(err, "couldn't make linear kern");
+	check_error(err, "couldn't make forwards kernel");
+
+	mlp_backward_kernel = clCreateKernel(prog, "mlp_backward_kernel", &err);
+	check_error(err, "couldn't make mlp backwards kernel");
 
 	logistic_kernel = clCreateKernel(prog, "logistic_kernel", &err);
 	check_error(err, "couldn't make sigmoid kernel");
@@ -417,7 +418,7 @@ void gpu_setup(){
 
 }
 
-MLP gpu_mlp_from_arr(size_t arr[], size_t size){
+MLP gpu_mlp_from_arr(size_t arr[], size_t size, int initialize){
 	MLP n;
 	n.input_dimension = arr[0];
 	n.output_dimension = arr[size-1];
@@ -449,16 +450,20 @@ MLP gpu_mlp_from_arr(size_t arr[], size_t size){
 
 		l.logistic = sigmoid;
 		l.param_offset = param_idx;
-		for(int j = 0; j < l.size; j++){
-			xavier_init(&n.params[param_idx + j * (arr[i-1]+1)], arr[i-1]+1, arr[i]);
+		if(initialize){
+			for(int j = 0; j < l.size; j++){
+				xavier_init(&n.params[param_idx + j * (arr[i-1]+1)], arr[i-1]+1, arr[i]);
+			}
 		}
 	
 		n.layers[i-1] = l;
 		param_idx += (arr[i-1]+1)*arr[i];
 	}
 
-	n.gpu_params = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * n.num_params, n.params, &err);
-	check_error(err, "creating & copying gpu params");
+	if(initialize){
+		n.gpu_params = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * n.num_params, n.params, &err);
+		check_error(err, "creating & copying gpu params");
+	}
 
 	n.param_grad = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE, sizeof(float) * n.num_params, NULL, &err);
 	check_error(err, "creating gpu param grads");
@@ -510,41 +515,42 @@ void gpu_mlp_forward(MLP *n, float *x){
 			n->guess = i;
 }
 
+void getp(MLP *n){
+	clEnqueueReadBuffer(SIEKNET_GLOBAL_QUEUE, n->gpu_params, 1, 0, sizeof(float) * n->num_params, n->params, 0, NULL, NULL);
+}
+
 void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem param_grad){
-	check_error(clSetKernelArg(mlp_backward_kernel, 0, sizeof(cl_mem), &grad));
-	check_error(clSetKernelArg(mlp_backward_kernel, 1, sizeof(cl_mem), &l->input));
-	check_error(clSetKernelArg(mlp_backward_kernel, 2, sizeof(cl_mem), &l->output));
-	check_error(clSetKernelArg(mlp_backward_kernel, 3, sizeof(cl_mem), &l->gradient));
-	check_error(clSetKernelArg(mlp_backward_kernel, 4, sizeof(cl_mem), &params));
-	check_error(clSetKernelArg(mlp_backward_kernel, 5, sizeof(cl_mem), &param_grad));
-	check_error(clSetKernelArg(mlp_backward_kernel, 6, sizeof(Nonlinearity), l->logistic));
-	check_error(clSetKernelArg(mlp_backward_kernel, 7, sizeof(int), l->param_offset));
-	check_error(clSetKernelArg(mlp_backward_kernel, 8, sizeof(int), l->size));
-	check_error(clSetKernelArg(mlp_backward_kernel, 9, sizeof(int), l->input_dimension));
+	check_error(clSetKernelArg(mlp_backward_kernel, 0, sizeof(cl_mem), &grad), "setting backward kernel arg 0");
+	check_error(clSetKernelArg(mlp_backward_kernel, 1, sizeof(cl_mem), &l->input), "setting backward kernel arg 1");
+	check_error(clSetKernelArg(mlp_backward_kernel, 2, sizeof(cl_mem), &l->output), "setting backward kernel arg 2");
+	check_error(clSetKernelArg(mlp_backward_kernel, 3, sizeof(cl_mem), &l->gradient), "setting backward kernel arg 3");
+	check_error(clSetKernelArg(mlp_backward_kernel, 4, sizeof(cl_mem), &params), "setting backward kernel arg 4");
+	check_error(clSetKernelArg(mlp_backward_kernel, 5, sizeof(cl_mem), &param_grad), "setting backward kernel arg 5");
+	check_error(clSetKernelArg(mlp_backward_kernel, 6, sizeof(Nonlinearity), &l->logistic), "setting backward kernel arg 6");
+	check_error(clSetKernelArg(mlp_backward_kernel, 7, sizeof(int), &l->param_offset), "setting backward kernel arg 7");
+	check_error(clSetKernelArg(mlp_backward_kernel, 8, sizeof(int), &l->size), "setting backward kernel arg 8");
+	check_error(clSetKernelArg(mlp_backward_kernel, 9, sizeof(int), &l->input_dimension), "setting backward kernel arg 9");
 }
 
 void gpu_mlp_backward(MLP *n){
-	printf("gpu backward\n");
 	check_error(clEnqueueWriteBuffer(SIEKNET_GLOBAL_QUEUE, n->network_grad, 0, 0, sizeof(float) * n->output_dimension, n->cost_gradient, 0, NULL, NULL), "enqueuing network grads");
 
 	cl_mem grads = n->network_grad;
 	int l_idx = n->depth;
 	while(l_idx --> 0){ //l_idx goes to 0!
-		printf("%d.\n", l_idx);
 		MLP_layer *l = &n->layers[l_idx];
-		gpu_mlp_layer_backward(l, grads, n->params, n->param_grad);
+		gpu_mlp_layer_backward(l, grads, n->gpu_params, n->param_grad);
 		grads = l->gradient;
 	}
-
 }
 
 #endif
 
-MLP mlp_from_arr(size_t arr[], size_t size){
+MLP mlp_from_arr(size_t arr[], size_t size, int initialize){
 #ifndef GPU
-	return cpu_mlp_from_arr(arr, size);
+	return cpu_mlp_from_arr(arr, size, initialize);
 #else
-	return gpu_mlp_from_arr(arr, size);
+	return gpu_mlp_from_arr(arr, size, initialize);
 #endif
 }
 
@@ -578,7 +584,10 @@ static void getWord(FILE *fp, char* dest){
  * n: A pointer to the network.
  * filename: The desired filename and path.
  */
-void save_mlp(const MLP *n, const char* filename){
+void save_mlp(MLP *n, const char* filename){
+#ifdef GPU
+	getp(n);
+#endif
 	char buff[1024];
 	memset(buff, '\0', 1024);
 
@@ -594,6 +603,7 @@ void save_mlp(const MLP *n, const char* filename){
 		if(i < n->depth-1) fprintf(fp, " ");
 		else fprintf(fp, "\n");
 	}
+	
 	for(int i = 0; i < n->num_params; i++){
 		fprintf(fp, "%f", n->params[i]);
 		if(i < n->num_params-1) fprintf(fp, " ");
@@ -628,9 +638,15 @@ MLP load_mlp(const char *filename){
 	}
 
 	MLP n;
-	n = mlp_from_arr(arr, num_layers+1);
+	n = mlp_from_arr(arr, num_layers+1, 0);
 	for(int i = 0; i < n.num_params; i++){
 		f = fscanf(fp, "%f", &n.params[i]);
 	}
+#ifdef GPU
+	int err;
+	n.gpu_params = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * n.num_params, n.params, &err);
+	check_error(err, "could not write params into gpu");
+#endif
+	check_error(err, "creating & copying gpu params");
 	return n;
 }

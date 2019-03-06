@@ -15,7 +15,7 @@
 #include <CL/cl.h>
 #endif
 
-#define create_mlp(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
+#define create_mlp(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t), 1)
 
 #ifndef GPU
 typedef struct neuron{
@@ -73,7 +73,7 @@ typedef struct mlp{
 void gpu_setup();
 #endif
 
-MLP mlp_from_arr(size_t arr[], size_t size);
+MLP mlp_from_arr(size_t arr[], size_t size, int initialize);
 MLP load_mlp(const char *filename);
 
 MLP_layer cpu_create_MLP_layer(size_t, size_t, float *, float *, Nonlinearity);
@@ -82,7 +82,9 @@ void mlp_forward(MLP *, float *);
 void mlp_backward(MLP *);
 float mlp_cost(MLP *, float *);
 
-void save_mlp(const MLP *n, const char* filename);
+void save_mlp(MLP *n, const char* filename);
+
+void getp(MLP *);
 
 void xavier_init(float *, size_t, size_t);
 void zero_2d_arr(float **, size_t, size_t);

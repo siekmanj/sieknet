@@ -1,16 +1,15 @@
 #include "optimizer.h"
+
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
 
-
-
 static float sgd_step(SGD o){
 	float entropy = 0;
+#ifdef GPU
+	clSetKernelArgs
 	for(int i = 0; i < o.num_params; i++){
-    //printf("GRAD %d is %f!!!\n", i, o.gradient[i]);
 		o.weights[i] += o.learning_rate * o.gradient[i];
-		//entropy += o.learning_rate * o.gradient[i];
 		o.gradient[i] = 0.0;
 	}
 	return entropy;
