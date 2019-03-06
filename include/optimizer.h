@@ -6,15 +6,17 @@
 #include <stdio.h>
 
 #ifdef GPU
-#define create_optimizer(TYPE, network) init_## TYPE ((network).gpu_params, (network).param_grad, (network).num_params)
+#define create_optimizer(TYPE, network) gpu_init_## TYPE ((network).gpu_params, (network).param_grad, (network).num_params, (network).context, (network).queue)
 #else
-#define create_optimizer(TYPE, network) init_## TYPE ((network).params, (network).param_grad, (network).num_params)
+#define create_optimizer(TYPE, network) cpu_init_## TYPE ((network).params, (network).param_grad, (network).num_params)
 #endif
 
 typedef struct sgd{
 #ifdef GPU
 	cl_mem weights;
-	cl_mem gradients;
+	cl_mem gradient;
+	cl_command_queue q;
+	cl_context c;
 #else
 	float *weights;
 	float *gradient;
@@ -30,6 +32,8 @@ typedef struct momentum{
 	cl_mem weights;
 	cl_mem gradient;
 	cl_mem z;
+	cl_command_queue q;
+	cl_context c;
 #else
 	float *weights;
 	float *gradient;
@@ -46,11 +50,11 @@ typedef struct adam{
 } Adam;
 
 #ifdef GPU
-SGD init_SGD(cl_mem, cl_mem, size_t, cl_context c, cl_queue q);
-Momentum init_Momentum(cl_mem, cl_mem, size_t, cl_context c, cl_queue c);
+SGD gpu_init_SGD(cl_mem, cl_mem, size_t, cl_context c, cl_command_queue q);
+Momentum gpu_init_Momentum(cl_mem, cl_mem, size_t, cl_context c, cl_command_queue q);
 #else
-SGD init_SGD(float *, float *, size_t);
-Momentum init_Momentum(float *, float *, size_t);
+SGD cpu_init_SGD(float *, float *, size_t);
+Momentum cpu_init_Momentum(float *, float *, size_t);
 #endif
 
 #endif

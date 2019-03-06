@@ -64,6 +64,8 @@ typedef struct mlp{
 	cl_mem param_grad;
 	cl_mem network_input;
 	cl_mem network_grad;
+	cl_context context;
+	cl_command_queue queue;
 #endif
 	float *cost_gradient;
 	float (*cost_fn)(float *y, const float *l, float *dest, size_t);
