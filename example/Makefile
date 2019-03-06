@@ -17,8 +17,6 @@ OPTIM_SRC=$(SRC_DIR)/optimizer.c
 
 char:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
-shakespeare:
-	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 mlp_mnist:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MNIST_SRC) $(MLP_SRC) ../example/$@.c -o $(BIN)/$@ $(LIBS)
 binary:
