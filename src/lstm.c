@@ -12,9 +12,35 @@
 
 #define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
-#define DEBUG 1
-#define MAX_GRAD 2
-#define MAX_STATE 10
+#define DEBUG 0
+#define MAX_GRAD 1
+#define MAX_STATE 35
+
+/*
+ * Used to sample from softmax distribution
+ */
+int sample_softmax(float *probs, size_t len){
+	float random_num = ((float)rand()) / (float)RAND_MAX;
+
+	float lower_bound = 0;
+  for(int i = 0; i < len; i++){
+		float upper_bound = lower_bound + probs[i];
+		if(random_num >= lower_bound && random_num < upper_bound){
+			return i;
+		}
+		lower_bound += probs[i];
+  }
+  return len-1;
+}
+
+int argmax(float *args, size_t len){
+	int argm = 0;
+	for(int i = 0; i < len; i++){
+		if(args[argm] < args[i])
+			argm = i;
+	}
+	return argm;
+}
 
 float lstm_cost(LSTM *n, float *y){
 	MLP *mlp = &n->output_layer;
@@ -188,7 +214,7 @@ LSTM cpu_lstm_from_arr(size_t *arr, size_t len){
 	
 	int param_idx = 0;
 	for(int i = 1; i < len-1; i++){
-		LSTM_layer l = create_LSTM_layer(arr[i-1], arr[i], &n.params[param_idx], &n.param_grad[param_idx]);
+		LSTM_layer l = cpu_create_LSTM_layer(arr[i-1], arr[i], &n.params[param_idx], &n.param_grad[param_idx]);
 		param_idx += (4*(arr[i-1]+arr[i]+1))*arr[i];
 		n.layers[i-1] = l;
 	}	
@@ -220,13 +246,12 @@ LSTM cpu_lstm_from_arr(size_t *arr, size_t len){
 	output_mlp.guess = 0;
 	output_mlp.output = output_mlp.layers[0].output;
 	n.output_layer = output_mlp;
-	
 	return n;
 }
 
 /*
  * Does elementwise tanh, doesn't return NaN's
- *
+ */
 float hypertan_element(float x){
 	if(x > 7.0)  return 0.999998;
 	if(x < -7.0) return -0.999998;
@@ -240,7 +265,6 @@ float d_hypertan_element(float x){
 float sigmoid_element(float x){
  return 1/(1 + exp(-x));
 }
-*/
 
 /*
  * Computes the forward pass of a single layer
@@ -262,16 +286,18 @@ void cpu_lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 		Gate *i = &c->input_gate;
 		Gate *f = &c->forget_gate;
 		Gate *o = &c->output_gate;
+		//float z = inner_product(a->weights, tmp, l->input_dimension) + *a->bias;
+		//printf("%f vs %f\n", hypertan_element(z), HYPERTAN(z));
 
 		a->output[t] = hypertan_element(inner_product(a->weights, tmp, l->input_dimension) + *a->bias); //input nonlinearity uses hypertangent
-		i->output[t] = sigmoid_element(inner_product(i->weights, tmp, l->input_dimension) + *i->bias); //all of the gates use sigmoid
-		f->output[t] = sigmoid_element(inner_product(f->weights, tmp, l->input_dimension) + *f->bias);
-		o->output[t] = sigmoid_element(inner_product(o->weights, tmp, l->input_dimension) + *o->bias);
+		i->output[t] = SIGMOID(inner_product(i->weights, tmp, l->input_dimension) + *i->bias); //all of the gates use sigmoid
+		f->output[t] = SIGMOID(inner_product(f->weights, tmp, l->input_dimension) + *f->bias);
+		o->output[t] = SIGMOID(inner_product(o->weights, tmp, l->input_dimension) + *o->bias);
 
-		a->dOutput[t] = 1 - a->output[t] * a->output[t];
-		i->dOutput[t] = i->output[t] * (1 - i->output[t]);
-		f->dOutput[t] = f->output[t] * (1 - f->output[t]);
-		o->dOutput[t] = o->output[t] * (1 - o->output[t]);
+		a->dOutput[t] = D_HYPERTAN(a->output[t]);
+		i->dOutput[t] = D_SIGMOID(i->output[t]);
+		f->dOutput[t] = D_SIGMOID(f->output[t]);
+		o->dOutput[t] = D_SIGMOID(o->output[t]);
 
 		c->state[t] = a->output[t] * i->output[t] + f->output[t] * c->lstate; //Calculate the internal cell state
 		l->output[t][j] = hypertan_element(c->state[t]) * o->output[t]; //Calculate the output of the cell
@@ -319,13 +345,18 @@ void cpu_lstm_forward(LSTM *n, float *x){
 	float *input = n->network_input[t];
 	for(int i = 0; i < n->depth; i++){
 		LSTM_layer *l = &n->layers[i];
-		lstm_layer_forward(l, input, t);
+		cpu_lstm_layer_forward(l, input, t);
 		input = l->output[t];
 	}
 
 	//Feedforward through final MLP layer
 	mlp_forward(&n->output_layer, input);
+	n->output = n->output_layer.layers[0].output;
 	n->guess = n->output_layer.guess;
+	if(!(rand()%3))
+		n->guess = sample_softmax(n->output_layer.output, n->output_layer.output_dimension);
+	else
+		n->guess = argmax(n->output_layer.output, n->output_layer.output_dimension);
 }
 
 /*
@@ -360,7 +391,7 @@ void cpu_lstm_propagate_gradients(LSTM *n, float **network_grads){
 				}
 				float grad = gradients[t][j]; 
 				c->dOutput[t] = grad + delta_out;
-				c->dstate[t] = c->dOutput[t] * o->output[t] * d_hypertan_element(c->state[t]) + next_dstate * next_forget;
+				c->dstate[t] = c->dOutput[t] * o->output[t] * D_HYPERTAN(c->state[t]) + next_dstate * next_forget;
 
 				a->gradient[t] = c->dstate[t] * i->output[t] * a->dOutput[t];
 				i->gradient[t] = c->dstate[t] * a->output[t] * i->dOutput[t];
@@ -429,9 +460,9 @@ void cpu_lstm_layer_backward(LSTM_layer *l, size_t max_time){
 void cpu_lstm_backward(LSTM *n){
 	if(n->t >= n->seq_len){
 		//printf("BACKPROP %lu of %lu!", n->t, n->seq_len);
-		lstm_propagate_gradients(n, n->network_gradient);
+		cpu_lstm_propagate_gradients(n, n->network_gradient);
 		for(int i = n->depth-1; i >= 0; i--){
-			lstm_layer_backward(&n->layers[i], n->t-1);
+			cpu_lstm_layer_backward(&n->layers[i], n->t-1);
 		}
 		for(int i = 0; i < n->depth; i++){
 			LSTM_layer *l = &n->layers[i];
@@ -447,9 +478,9 @@ void cpu_lstm_backward(LSTM *n){
 
 LSTM lstm_from_arr(size_t *arr, size_t len){
 #ifdef GPU
-	gpu_lstm_from_arr(arr, len);
+	return gpu_lstm_from_arr(arr, len);
 #else
-	cpu_lstm_from_arr(arr, len);
+	return cpu_lstm_from_arr(arr, len);
 #endif
 }
 
@@ -458,6 +489,7 @@ void lstm_forward(LSTM *n, float *x){
 	gpu_lstm_forward(n, x);
 #else
 	cpu_lstm_forward(n, x);
+#endif
 }
 
 void lstm_backward(LSTM *n){

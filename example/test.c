@@ -37,11 +37,16 @@ int main(){
 	for(int i = 0; i < input_dim; i++)
 		x[i] = uniform(-1, 1);
 
+	printf("starting trials network: %p..., depth %d\n", &n, n.depth);
 	for(int i = 0; i < trials; i++){
     clock_t start = clock();
+		printf("doing forward\n");
 		lstm_forward(&n, x);
+		printf("doing cost\n");
 		lstm_cost(&n, x);
+		printf("doing backward\n");
 		lstm_backward(&n);
+		printf("doing optimizer step\n");
 		o.step(o);
     avg_time += ((float)(clock() - start)) / CLOCKS_PER_SEC;
 	}
