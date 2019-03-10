@@ -3,7 +3,7 @@
  * This is a toy problem - training an mlp to convert a 4-bit binary string to a decimal number between 0 and 15.
  */
 
-#include <mlp.h>
+#include <lstm.h>
 #include <optimizer.h>
 #include <stdio.h>
 #include <math.h>
@@ -21,15 +21,14 @@ float uniform(float minimum, float maximum){
 		return center - ((((float)rand())/RAND_MAX)) * max_mag;
 }
 int main(){
-#ifdef GPU
-	gpu_setup();
-#endif
 	srand(1);
 	int input_dim = 4;
 	int trials = 50;
 
-	MLP n = create_mlp(input_dim, 4);
-	//SGD o = create_optimizer(SGD, n);
+	LSTM n = create_lstm(input_dim, 2, 4);
+	SGD o = create_optimizer(SGD, n);
+	n.seq_len = 4;
+
 
 	float avg_time = 0;
 	
@@ -40,21 +39,18 @@ int main(){
 
 	for(int i = 0; i < trials; i++){
     clock_t start = clock();
-		mlp_forward(&n, x);
-		mlp_cost(&n, x);
-		mlp_backward(&n);
-		//o.step(o);
+		lstm_forward(&n, x);
+		lstm_cost(&n, x);
+		lstm_backward(&n);
+		o.step(o);
     avg_time += ((float)(clock() - start)) / CLOCKS_PER_SEC;
 	}
 #ifdef GPU
-	getp(&n);
+	float *tmp = (float*)malloc(sizeof(float) * n.num_params);
+	clEnqueueReadBuffer(get_opencl_queue(), n.gpu_params, 1, 0, sizeof(float) * n.num_params, n.params, 0, NULL, NULL);
 #endif
 	for(int i = 0; i < n.num_params; i++){
-#ifndef GPU
-		printf("param %d: %f\n", i, n.param_grads[i]);
-#else
 		printf("param %d: %f\n", i, n.params[i]);
-#endif
 	}
 	printf("avg time over %d trials: %f\n", trials, avg_time);
 

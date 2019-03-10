@@ -6,6 +6,7 @@
  */
 
 #include "lstm.h"
+#include "nonlinear.h"
 #include <math.h>
 #include <string.h>
 
@@ -15,6 +16,29 @@
 #define MAX_GRAD 2
 #define MAX_STATE 10
 
+float lstm_cost(LSTM *n, float *y){
+	MLP *mlp = &n->output_layer;
+	float c = n->cost_fn(mlp->output, y, mlp->cost_gradient, n->output_dimension);
+	mlp_backward(mlp);
+
+	float *grads = mlp->layers[0].gradient;
+	
+	size_t t = n->t;
+	if(mlp->layers[0].input_dimension != n->layers[n->depth-1].size){
+		printf("ERROR: cost_wrapper(): Size mismatch between mlp output layer and final lstm layer (%lu vs %lu)\n", mlp->layers[0].input_dimension, n->layers[n->depth-1].size);
+		exit(1);
+	}
+	for(int i = 0; i < mlp->layers[0].input_dimension; i++)
+		n->network_gradient[t][i] = grads[i];
+
+	n->t++;
+	return c;
+}
+
+
+#ifndef GPU
+
+/********* BEGIN CPU-ONLY FUNCTIONS *******/
 
 /*
  * Used to initialize input/forget/output gates
@@ -56,30 +80,10 @@ void wipe(LSTM *n){
 	n->t = 0;
 }	
 
-float lstm_cost(LSTM *n, float *y){
-	MLP *mlp = &n->output_layer;
-	float c = n->cost_fn(mlp->output, y, mlp->cost_gradient, n->output_dimension);
-	mlp_backward(mlp);
-
-	float *grads = mlp->layers[0].gradient;
-	
-	size_t t = n->t;
-	if(mlp->layers[0].input_dimension != n->layers[n->depth-1].size){
-		printf("ERROR: cost_wrapper(): Size mismatch between mlp output layer and final lstm layer (%lu vs %lu)\n", mlp->layers[0].input_dimension, n->layers[n->depth-1].size);
-		exit(1);
-	}
-	for(int i = 0; i < mlp->layers[0].input_dimension; i++)
-		n->network_gradient[t][i] = grads[i];
-
-	n->t++;
-	return c;
-}
-
-
 /*
  * Used to initialize & allocate memory for a layer of LSTM cells
  */
-LSTM_layer create_LSTM_layer(size_t input_dim, size_t size, float *param_addr, float *param_grad){
+LSTM_layer cpu_create_LSTM_layer(size_t input_dim, size_t size, float *param_addr, float *param_grad){
 	LSTM_layer l;
 	l.input_dimension = input_dim + size;
 
@@ -155,13 +159,11 @@ LSTM_layer create_LSTM_layer(size_t input_dim, size_t size, float *param_addr, f
 /*
  * Called through a macro which allows a variable number of parameters
  */
-LSTM lstm_from_arr(size_t *arr, size_t len){
+LSTM cpu_lstm_from_arr(size_t *arr, size_t len){
 	LSTM n;
 	n.t = 0;
-	//n.collapse = 0;
 	n.stateful = 0;
 	n.seq_len = 25;
-	//n.learning_rate = 0.01;
 	n.input_dimension = arr[0];
 	n.output_dimension = arr[len-1];
 	n.depth = len-2;
@@ -224,31 +226,26 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 
 /*
  * Does elementwise tanh, doesn't return NaN's
- */
+ *
 float hypertan_element(float x){
 	if(x > 7.0)  return 0.999998;
 	if(x < -7.0) return -0.999998;
 	return (exp(x) - exp(-x)) / (exp(x) + exp(-x));
 }
-/*
- * Returns the derivative of tanh
- */
 float d_hypertan_element(float x){
 	float x_sq = hypertan_element(x);
 	return 1 - x_sq * x_sq;
 }
 
-/*
- * Does elementwise sigmoid
- */
 float sigmoid_element(float x){
  return 1/(1 + exp(-x));
 }
+*/
 
 /*
  * Computes the forward pass of a single layer
  */
-void lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
+void cpu_lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 	size_t recurrent_offset = l->input_dimension - l->size;
 
 	l->input[t] = input; //save pointer to input for backward pass
@@ -313,7 +310,7 @@ void lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 /*
  * Does a forward pass through the network
  */
-void lstm_forward(LSTM *n, float *x){
+void cpu_lstm_forward(LSTM *n, float *x){
 	size_t t = n->t;
 	for(int i = 0; i < n->input_dimension; i++){
 		n->network_input[t][i] = x[i];
@@ -334,7 +331,7 @@ void lstm_forward(LSTM *n, float *x){
 /*
  * Propagate gradients from cost function throughout network, for all timesteps.
  */
-void lstm_propagate_gradients(LSTM *n, float **network_grads){
+void cpu_lstm_propagate_gradients(LSTM *n, float **network_grads){
 	size_t MAX_TIME = n->t-1;
 	float **gradients = network_grads;
 	for(int i = n->depth-1; i >= 0; i--){
@@ -391,7 +388,7 @@ void lstm_propagate_gradients(LSTM *n, float **network_grads){
 /*
  * Perform parameter update step for a single layer
  */
-void lstm_layer_backward(LSTM_layer *l, size_t max_time){
+void cpu_lstm_layer_backward(LSTM_layer *l, size_t max_time){
 	int recurrent_offset = l->input_dimension - l->size;
 	for(long t = 0; t <= max_time; t++){
 		for(long j = 0; j < l->size; j++){
@@ -429,7 +426,7 @@ void lstm_layer_backward(LSTM_layer *l, size_t max_time){
 /*
  * Performs parameter update for all LSTM layers
  */
-void lstm_backward(LSTM *n){
+void cpu_lstm_backward(LSTM *n){
 	if(n->t >= n->seq_len){
 		//printf("BACKPROP %lu of %lu!", n->t, n->seq_len);
 		lstm_propagate_gradients(n, n->network_gradient);
@@ -446,8 +443,33 @@ void lstm_backward(LSTM *n){
 	}
 }
 
+#endif
+
+LSTM lstm_from_arr(size_t *arr, size_t len){
+#ifdef GPU
+	gpu_lstm_from_arr(arr, len);
+#else
+	cpu_lstm_from_arr(arr, len);
+#endif
+}
+
+void lstm_forward(LSTM *n, float *x){
+#ifdef GPU
+	gpu_lstm_forward(n, x);
+#else
+	cpu_lstm_forward(n, x);
+}
+
+void lstm_backward(LSTM *n){
+#ifdef GPU
+	gpu_lstm_backward(n);
+#else
+	cpu_lstm_backward(n);
+#endif
+}
 
 void dealloc_lstm(LSTM *n){
+	/*
 	for(int i = 0; i < n->depth; i++){
 		LSTM_layer *l = &n->layers[i];
 		for(int j = 0; j < l->size; j++){
@@ -498,6 +520,7 @@ void dealloc_lstm(LSTM *n){
 	free(n->output_layer.layers);
 	free(n->output_layer.output);
 	free(n->output_layer.cost_gradient);
+	*/
 }
  /*
   * IO FUNCTIONS FOR READING AND WRITING TO A FILE

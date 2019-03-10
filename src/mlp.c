@@ -28,22 +28,6 @@ float inner_product(const float *x, const float *y, size_t length){
 	}
 	return sum;
 }
-/*
- * Calculates the activation of a given neuron using softmax.
- */
-void fn_softmax(const float *z, float *dest, size_t dim){
-	double sum = 0;
-	for(int i = 0; i < dim; i++)
-		sum += exp(z[i]);
-
-	for(int i = 0; i < dim; i++){
-		dest[i] = exp(z[i]) / sum;
-		if(isnan(dest[i])){
-			printf("ERROR: softmax(): nan from exp(%6.5f) / %6.5f\n", z[i], sum);
-			exit(1);
-		}
-	}
-}
 
 /*
  * Does Xavier (or Xavier-like) parameter initialization
@@ -123,58 +107,6 @@ float mlp_cost(MLP *n, float *y){
 /********* BEGIN CPU-ONLY FUNCTIONS **********/
 #ifndef GPU
 
-/*
- * Calculates the activations of a layer with sigmoid.
- */
-void fn_sigmoid(const float *z, float *dest, size_t dim){
-	for(int i = 0; i < dim; i++){
-		dest[i] = SIGMOID(z[i]);
-		if(isnan(dest[i])){
-			printf("ERROR: sigmoid(): nan from 1 / (1 + exp(-%6.5f))\n", z[i]);
-			exit(1);
-		}
-	}
-}
-
-/*
- * Calculates the activations of a layer using ReLu.
- */
-void fn_relu(const float *z, float *dest, size_t dim){
-	for(int i = 0; i < dim; i++){
-		float x = z[i];
-		if(x < 0) dest[i] = 0;
-		else dest[i] = x;
-	}
-}
-
-/*
- * Calculates the activations of a layer using tanh.
- */
-void fn_hypertan(const float *z, float *dest, size_t dim){
-	for(int i = 0; i < dim; i++){
-		float x = z[i];
-		if(x > 7.0) dest[i] = 0.999998;
-		else if(x < -7.0) dest[i] = -0.999998;
-		else dest[i] = ((exp(x) - exp(-x))/(exp(x) + exp(-x)));
-	}
-}
-
-/*
- * Calculates logistic function derivatives in terms of logistic output
-float differentiate(const float x, void (*logistic)(const float *, float *, size_t)){
-	if(logistic == hypertan)
-		return 1 - x*x;
-	if(logistic == softmax || logistic == sigmoid)
-		return x * (1 - x);
-	if(logistic == relu){
-		if(x > 0) return 1;
-		else return 0;
-	}
-		
-	printf("ERROR: differentiate(): derivative of logistic function not implemented!\n");
-	exit(1);
-}
- */
 
 /* 
  * Creates mlp layer for cpu
@@ -250,8 +182,8 @@ MLP cpu_mlp_from_arr(size_t arr[], size_t size, int initialize){
 			if(i < size-1)
 				l = cpu_create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, sigmoid);
 			else
-				l = cpu_create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, sigmoid);
-				//l = cpu_create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, softmax);
+				l = cpu_create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, softmax);
+				//l = cpu_create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, sigmoid);
 			
 			n.layers[i-1] = l;
 	}
@@ -270,6 +202,14 @@ void cpu_mlp_layer_forward(MLP_layer *l, float *x){
 		if(l->logistic != softmax)
 			l->output[i] = activate(l->z[i], l->logistic);
 	}
+	if(l->logistic == softmax){
+		float sum = 0;
+		for(int i = 0; i < l->size; i++)
+			sum += exp(l->z[i]);
+		for(int i = 0; i < l->size; i++)
+			l->output[i] = exp(l->z[i])/sum;
+	}
+
 	//l->logistic(l->z, l->output, l->size); //Apply this layer's logistic function
 
 }
@@ -289,40 +229,6 @@ void cpu_mlp_forward(MLP *n, float *input){
 		if(n->output[n->guess] < n->output[i])
 			n->guess = i;
 }
-
-
-/*
- * Propagates gradients throughout network using the chain rule (does not do parameter update)
-void cpu_propagate_gradients(MLP *n, float *gradient){
-	float *grads = gradient;
-	for(int i = n->depth-1; i >= 0; i--){
-		MLP_layer *l = &n->layers[i];
-		
-		float *avg = l->output;
-
-		for(int j = 0; j < l->input_dimension; j++){
-			float sum = 0;
-			for(int k = 0; k < l->size; k++){
-				float w = l->neurons[k].weights[j];
-				float d = differentiate(avg[k], l->logistic);
-				float g = grads[k];
-				sum += w * d * g;
-			}
-			l->gradient[j] = sum;
-		}
-		grads = l->gradient;
-	}
-}
-
-		for(int k = 0; k < l->size; k++){
-			l->gradient[j] = 0;
-			for(int j = 0; j < l->input_dimension; j++){
-				float w = l->neurons[k].weights[j];
-				float d = differentiate(avg[k], l->logistic);
-				float g = grads[k];
-				l->gradient[j] += w * d * g;
-			}
- */
 
 /*
  * Calculates the backward pass for a single layer (does parameter update)
@@ -383,42 +289,52 @@ void dealloc_mlp(MLP *n){
 /********* BEGIN GPU-ONLY FUNCTIONS **********/
 #ifdef GPU
 
-static cl_context SIEKNET_GLOBAL_CONTEXT;
-static cl_command_queue SIEKNET_GLOBAL_QUEUE;
-static cl_device_id SIEKNET_GLOBAL_DEVICE;
-
 static cl_kernel mlp_forward_kernel;
-static cl_kernel mlp_backward_kernel;
+static cl_kernel mlp_input_gradient_kernel, mlp_parameter_gradient_kernel;
+static cl_kernel zero_init_kernel;
 
 /* 
  * Creates mlp layer for gpu
  */
-void gpu_setup(){
-	SIEKNET_GLOBAL_CONTEXT = create_opencl_context();
-	SIEKNET_GLOBAL_QUEUE = make_opencl_queue(SIEKNET_GLOBAL_CONTEXT);
-
-	char *kernels[] = {"../include/nonlinear.h", "../src/mlp.cl", "../src/logistic.cl"};
+static int ARE_KERNELS_INITIALIZED = 0;
+void mlp_kernel_setup(){
+	char *kernels[] = {"include/nonlinear.h", "src/mlp.cl", "src/logistic.cl"};
 
 	int err = 0;
 
 	char *src = get_kernel_source(kernels, 3);
-	cl_program prog = build_program(SIEKNET_GLOBAL_CONTEXT, get_device(), src);
+	cl_program prog = build_program(src);
 	free(src);
 
 	mlp_forward_kernel = clCreateKernel(prog, "mlp_forward_kernel", &err);
 	check_error(err, "couldn't make forwards kernel");
 
-	mlp_backward_kernel = clCreateKernel(prog, "mlp_backward_kernel", &err);
-	check_error(err, "couldn't make mlp backwards kernel");
+	mlp_input_gradient_kernel = clCreateKernel(prog, "mlp_input_gradient_kernel", &err);
+	check_error(err, "couldn't make mlp input grad kernel");
+	
+	mlp_parameter_gradient_kernel = clCreateKernel(prog, "mlp_parameter_gradient_kernel", &err);
+	check_error(err, "couldn't make mlp param grad kernel");
 
 	logistic_kernel = clCreateKernel(prog, "logistic_kernel", &err);
 	check_error(err, "couldn't make sigmoid kernel");
 
-	printf("made it to the end of gpu setup!\n");
+	zero_init_kernel = clCreateKernel(prog, "zero_init_kernel", &err);
+	check_error(err, "couldn't make zero init kernel");
 
+	softmax_sum_kernel = clCreateKernel(prog, "softmax_sum_kernel", &err);
+	check_error(err, "couldn't make softmax sum kernel");
+
+	softmax_kernel = clCreateKernel(prog, "softmax_kernel", &err);
+	check_error(err, "couldn't make softmax kernel");
+
+	ARE_KERNELS_INITIALIZED = 1;
 }
 
 MLP gpu_mlp_from_arr(size_t arr[], size_t size, int initialize){
+	initialize_opencl();
+	if(!ARE_KERNELS_INITIALIZED)
+		mlp_kernel_setup();
+
 	MLP n;
 	n.input_dimension = arr[0];
 	n.output_dimension = arr[size-1];
@@ -439,16 +355,19 @@ MLP gpu_mlp_from_arr(size_t arr[], size_t size, int initialize){
 		MLP_layer l;
 		l.size = arr[i];
 		l.input_dimension = arr[i-1];
-		l.gradient = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE, sizeof(float) * l.input_dimension, NULL, &err);
+		l.gradient = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.input_dimension, NULL, &err);
 		check_error(err, "creating gradient buffer.");
 		
-		l.z = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err);
+		l.z = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err);
 		check_error(err, "creating linear buffer.");
 
-		l.output = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err);
+		l.output = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err);
 		check_error(err, "creating output buffer.");
 
-		l.logistic = sigmoid;
+		if(i < size-1)
+			l.logistic = sigmoid;
+		else
+			l.logistic = softmax;
 		l.param_offset = param_idx;
 		if(initialize){
 			for(int j = 0; j < l.size; j++){
@@ -460,18 +379,22 @@ MLP gpu_mlp_from_arr(size_t arr[], size_t size, int initialize){
 		param_idx += (arr[i-1]+1)*arr[i];
 	}
 
-	if(initialize){
-		n.gpu_params = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * n.num_params, n.params, &err);
+	if(initialize){ //set initialize to zero if want to load in non-random params
+		n.gpu_params = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * n.num_params, n.params, &err);
 		check_error(err, "creating & copying gpu params");
 	}
 
-	n.param_grad = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE, sizeof(float) * n.num_params, NULL, &err);
+	n.param_grad = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.num_params, NULL, &err);
 	check_error(err, "creating gpu param grads");
 
-	n.network_input = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE, sizeof(float) * n.input_dimension, NULL, &err);
+	//check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), n.param_grad), "couldn't set zero init kernel arg 0");
+	//check_error(clEnqueueNDRangeKernel(n.queue, zero_init_kernel, 1, NULL, &n.num_params, NULL, 0, NULL, NULL), "couldn't enqueue zero init kernel");
+
+
+	n.network_input = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.input_dimension, NULL, &err);
 	check_error(err, "creating temp input buffer");
 
-	n.network_grad = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE, sizeof(float) * n.output_dimension, NULL, &err);
+	n.network_grad = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.output_dimension, NULL, &err);
 	check_error(err, "creating network grad buffer on line ");
 
 	n.output = ALLOCATE(float, n.output_dimension);
@@ -481,7 +404,7 @@ MLP gpu_mlp_from_arr(size_t arr[], size_t size, int initialize){
 	return n;
 }
 
-#define ARR_FROM_GPU(clmem, size, name) float name[size]; clEnqueueReadBuffer(SIEKNET_GLOBAL_QUEUE, clmem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL); 
+#define ARR_FROM_GPU(clmem, size, name) float name[size]; clEnqueueReadBuffer(get_opencl_context(), clmem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL); 
 
 void gpu_mlp_layer_forward(MLP_layer *l, cl_mem input, cl_mem params){
 	l->input = input;
@@ -490,34 +413,46 @@ void gpu_mlp_layer_forward(MLP_layer *l, cl_mem input, cl_mem params){
 	check_error(clSetKernelArg(mlp_forward_kernel, 2, sizeof(cl_mem), &params), "setting forward kernel arg2");
 	check_error(clSetKernelArg(mlp_forward_kernel, 3, sizeof(int), &l->input_dimension), "setting forward kernel arg3");
 	check_error(clSetKernelArg(mlp_forward_kernel, 4, sizeof(int), &l->param_offset), "setting forward kernel arg4");
-	check_error(clEnqueueNDRangeKernel(SIEKNET_GLOBAL_QUEUE, mlp_forward_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue linear kernel");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), mlp_forward_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue linear kernel");
 	
-	check_error(clSetKernelArg(logistic_kernel, 0, sizeof(cl_mem), &l->z), "setting logistic arg 0");
-	check_error(clSetKernelArg(logistic_kernel, 1, sizeof(cl_mem), &l->output), "setting logistic arg 1");
-	check_error(clSetKernelArg(logistic_kernel, 2, sizeof(Nonlinearity), &l->logistic), "setting logistic arg 2");
-	check_error(clEnqueueNDRangeKernel(SIEKNET_GLOBAL_QUEUE, logistic_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue logistic kernel");
+	if(l->logistic != softmax){
+		check_error(clSetKernelArg(logistic_kernel, 0, sizeof(cl_mem), &l->z), "setting logistic arg 0");
+		check_error(clSetKernelArg(logistic_kernel, 1, sizeof(cl_mem), &l->output), "setting logistic arg 1");
+		check_error(clSetKernelArg(logistic_kernel, 2, sizeof(Nonlinearity), &l->logistic), "setting logistic arg 2");
+		check_error(clEnqueueNDRangeKernel(get_opencl_queue(), logistic_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue logistic kernel");
+	}else{
+		size_t one = 1;
+		cl_mem smsum = get_softmax_sum(); //retrieve global softmax sum placeholder
+		check_error(clSetKernelArg(softmax_sum_kernel, 0, sizeof(cl_mem), &l->z), "setting softmax sum arg 0");
+		check_error(clSetKernelArg(softmax_sum_kernel, 1, sizeof(cl_mem), &smsum), "setting softmax sum arg 1");
+		check_error(clSetKernelArg(softmax_sum_kernel, 2, sizeof(int), &l->size), "setting softmax sum arg 2");
+		check_error(clEnqueueNDRangeKernel(get_opencl_queue(), softmax_sum_kernel, 1, NULL, &one, NULL, 0, NULL, NULL), "couldn't do softmax sum");
+
+		check_error(clSetKernelArg(softmax_kernel, 0, sizeof(cl_mem), &l->z), "setting softmax arg 0");
+		check_error(clSetKernelArg(softmax_kernel, 1, sizeof(cl_mem), &l->output), "setting softmax arg 1");
+		check_error(clSetKernelArg(softmax_kernel, 2, sizeof(cl_mem), &smsum), "setting softmax arg 2");
+		check_error(clEnqueueNDRangeKernel(get_opencl_queue(), softmax_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't do softmax sum");
+	}
+
 
 }
 
 void gpu_mlp_forward(MLP *n, float *x){
-	check_error(clEnqueueWriteBuffer(SIEKNET_GLOBAL_QUEUE, n->network_input, 0, 0, sizeof(float) * n->input_dimension, x, 0, NULL, NULL), "enqueuing network input");
+	check_error(clEnqueueWriteBuffer(get_opencl_queue(), n->network_input, 0, 0, sizeof(float) * n->input_dimension, x, 0, NULL, NULL), "enqueuing network input");
 
 	cl_mem input = n->network_input;
 	for(int i = 0; i < n->depth; i++){
 		MLP_layer *l = &n->layers[i];
+		l->input = input;
 		gpu_mlp_layer_forward(l, input, n->gpu_params);
 		input = l->output;
 	}
 	
-	clEnqueueReadBuffer(SIEKNET_GLOBAL_QUEUE, input, 1, 0, sizeof(float) * n->output_dimension, n->output, 0, NULL, NULL);
+	clEnqueueReadBuffer(get_opencl_queue(), input, 1, 0, sizeof(float) * n->output_dimension, n->output, 0, NULL, NULL);
 	n->guess = 0;
 	for(int i = 0; i < n->output_dimension; i++)
 		if(n->output[n->guess] < n->output[i])
 			n->guess = i;
-}
-
-void getp(MLP *n){
-	clEnqueueReadBuffer(SIEKNET_GLOBAL_QUEUE, n->param_grad, 1, 0, sizeof(float) * n->num_params, n->params, 0, NULL, NULL);
 }
 
 void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem param_grad){
@@ -525,18 +460,25 @@ void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem par
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 1, sizeof(cl_mem), &l->output), "setting input grad kernel arg 1");
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 2, sizeof(cl_mem), &params), "setting input grad kernel arg 2");
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 3, sizeof(cl_mem), &l->gradient), "setting input grad kernel arg 3");
-	check_error(clSetKernelArg(mlp_input_gradient_kernel, 4, sizeof(int), &l->param_offset), "setting input grad kernel arg 4");
-	check_error(clSetKernelArg(mlp_input_gradient_kernel, 5, sizeof(int), &l->size), "setting input grad kernel arg 5");
-	check_error(clSetKernelArg(mlp_input_gradient_kernel, 6, sizeof(int), &l->input_dimension), "setting input grad kernel arg 6");
+	check_error(clSetKernelArg(mlp_input_gradient_kernel, 4, sizeof(Nonlinearity), &l->logistic), "setting input grad kernel arg 3");
+	check_error(clSetKernelArg(mlp_input_gradient_kernel, 5, sizeof(int), &l->param_offset), "setting input grad kernel arg 4");
+	check_error(clSetKernelArg(mlp_input_gradient_kernel, 6, sizeof(int), &l->size), "setting input grad kernel arg 5");
+	check_error(clSetKernelArg(mlp_input_gradient_kernel, 7, sizeof(int), &l->input_dimension), "setting input grad kernel arg 6");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), mlp_input_gradient_kernel, 1, NULL, &l->input_dimension, NULL, 0, NULL, NULL), "couldn't enqueue input grad kernel");
 
 	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 0, sizeof(cl_mem), &grad), "setting param grad kernel arg 0");
 	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 1, sizeof(cl_mem), &l->output), "setting param grad kernel arg 1");
-	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 2, sizeof(cl_mem), &l->input), "setting param grad kernel arg 1");
-	check_error(clEnqueueNDRangeKernel(SIEKNET_GLOBAL_QUEUE, mlp_backward_kernel, 1, NULL, &l->input_dimension, NULL, 0, NULL, NULL), "couldn't enqueue mlp backward kernel");
+	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 2, sizeof(cl_mem), &l->input), "setting param grad kernel arg 2");
+	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 3, sizeof(cl_mem), &param_grad), "setting param grad kernel arg 3");
+	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 4, sizeof(Nonlinearity), &l->logistic), "setting param grad kernel arg 4");
+	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 5, sizeof(int), &l->param_offset), "setting param grad kernel arg 5");
+	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 6, sizeof(int), &l->size), "setting param grad kernel arg 6");
+	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 7, sizeof(int), &l->input_dimension), "setting param grad kernel arg 7");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), mlp_parameter_gradient_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue param grad kernel");
 }
 
 void gpu_mlp_backward(MLP *n){
-	check_error(clEnqueueWriteBuffer(SIEKNET_GLOBAL_QUEUE, n->network_grad, 0, 0, sizeof(float) * n->output_dimension, n->cost_gradient, 0, NULL, NULL), "enqueuing network grads");
+	check_error(clEnqueueWriteBuffer(get_opencl_queue(), n->network_grad, 0, 0, sizeof(float) * n->output_dimension, n->cost_gradient, 0, NULL, NULL), "enqueuing network grads");
 
 	cl_mem grads = n->network_grad;
 	int l_idx = n->depth;
@@ -589,7 +531,8 @@ static void getWord(FILE *fp, char* dest){
  */
 void save_mlp(MLP *n, const char* filename){
 #ifdef GPU
-	getp(n);
+	float *tmp = (float*)malloc(sizeof(float) * n->num_params);
+	clEnqueueReadBuffer(get_opencl_queue(), n->gpu_params, 1, 0, sizeof(float) * n->num_params, tmp, 0, NULL, NULL);
 #endif
 	char buff[1024];
 	memset(buff, '\0', 1024);
@@ -608,11 +551,18 @@ void save_mlp(MLP *n, const char* filename){
 	}
 	
 	for(int i = 0; i < n->num_params; i++){
+#ifdef GPU
+		fprintf(fp, "%f", tmp[i]);
+#else
 		fprintf(fp, "%f", n->params[i]);
+#endif
 		if(i < n->num_params-1) fprintf(fp, " ");
 		else fprintf(fp, "\n");
 	}
 	fclose(fp);
+#ifdef GPU
+	free(tmp);
+#endif
 }
 
 /*
@@ -647,9 +597,8 @@ MLP load_mlp(const char *filename){
 	}
 #ifdef GPU
 	int err;
-	n.gpu_params = clCreateBuffer(SIEKNET_GLOBAL_CONTEXT, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * n.num_params, n.params, &err);
+	n.gpu_params = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * n.num_params, n.params, &err);
 	check_error(err, "could not write params into gpu");
 #endif
-	check_error(err, "creating & copying gpu params");
 	return n;
 }

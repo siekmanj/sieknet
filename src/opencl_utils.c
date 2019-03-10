@@ -7,6 +7,15 @@
 #define KERNEL_START_SYMBOL "/*<<KERNEL START>>*/\n"
 #define KERNEL_END_SYMBOL   "/*<<KERNEL END>>*/\n"
 
+#define USE_PLATFORM 0
+#define USE_DEVICE   0
+
+static int SIEKNET_IS_GPU_INITIALIZED = 0;
+static cl_context SIEKNET_CONTEXT = NULL;
+static cl_command_queue SIEKNET_QUEUE = NULL;
+static cl_device_id SIEKNET_DEVICE = NULL;
+static cl_mem SIEKNET_SMSUM = NULL;
+
 void check_error(int err, char *str){
   if(err != CL_SUCCESS){
     printf("ERROR: '%s': ", str);
@@ -91,12 +100,8 @@ void check_error(int err, char *str){
   }
 }
 
-#define USE_PLATFORM 0
-#define USE_DEVICE   0
 
-static cl_device_id GLOBAL_DEVICE;
-
-cl_context create_opencl_context(){
+static cl_context create_opencl_context(){
 	cl_uint num_platforms, num_devices;
 	int status = clGetPlatformIDs(0, NULL, &num_platforms);
 
@@ -114,11 +119,10 @@ cl_context create_opencl_context(){
 	cl_context context = clCreateContext(cfg, num_devices, devices, NULL, NULL, &status);
 
 	check_error(status, "couldn't make context");
-	printf("successfully created opencl context.\n");
 	return context;
 }
 
-cl_device_id get_device(){
+cl_device_id get_opencl_device(){
 	cl_uint num_platforms, num_devices;
 	int status = clGetPlatformIDs(0, NULL, &num_platforms);
 
@@ -133,8 +137,8 @@ cl_device_id get_device(){
 	return devices[USE_DEVICE];
 }
 
-cl_command_queue make_opencl_queue(cl_context c){
-	cl_device_id device = get_device();
+static cl_command_queue create_opencl_queue(cl_context c){
+	cl_device_id device = get_opencl_device();
 
 	int err;
 	cl_command_queue queue = clCreateCommandQueue(c, device, 0, &err);
@@ -143,20 +147,44 @@ cl_command_queue make_opencl_queue(cl_context c){
 	return queue;
 }
 
-cl_program build_program(cl_context context, cl_device_id device, char *source_code){
+cl_program build_program(char *source_code){
 	int err;
-	cl_program prog = clCreateProgramWithSource(context, 1, (const char**)&source_code, NULL, &err);
-	err = clBuildProgram(prog, 0, NULL, NULL, NULL, NULL);
+	//printf("building src:\n%s\n", source_code);
+	cl_program prog = clCreateProgramWithSource(SIEKNET_CONTEXT, 1, (const char**)&source_code, NULL, &err);
+	check_error(err, "couldn't create program from source");
+	clBuildProgram(prog, 0, NULL, NULL, NULL, NULL);
 
 	size_t len = 0;
-	check_error(clGetProgramBuildInfo(prog, device, CL_PROGRAM_BUILD_LOG, 0, NULL, &len), "getting length of compiler output");
+	check_error(clGetProgramBuildInfo(prog, SIEKNET_DEVICE, CL_PROGRAM_BUILD_LOG, 0, NULL, &len), "getting length of compiler output");
 
 	char buffer[len];
-	check_error(clGetProgramBuildInfo(prog, device, CL_PROGRAM_BUILD_LOG, len, buffer, NULL), "copying compiler output to buffer");
+	check_error(clGetProgramBuildInfo(prog, SIEKNET_DEVICE, CL_PROGRAM_BUILD_LOG, len, buffer, NULL), "copying compiler output to buffer");
 
 	printf("<OPENCL COMPILER OUTPUT:\n%s<END OPENCL COMPILER OUTPUT>\n", buffer);
 	check_error(err, "couldn't build program");
 	return prog;
+}
+
+void initialize_opencl(){
+	if(!SIEKNET_IS_GPU_INITIALIZED){
+		int err;
+		SIEKNET_CONTEXT = create_opencl_context();
+		SIEKNET_QUEUE   = create_opencl_queue(SIEKNET_CONTEXT);
+		SIEKNET_DEVICE  = get_opencl_device();
+		SIEKNET_SMSUM   = clCreateBuffer(SIEKNET_CONTEXT, CL_MEM_READ_WRITE, sizeof(float), NULL, &err);
+		check_error(err, "failed to create softmax-sum placeholder");
+	}
+	SIEKNET_IS_GPU_INITIALIZED = 1;
+}
+
+cl_context get_opencl_context(){
+	return SIEKNET_CONTEXT;
+}
+cl_command_queue get_opencl_queue(){
+	return SIEKNET_QUEUE;
+}
+cl_mem get_softmax_sum(){
+	return SIEKNET_SMSUM;
 }
 
 char *get_kernel_source(char **filenames, size_t numfiles){
@@ -174,7 +202,6 @@ char *get_kernel_source(char **filenames, size_t numfiles){
 	}
 	char *ret = (char*)calloc(kernelfilelen+1, sizeof(char));
 	for(int i = 0; i < numfiles; i++){
-		printf("doing file '%s'\n", filenames[i]);
 		FILE *fp = fopen(filenames[i], "rb");
 		char current_line[5000];
 		do{
@@ -183,11 +210,10 @@ char *get_kernel_source(char **filenames, size_t numfiles){
 			}
 		}
 		while(strcmp(KERNEL_START_SYMBOL, current_line));
-		printf("looking for end token\n");
 
 		do{
 			if(!fgets(current_line, 1000, fp)){
-				throw_err("unable to read nonlinearity file, missing kernel end marker.\n");
+				throw_err("unable to read kernel file, missing kernel end marker.\n");
 			}
 
 			//the static keyword is disallowed by OpenCL 1.1 (which my gpu uses) so we need to remove it from the kernels.
