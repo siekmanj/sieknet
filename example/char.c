@@ -11,25 +11,30 @@
 
 
 #define CREATEONEHOT(name, size, index) float name[size]; memset(name, '\0', size*sizeof(float)); name[index] = 1.0;
-#define NEWLSEQ 0
+
+#define NEWLSEQ  0
+#define STATEFUL 1
+#define USE_MOMENTUM 1
+
+#define CHAR_OUTPUT 0
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 300;
-size_t NUM_EPOCHS = 1;
-size_t ASCII_RANGE = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
+size_t HIDDEN_LAYER_SIZE = 400;
+size_t NUM_EPOCHS				 = 10;
+size_t SEQ_LEN					 = 75;
+size_t ASCII_RANGE			 = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
+size_t SAMPLE_EVERY			 = 500;
+size_t SAMPLE_CHARS			 = 1000;
 
-float LEARNING_RATE = 0.0001;
-float MOMENTUM      = 0.99;
-//float LEARNING_BASELINE = 0.000005;
-//float LEARNING_DECAY = 0.5;
-size_t SEQ_LEN = 100;
+float LEARNING_RATE			 = 0.0001;
+float MOMENTUM					 = 0.99;
 
 /*
  * This file is for training an LSTM character-by-character on any text (ascii) file provided.
  */
  
-//Calling convention: ../bin/char [load/new] [path_to_modelfile] [path_to_txt_file]
+//Calling convention: ../bin/char [load/new] [path_to_modelfile] [path_to_txt_file/sample]
 
 
 static inline char int2char(int i){
@@ -55,7 +60,6 @@ char *get_sequence(FILE *fp, size_t *size){
 	size_t seq_len = 0;
 	while(1){
 		char tmp = fgetc(fp);
-		//printf("GOT: %c (%d)\n", tmp);
 		seq_len++;
 		if(tmp==EOF){
 			return NULL;
@@ -71,51 +75,116 @@ char *get_sequence(FILE *fp, size_t *size){
 		ret[i] = fgetc(fp);
 	}
 #else
-  char *ret = (char*)malloc(*size*sizeof(char));
-  for(int i = 0; i < *size; i++){
-    ret[i] = fgetc(fp);
-    if(ret[i] == EOF){
-      *size = 0;
+	char *ret = (char*)malloc(*size*sizeof(char));
+	for(int i = 0; i < *size; i++){
+		ret[i] = fgetc(fp);
+		if(ret[i] == EOF){
+			*size = 0;
 			return NULL;
-    }
-  }
+		}
+	}
 #endif
 	return ret;
 }
 
+void sample(LSTM *n, size_t chars, char seed){
+	wipe(n);
+	int input = char2int(seed);
+	for(int i = 0; i < chars; i++){
+		CREATEONEHOT(tmp, ASCII_RANGE, input);
+		lstm_forward(n, tmp);
+		printf("%c", int2char(n->guess));
+		input = n->guess;
+	}
+	printf("\n");
+}
+
 int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float learning_rate){
 	/* Begin training */
-	//float learning_schedule[num_epochs];
-	//for(int i = 0; i < num_epochs; i++)
-  //  learning_schedule[i] = learning_rate;// * pow(LEARNING_DECAY, i) + LEARNING_BASELINE;
 
+#if USE_MOMENTUM
 	Momentum o = create_optimizer(Momentum, *n);
 	o.alpha = LEARNING_RATE;
 	o.beta = MOMENTUM;
-  n->seq_len = SEQ_LEN;
-	n->stateful = 1;
+#else
+	SGD o = create_optimizer(SGD, *n);
+	o.learning_rate = LEARNING_RATE;
+#endif
 
-	FILE *fp = fopen(datafile, "rb");
-	fseek(fp, 0, SEEK_END);
-	size_t datafilelen = ftell(fp);
-	fclose(fp);
 
+	FILE *tmp = fopen(datafile, "rb");
+	fseek(tmp, 0, SEEK_END);
+	size_t datafilelen = ftell(tmp);
+	fclose(tmp);
+
+	float last_epoch_cost = 4.5;
 	for(int i = 0; i < num_epochs; i++){
-		//n->learning_rate = learning_schedule[i];
+		float learning_schedule[] = {
+																 LEARNING_RATE * 1.0,
+																 LEARNING_RATE * 0.7, 
+																 LEARNING_RATE * 0.5, 
+																 LEARNING_RATE * 0.5, 
+																 LEARNING_RATE * 0.25, 
+																 LEARNING_RATE * 0.125, 
+																 LEARNING_RATE * 0.1,
+																 LEARNING_RATE * 0.1,
+																 LEARNING_RATE * 0.1,
+																 LEARNING_RATE * 0.05,
+																 LEARNING_RATE * 0.05,
+																 LEARNING_RATE * 0.05
+																};
+
+		n->seq_len	= SEQ_LEN;
+		n->stateful = STATEFUL;
+#if USE_MOMENTUM
+		o.alpha = learning_schedule[i];
+#else
+		o.learning_rate = learning_schedule[i];
+#endif
+
 		FILE *fp = fopen(datafile, "rb");
-		size_t training_iterations = 100;
+		fseek(fp, 0, SEEK_SET);
+
+		size_t training_iterations = SAMPLE_EVERY;
 		size_t sequence_counter = 0;
-    size_t ctr = 0;
+
+		size_t ctr = 0;
+
 		float avg_cost = 0;
 		float avg_seq_cost = 0;
+
+		wipe(n);
+
 		char *seq = get_sequence(fp, &n->seq_len);
 		char input_char = '\n';
-    wipe(n);
 		do{
-			float seq_cost = 0;
+			float completion =((float)ctr/datafilelen);
+#if CHAR_OUTPUT
 			printf("(sequence len %lu): '", n->seq_len);
+#else
+			printf("sequence len %3lu, (%3lu)/(%3lu)), epoch %2d %5.2f%% complete. Cost over last %3lu sequences: %6.5f. Epoch cost: %6.5f. Previous epoch cost: %6.5f. Current lr: %7.6f\r",
+						n->seq_len, 
+						sequence_counter % training_iterations + 1 , 
+						training_iterations, 100 * completion, 
+						i+1,
+						sequence_counter % training_iterations + 1, 
+						avg_seq_cost / (sequence_counter % training_iterations + 1), 
+						avg_cost/sequence_counter, 
+						last_epoch_cost,
+#if USE_MOMENTUM
+						o.alpha
+#else
+						o.learning_rate
+#endif
+					 );
+#endif
+#if !(STATEFUL)
+			input_char = '\n';
+#endif
+			float seq_cost = 0;
 			for(int j = 0; j < n->seq_len; j++){
 				char label = seq[j];
+
 				CREATEONEHOT(x, ASCII_RANGE, char2int(input_char));
 				CREATEONEHOT(y, ASCII_RANGE, char2int(label));
 
@@ -125,33 +194,41 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 
 				if(!n->t) o.step(o);
 			
+#if CHAR_OUTPUT
 				if(n->guess == char2int(label)) printf("%c", int2char(n->guess));
 				else printf("_");
-				//printf("%c", label);
+#endif
+
 				seq_cost += c;
-        ctr++;
+				ctr++;
 
 				input_char = label;
 			}
+#if CHAR_OUTPUT	
 			printf("'\n");
+#endif
 			avg_seq_cost += seq_cost / n->seq_len;
 			avg_cost += seq_cost / n->seq_len;
 			sequence_counter++;
 
 			if(!(sequence_counter % (training_iterations))){
+#if STATEFUL
 				wipe(n);
-				float completion =((float)ctr/datafilelen);
-				printf("\n***\nEpoch %d %5.2f%% complete, avg cost %f (learning rate %8.7f), avg seq cost %6.5f.\n", i, 100 * completion, avg_cost/sequence_counter, LEARNING_RATE, avg_seq_cost / training_iterations);
-				printf("%lu character sample from lstm below:\n", 10*training_iterations);
+#endif
 
-				int seed = 95;
-				for(int j = 0; j < training_iterations*10; j++){
-					CREATEONEHOT(tmp, ASCII_RANGE, seed);
-					lstm_forward(n, tmp);
-					printf("%c", int2char(n->guess));
-					seed = n->guess;
+#if CHAR_OUTPUT
+				printf("\n***\nEpoch %d %5.2f%% complete, avg cost %6.5f vs prev cost %6.5f (learning rate %8.7f), avg seq cost %6.5f.\n", i+1, 100 * completion, avg_cost/sequence_counter, last_epoch_cost, LEARNING_RATE, avg_seq_cost / training_iterations);
+				printf("%lu character sample from lstm below:\n", 10*training_iterations);
+#endif
+
+				printf("\n");
+				for(int i = 3; i > 0; i--){
+					printf("Sampling from lstm in %d\r", i);
+					sleep(1);
 				}
-				if(avg_seq_cost/training_iterations > avg_cost/sequence_counter){
+				sample(n, SAMPLE_CHARS, '\n');
+
+				if(isnan(avg_cost) || avg_seq_cost/training_iterations > avg_cost/sequence_counter){
 					printf("\nWARNING: average sequence cost was HIGHER than epoch average - something is probably wrong!\n");
 				}else{
 					printf("\nautosaving '%s'\n", modelfile);
@@ -160,19 +237,31 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 				printf("\n***\nResuming training...\n");
 				avg_seq_cost = 0;
 				sleep(1);
-        avg_seq_cost = 0;
+				avg_seq_cost = 0;
+#if STATEFUL
 				wipe(n);
+#endif
 			}
+			free(seq);
 			seq = get_sequence(fp, &n->seq_len);
 		}
-		while(seq);
+		while(seq && n->seq_len > 0);
 		fclose(fp);
+		last_epoch_cost = avg_cost / sequence_counter;
 	}
 }
 
 int main(int argc, char** argv){
 
 	if(argc < 4){ printf("must provide %d args.\nexample usage: ./char [new/load] [path_to_modelfile] [path_to_datafile]\n", 3); exit(1);}
+
+	printf("   _____ ____________ __ _   ______________\n");
+	printf("  / ___//  _/ ____/ //_// | / / ____/_	__/\n");
+	printf("  \\__ \\ / // __/ / ,<  /  |/ / __/   / /   \n");
+	printf(" ___/ // // /___/ /| |/ /|  / /___  / /		 \n");
+	printf("/____/___/_____/_/ |_/_/ |_/_____/ /_/		 \n");
+	printf("																					 \n");
+	printf("char-nn recurrent neural network interface.\n");
 
 	srand(time(NULL));
 	setbuf(stdout, NULL);
@@ -184,25 +273,31 @@ int main(int argc, char** argv){
 	
 	char *modelfile = argv[2];
 	char *datafile = argv[3];
-	printf("modelfile is: '%s', datafile is: '%s'\n", modelfile, datafile);
-
-	FILE *fp = fopen(datafile, "rb");
-	size_t datafilelen;
-	if(!fp){ printf("Could not open datafile '%s' - does it exist?\n", datafile); exit(1);}
-	else{
-	}
-	fclose(fp);
+	FILE *fp;
 
 	LSTM n;
-	if(newlstm) n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
-	else{
+	if(newlstm){
+		n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
+		printf("creating '%s'\n", modelfile);
+	}else{
 		printf("loading '%s'\n", modelfile);
 		fp = fopen(modelfile, "rb");
 		if(!fp){ printf("Could not open modelfile '%s' - does it exist?\n", modelfile); exit(1);}
 		n = load_lstm(modelfile);
+		fclose(fp);
 	}
 	printf("network has %lu params.\n", n.num_params);
 	save_lstm(&n, modelfile);
+
+	if(!strcmp(datafile, "sample")){
+		printf("Sampling from model '%s' below:\n", modelfile);
+		sample(&n, SAMPLE_CHARS, '\n');
+		exit(0);
+	}
+
+	fp = fopen(datafile, "rb");
+	if(!fp){ printf("Could not open datafile '%s' - does it exist?\n", datafile); exit(1);}
+	fclose(fp);
 
 	train(&n, modelfile, datafile, NUM_EPOCHS, LEARNING_RATE);
 	printf("training finished! LSTM saved to '%s'\n", modelfile);

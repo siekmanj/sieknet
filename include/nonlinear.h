@@ -5,7 +5,7 @@
 /*<<KERNEL START>>*/
 
 #define SIGMOID(x)    (1/(1+exp(-x)))
-#define HYPERTAN(x)   ((exp(x) - exp(-x))/exp(x) + exp(-x))
+#define HYPERTAN(x)   ((x < 7.0 && x > -7.0) ? ((exp(x) - exp(-x))/(exp(x) + exp(-x))) : (x >= 7.0) ? 0.999998 : -0.999998)
 #define SOFTMAX(x, y) (exp(x)/y)
 #define RELU(x)       ((0 <= x) * x)
 

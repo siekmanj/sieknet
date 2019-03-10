@@ -44,12 +44,12 @@ typedef struct lstm_layer{
 } LSTM_layer;
 
 typedef struct lstm{
+	float *output;
 	float *params;
 	float *param_grad;
 	float **network_gradient;
 	float **network_input;
 	
-	//int collapse;
 	int stateful;
 	int guess;
 	
@@ -61,11 +61,9 @@ typedef struct lstm{
 	size_t depth;
 	size_t t;
 
-	//float learning_rate;
 	LSTM_layer *layers;
 
 	MLP output_layer;
-	void (*output_logistic)(const float *, float *, size_t);
 	float (*cost_fn)(float *y, const float *l, float *dest, size_t);
 	
 } LSTM;

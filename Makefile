@@ -14,7 +14,7 @@ INCLUDE=-Iinclude
 LIBS=-lm 
 GPULIBS=$(LIBS) -lOpenCL
 
-CFLAGS=-O3
+CFLAGS=-O0
 GPUFLAGS=$(CFLAGS) -DGPU
 
 LSTM_SRC=$(SRC_DIR)/lstm.c
@@ -32,8 +32,8 @@ libcpu: src/*.c
 libgpu: src/*.c
 	gcc -shared -o $(BIN)/$(GPULIBOUT) -fPIC $(GPUFLAGS) $(GPU_SRC) $(INCLUDE) $(GPULIBS) -Wl,-rpath /home/jonah/sieknet/bin
 
-#char:
-#	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
+char:
+	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
 #shakespeare:
 #	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
 mlp_mnist:
@@ -44,8 +44,8 @@ mlp_mnist_gpu:
 #	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
 #sequence:
 #	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(LSTM_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
-#test_cpu:
-#	$(CC) -o bin/test -Iinclude example/test.c -L./bin -lcpusieknet -lm
+test_cpu:
+	$(CC) $(CFLAGS) $(INCLUDE) $(SRC_DIR)/*.c example/test.c -o $(BIN)/test $(LIBS)
 test_gpu:
 	$(CC) $(GPUFLAGS) $(INCLUDE) $(SRC_DIR)/*.c example/test.c -o $(BIN)/test $(GPULIBS)
 #test_cpu:
