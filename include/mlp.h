@@ -39,6 +39,7 @@ typedef struct layer{
   cl_mem z;
   cl_mem output;
   cl_mem input;
+	cl_program prog;
 #endif
 	Nonlinearity logistic;
 	size_t size;
@@ -64,16 +65,10 @@ typedef struct mlp{
 	cl_mem param_grad;
 	cl_mem network_input;
 	cl_mem network_grad;
-	cl_context context;
-	cl_command_queue queue;
 #endif
 	float *cost_gradient;
 	float (*cost_fn)(float *y, const float *l, float *dest, size_t);
 } MLP;
-
-#ifdef GPU
-void gpu_setup();
-#endif
 
 MLP mlp_from_arr(size_t arr[], size_t size, int initialize);
 MLP load_mlp(const char *filename);
@@ -85,25 +80,15 @@ void mlp_backward(MLP *);
 float mlp_cost(MLP *, float *);
 
 void save_mlp(MLP *n, const char* filename);
-
-void getp(MLP *);
+void dealloc_mlp(MLP *);
 
 void xavier_init(float *, size_t, size_t);
 void zero_2d_arr(float **, size_t, size_t);
 
 //These are activation functions
-#ifndef GPU
-void fn_hypertan(const float *, float *, const size_t);
-void fn_sigmoid(const float *, float *, const size_t);
-void fn_softmax(const float *, float *, const size_t);
-void fn_relu(const float *, float *, const size_t);
-
-void dealloc_mlp(MLP *);
-#else
-cl_kernel logistic_kernel;
+#ifdef GPU
+cl_kernel logistic_kernel, softmax_sum_kernel, softmax_kernel;
 #endif
-
 float inner_product(const float *, const float *, size_t);
 float cross_entropy_cost(float *, const float *, float *, size_t);
-
 #endif

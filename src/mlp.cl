@@ -16,6 +16,7 @@ __kernel void mlp_input_gradient_kernel(
 																				__global float *output,
 																				__global float *params,
 																				__global float *dest,
+																				Nonlinearity nonlinearity_type,
 																				int layer_param_idx,
 																				int neurons,
 																				int dim
@@ -50,9 +51,9 @@ __kernel void mlp_parameter_gradient_kernel(
 	const int w_idx = layer_param_idx + ((dim + 1) * i);
 	param_grad[w_idx] = d * g; //set bias grad
 
-	for(int j = 1; j < dim + 1; j++){
+	for(int j = 0; j < dim; j++){
 		float x = input[j];
-		param_grads[w_idx+1] = x * d * g; //set weight grads
+		param_grad[w_idx+j+1] = x * d * g; //set weight grads
 	}
 }
 

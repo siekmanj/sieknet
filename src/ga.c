@@ -1,3 +1,4 @@
+#if 0
 /*
  * This is a file that stores functions for training with a genetic algorithm (GA)
  * instead of backpropagation.
@@ -200,4 +201,4 @@ void evolve(Pool *p){
 
 
 
-
+#endif
