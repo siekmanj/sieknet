@@ -107,7 +107,6 @@ float mlp_cost(MLP *n, float *y){
 /********* BEGIN CPU-ONLY FUNCTIONS **********/
 #ifndef GPU
 
-
 /* 
  * Creates mlp layer for cpu
  */
@@ -183,7 +182,6 @@ MLP cpu_mlp_from_arr(size_t arr[], size_t size, int initialize){
 				l = cpu_create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, sigmoid);
 			else
 				l = cpu_create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, softmax);
-				//l = cpu_create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, sigmoid);
 			
 			n.layers[i-1] = l;
 	}
@@ -203,15 +201,13 @@ void cpu_mlp_layer_forward(MLP_layer *l, float *x){
 			l->output[i] = activate(l->z[i], l->logistic);
 	}
 	if(l->logistic == softmax){
-		float sum = 0;
+		double sum = 0; //must be double
 		for(int i = 0; i < l->size; i++)
 			sum += exp(l->z[i]);
+
 		for(int i = 0; i < l->size; i++)
-			l->output[i] = exp(l->z[i])/sum;
+			l->output[i] = exp(l->z[i]) / sum;
 	}
-
-	//l->logistic(l->z, l->output, l->size); //Apply this layer's logistic function
-
 }
 
 /*
@@ -249,9 +245,9 @@ void cpu_mlp_layer_backward(MLP_layer *l, float *grads){
 			float x = l->input[j];
 
 			l->gradient[j] += w * d * g;
-			l->neurons[i].weight_grad[j] = x * d * g;
+			l->neurons[i].weight_grad[j] += x * d * g;
 		}
-		*l->neurons[i].bias_grad = gradient * d_output;
+		*l->neurons[i].bias_grad += gradient * d_output;
 	}
 }
 
@@ -261,11 +257,13 @@ void cpu_mlp_layer_backward(MLP_layer *l, float *grads){
 void cpu_mlp_backward(MLP *n){
 
 	float *grads = n->cost_gradient;
-	//cpu_propagate_gradients(n, grads);
 	for(int i = n->depth-1; i >= 0; i--){
 		cpu_mlp_layer_backward(&n->layers[i], grads);
 		grads = n->layers[i].gradient;
 	}
+	//printf("printing p %p\n", n->param_grad);
+	//PRINTLIST(n->param_grad, 10);
+	//getchar();
 }
 
 /*

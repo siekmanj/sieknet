@@ -4,8 +4,8 @@
 
 /*<<KERNEL START>>*/
 
-#define SIGMOID(x)    (1/(1+exp(-x)))
-#define HYPERTAN(x)   ((x < 7.0 && x > -7.0) ? ((exp(x) - exp(-x))/(exp(x) + exp(-x))) : (x >= 7.0) ? 0.999998 : -0.999998)
+//#define SIGMOID(x)    (1/(1+exp(-x)))
+//#define HYPERTAN(x)   ((x < 7.0 && x > -7.0) ? ((exp(x) - exp(-x))/(exp(x) + exp(-x))) : (x >= 7.0) ? 0.999998 : -0.999998)
 #define SOFTMAX(x, y) (exp(x)/y)
 #define RELU(x)       ((0 <= x) * x)
 
@@ -20,6 +20,16 @@ typedef enum nonlin{
 	relu,
 	softmax
 } Nonlinearity;
+
+static float SIGMOID(float x){
+	return 1/(1 + exp(-x));
+}
+
+static float HYPERTAN(float x){
+	if(x > 7.0)  return 0.999998;
+	if(x < -7.0) return -0.999998;
+	return (exp(x) - exp(-x)) / (exp(x) + exp(-x));
+}
 
 static float differentiate(float x, Nonlinearity n){
 	switch(n){

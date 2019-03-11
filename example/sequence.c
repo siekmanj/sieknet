@@ -8,6 +8,7 @@
 #include "lstm.h"
 #include "optimizer.h"
 
+#define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
 
 /*
  * This is a simple demonstration of something a generic neural network would find difficult.
@@ -28,16 +29,16 @@ int data[] = {
 };
 
 int main(void){
-	srand(time(NULL));
+	srand(1);
 	LSTM n = create_lstm(10, 45, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
 	//n.learning_rate = 0.01;
   //Momentum o = create_optimizer(Momentum, n);
   //o.alpha = 0.0001;
   //o.beta = 0.99;
-	//SGD o = create_optimizer(SGD, n);
- 	//o.learning_rate = 0.05;
-	Momentum o = create_optimizer(Momentum, n);
-	o.alpha = 0.001;
+	SGD o = create_optimizer(SGD, n);
+ 	o.learning_rate = 0.05;
+	//Momentum o = create_optimizer(Momentum, n);
+	//o.alpha = 0.001;
 	//SGD o1 = init_SGD(n.params, n.param_grad, n.num_params - n.output_layer.num_params);
 	//SGD o2 = init_SGD(n.output_layer.params, n.output_layer.param_grad, n.output_layer.num_params);
 
@@ -68,7 +69,9 @@ int main(void){
 			//printf("t: %lu, mlp paramgrad: %f, lstm paramgrad: %f\n", n.t, n.output_layer.param_grad[0], n.param_grad[10]);
 			//o2.step(o2);
       //if(!n.t && i) o1.step(o1);
-			if(!n.t) o.step(o);
+			if(!n.t){
+				o.step(o);
+			}
 
 			cost += c;
 
