@@ -263,7 +263,8 @@ int main(int argc, char** argv){
 	printf("																					 \n");
 	printf("char-nn recurrent neural network interface.\n");
 
-	srand(time(NULL));
+	//srand(time(NULL));
+	srand(1);
 	setbuf(stdout, NULL);
 
 	bool newlstm;

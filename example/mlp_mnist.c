@@ -28,7 +28,7 @@ int main(void) {
 	srand(time(NULL));
 
 	//MLP n = loadMLPFromFile("../model/mnist.mlp");
-	MLP n = create_mlp(784, 250, 10);
+	MLP n = create_mlp(784, 250, 250, 10);
 	//SGD o = init_sgd(n.params, n.param_grad, n.num_params);
 	SGD o = create_optimizer(SGD, n);
 	o.learning_rate = 0.05;

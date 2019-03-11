@@ -42,10 +42,11 @@ mlp_mnist_gpu:
 	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MNIST_SRC) $(MLP_SRC) $(CL_SRC) example/mlp_mnist.c -o $(BIN)/mlp_mnist $(GPULIBS)
 #binary:
 #	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
-#sequence:
-#	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(LSTM_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
-test_cpu:
-	$(CC) $(CFLAGS) $(INCLUDE) $(SRC_DIR)/*.c example/test.c -o $(BIN)/test $(LIBS)
+sequence:
+	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(LSTM_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
+test:
+	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
+	#$(CC) $(CFLAGS) $(INCLUDE) $(SRC_DIR)/*.c example/test.c -o $(BIN)/test $(LIBS)
 test_gpu:
 	$(CC) $(GPUFLAGS) $(INCLUDE) $(SRC_DIR)/*.c example/test.c -o $(BIN)/test $(GPULIBS)
 #test_cpu:
