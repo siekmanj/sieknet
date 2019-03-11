@@ -1,9 +1,9 @@
 /*<<KERNEL START>>*/
 
-__kernel void mlp_forward_kernel(__global float *x, __global float *z, __global float *params, int dim, int layer_param_idx){
+__kernel void mlp_forward_kernel(__global float *x, __global float *z, __global float *params, int dim, int layer_param_idx, int skiplength){
 	const int i = get_global_id(0);
 	z[i] = 0;
-	const int w_idx = layer_param_idx + ((dim + 1) * i);
+	const int w_idx = layer_param_idx + (skiplength * i);
 	float sum = 0;
 	for(int j = 0; j < dim; j++){
 		sum += x[j] * params[w_idx + j + 1]; //weights
