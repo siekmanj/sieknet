@@ -11,6 +11,7 @@
 
 #define create_lstm(...) lstm_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
+#ifndef GPU
 typedef struct gate{
 	float *output;
 	float *dOutput;
@@ -33,12 +34,40 @@ typedef struct cell{
 	float *dstate;
 	float *dOutput;
 } Cell;
+#endif
 
 typedef struct lstm_layer{
+#ifndef GPU
 	Cell *cells;
 	float **output;
 	float **input;
 	float **input_gradient;
+#else
+	int param_offset;
+	cl_mem *input_nonl_z;
+	cl_mem *input_gate_z;
+	cl_mem *forget_gate_z;
+	cl_mem *output_gate_z;
+
+	cl_mem *input_nonl_output;
+	cl_mem *input_gate_output;
+	cl_mem *forget_gate_output;
+	cl_mem *output_gate_output;
+
+	cl_mem *input_nonl_gradient;
+	cl_mem *input_gate_gradient;
+	cl_mem *forget_gate_gradient;
+	cl_mem *output_gate_gradient;
+
+	cl_mem *cell_state;
+
+	cl_mem *input;
+	cl_mem *output;
+
+	cl_mem loutput;
+	cl_mem lstate;
+#endif
+
 	size_t input_dimension;
 	size_t size;
 } LSTM_layer;
@@ -46,10 +75,17 @@ typedef struct lstm_layer{
 typedef struct lstm{
 	float *output;
 	float *params;
+#ifndef GPU
 	float *param_grad;
 	float **network_gradient;
 	float **network_input;
-	
+#else
+	cl_mem gpu_params;
+	cl_mem param_grad;
+	cl_mem *network_gradient;
+	cl_mem *network_input;
+#endif
+
 	int stateful;
 	int guess;
 	

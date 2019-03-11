@@ -10,6 +10,10 @@
 #include <math.h>
 #include <string.h>
 
+#ifdef GPU
+#include "opencl_utils.h"
+#endif
+
 #define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
 #define DEBUG 1
@@ -46,17 +50,24 @@ float lstm_cost(LSTM *n, float *y){
 	MLP *mlp = &n->output_layer;
 	float c = n->cost_fn(mlp->output, y, mlp->cost_gradient, n->output_dimension);
 	mlp_backward(mlp);
-
+#ifndef GPU
 	float *grads = mlp->layers[0].gradient;
+#else
+	printf("need to implement gpu cost\n");
+	//cl_mem grads = mlp->layers[0].gradient;
+#endif
 	
 	size_t t = n->t;
 	if(mlp->layers[0].input_dimension != n->layers[n->depth-1].size){
 		printf("ERROR: cost_wrapper(): Size mismatch between mlp output layer and final lstm layer (%lu vs %lu)\n", mlp->layers[0].input_dimension, n->layers[n->depth-1].size);
 		exit(1);
 	}
+#ifndef GPU
 	for(int i = 0; i < mlp->input_dimension; i++)
 		n->network_gradient[t][i] = grads[i];
+#endif
 	
+
 	n->t++;
 	return c;
 }
@@ -87,7 +98,7 @@ static Gate createGate(float *weights, float *bias, float *weight_grad, float *b
 /*
  * Used to reset the hidden state of the lstm
  */ 
-void wipe(LSTM *n){
+static void cpu_wipe(LSTM *n){
 	for(int i = 0; i < n->depth; i++){
 		LSTM_layer *l = &n->layers[i];
 		for(long t = 0; t < MAX_UNROLL_LENGTH; t++){
@@ -431,6 +442,101 @@ void cpu_lstm_backward(LSTM *n){
 	}
 }
 
+/********  END CPU-ONLY FUNCTIONS  ********/
+
+#else
+
+/******** BEGIN GPU-ONLY FUNCTIONS ********/
+
+cl_kernel mlp_forward_kernel, mlp_backward_kernel;
+cl_kernel lstm_forward_kernel, lstm_backward_kernel;
+cl_kernel logistic_kernel;
+
+static int ARE_KERNELS_INITIALIZED = 0;
+void lstm_kernel_setup(){
+	char *kernels[] = {"include/nonlinear.h", "src/lstm.cl", "src/mlp.cl", "src/logistic.cl"};
+
+	int err = 0;
+
+	char *src = get_kernel_source(kernels, 4);
+	cl_program prog = build_program(src);
+	free(src);
+	
+}
+
+void gpu_zero_2d_arr(cl_mem *arr, size_t arrs){
+
+}
+
+void gpu_wipe(LSTM *n){
+
+}
+
+LSTM_layer gpu_create_LSTM_layer(size_t input_dim, size_t size, int param_offset){
+
+}
+
+LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
+	if(!ARE_KERNELS_INITIALIZED)
+		lstm_kernel_setup();
+
+	LSTM n;
+	n.t = 0;
+	n.stateful = 0;
+	n.seq_len = 25;
+	n.input_dimension = arr[0];
+	n.output_dimension = arr[len-1];
+	n.depth = len-2;
+	n.cost_fn = cross_entropy_cost;
+
+	if(len < 3){
+		printf("ERROR: lstm_from_arr(): must have at least input dim, hidden layer size, and output dim (3 layers), but only %lu provided.\n", len);
+		exit(1);
+	}
+	size_t num_params = 0;
+	for(int i = 1; i < len-1; i++){
+		num_params += (4*(arr[i-1]+arr[i]+1)*arr[i]); //gate parameters
+	}
+	num_params += (arr[len-2]+1)*arr[len-1]; //output layer (mlp) params
+	n.num_params = num_params;
+
+	n.layers = ALLOCATE(LSTM_layer, len-2);
+	n.params = ALLOCATE(float, num_params);
+	
+	int err;
+	n.gpu_params = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.num_params, NULL, &err);
+	check_error(err, "creating gpu params");
+	n.param_grad = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.num_params, NULL, &err);
+	check_error(err, "creating param grad");
+
+	n.network_gradient = ALLOCATE(cl_mem, MAX_UNROLL_LENGTH);
+	n.network_input    = ALLOCATE(cl_mem, MAX_UNROLL_LENGTH);
+
+	for(int i = 0; i < MAX_UNROLL_LENGTH; i++){
+		n.network_gradient[i] = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * arr[len-2], NULL, &err);
+		n.network_input[i] = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * arr[0], NULL, &err);
+	}
+
+	gpu_zero_2d_arr(n.network_gradient, MAX_UNROLL_LENGTH);
+	gpu_zero_2d_arr(n.network_input, MAX_UNROLL_LENGTH);
+	
+	for(int i = 1; i < len-1; i++){
+		LSTM_layer l = gpu_create_LSTM_layer(arr[i-1], arr[i], param_idx);
+		param_idx += (4*(arr[i-1]+arr[i]+1))*arr[i];
+		n.layers[i-1] = l;
+	}
+
+	return n;
+}
+
+static void gpu_lstm_forward(LSTM *n, float *x){
+
+}
+
+static void gpu_lstm_backward(LSTM *n){
+
+}
+
 #endif
 
 LSTM lstm_from_arr(size_t *arr, size_t len){
@@ -454,6 +560,14 @@ void lstm_backward(LSTM *n){
 	gpu_lstm_backward(n);
 #else
 	cpu_lstm_backward(n);
+#endif
+}
+
+void wipe(LSTM *n){
+#ifdef GPU
+	gpu_wipe(n);
+#else
+	cpu_wipe(n);
 #endif
 }
 

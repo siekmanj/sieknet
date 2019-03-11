@@ -44,6 +44,8 @@ mlp_mnist_gpu:
 #	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
 sequence:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(LSTM_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
+sequence_gpu:
+	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(LSTM_SRC) $(CL_SRC) example/sequence.c -o $(BIN)/$@ $(GPULIBS)
 test:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
 	#$(CC) $(CFLAGS) $(INCLUDE) $(SRC_DIR)/*.c example/test.c -o $(BIN)/test $(LIBS)

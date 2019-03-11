@@ -15,8 +15,6 @@ __kernel void softmax_kernel(__global float *z, __global float *y, __global floa
 	y[i] = exp(z[i]) / sum[0];
 }
 
-	
-
 __kernel void zero_init_kernel(__global float *x){
 	x[get_global_id(0)] = 0.0;
 }
