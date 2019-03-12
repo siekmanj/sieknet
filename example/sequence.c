@@ -29,18 +29,10 @@ int data[] = {
 };
 
 int main(void){
-	srand(1);
-	LSTM n = create_lstm(10, 45, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
-	//n.learning_rate = 0.01;
-  //Momentum o = create_optimizer(Momentum, n);
-  //o.alpha = 0.0001;
-  //o.beta = 0.99;
+	srand(time(NULL));
+	LSTM n = create_lstm(10, 20, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
 	SGD o = create_optimizer(SGD, n);
  	o.learning_rate = 0.05;
-	//Momentum o = create_optimizer(Momentum, n);
-	//o.alpha = 0.001;
-	//SGD o1 = init_SGD(n.params, n.param_grad, n.num_params - n.output_layer.num_params);
-	//SGD o2 = init_SGD(n.output_layer.params, n.output_layer.param_grad, n.output_layer.num_params);
 
 	float cost = 0;
 	float cost_threshold = 0.4;
@@ -75,7 +67,7 @@ int main(void){
 
 			cost += c;
 
-			int guess = n.output_layer.guess;
+			int guess = n.guess;
 
 			count++;	
 		

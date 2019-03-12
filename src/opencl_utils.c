@@ -92,8 +92,19 @@ void check_error(int err, char *str){
 			case CL_BUILD_PROGRAM_FAILURE:
 				printf("CL_BUILD_PROGRAM_FAILURE.\n");
 				break;
+			case CL_MEM_OBJECT_ALLOCATION_FAILURE:
+				printf("CL_MEM_OBJECT_ALLOCATION_FAILURE.\n");
+				break;
+			case CL_OUT_OF_RESOURCES:
+				printf("CL_OUT_OF_RESOURCES.\n");
+				break;
+			case CL_INVALID_EVENT_WAIT_LIST:
+				printf("CL_INVALID_EVENT_WAIT_LIST.\n");
+				break;
+
+			
       default:
-        printf("default err.\n");
+        printf("default err, code %d\n", err);
         break;
     }
     exit(1);

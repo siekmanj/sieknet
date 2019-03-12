@@ -328,6 +328,28 @@ void mlp_kernel_setup(){
 	ARE_KERNELS_INITIALIZED = 1;
 }
 
+MLP_layer gpu_create_MLP_layer(size_t input_dim, size_t size, float *params, int param_offset, Nonlinearity nonlin){
+	MLP_layer l;
+	l.input_dimension = input_dim;
+	l.size = size;
+	l.param_offset = param_offset;
+	int err;
+	l.gradient = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.input_dimension, NULL, &err);
+	check_error(err, "creating gradient buffer.");
+	
+	l.z = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err);
+	check_error(err, "creating linear buffer.");
+
+	l.output = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err);
+	check_error(err, "creating output buffer.");
+
+	l.logistic = nonlin;
+	for(int j = 0; j < l.size; j++){
+		xavier_init(&params[param_offset + j * (input_dim+1)], input_dim+1, size);
+	}
+	return l;
+}
+
 MLP gpu_mlp_from_arr(size_t arr[], size_t size, int initialize){
 	initialize_opencl();
 	if(!ARE_KERNELS_INITIALIZED)
@@ -351,28 +373,11 @@ MLP gpu_mlp_from_arr(size_t arr[], size_t size, int initialize){
 	int param_idx = 0;
 	for(int i = 1; i < size; i++){
 		MLP_layer l;
-		l.size = arr[i];
-		l.input_dimension = arr[i-1];
-		l.gradient = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.input_dimension, NULL, &err);
-		check_error(err, "creating gradient buffer.");
-		
-		l.z = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err);
-		check_error(err, "creating linear buffer.");
-
-		l.output = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err);
-		check_error(err, "creating output buffer.");
-
 		if(i < size-1)
-			l.logistic = sigmoid;
+			l = gpu_create_MLP_layer(arr[i-1], arr[i], n.params, param_idx, sigmoid);
 		else
-			l.logistic = softmax;
-		l.param_offset = param_idx;
-		if(initialize){
-			for(int j = 0; j < l.size; j++){
-				xavier_init(&n.params[param_idx + j * (arr[i-1]+1)], arr[i-1]+1, arr[i]);
-			}
-		}
-	
+			l = gpu_create_MLP_layer(arr[i-1], arr[i], n.params, param_idx, softmax);
+
 		n.layers[i-1] = l;
 		param_idx += (arr[i-1]+1)*arr[i];
 	}
