@@ -73,7 +73,14 @@ typedef struct mlp{
 MLP mlp_from_arr(size_t arr[], size_t size, int initialize);
 MLP load_mlp(const char *filename);
 
+#ifndef GPU
 MLP_layer cpu_create_MLP_layer(size_t, size_t, float *, float *, Nonlinearity);
+void cpu_mlp_layer_forward(MLP_layer *, float *);
+void cpu_mlp_layer_backward(MLP_layer *, float *);
+#else
+MLP_layer gpu_create_MLP_layer(size_t, size_t, float *, int, Nonlinearity);
+void gpu_mlp_layer_forward(MLP_layer *, cl_mem, cl_mem);
+#endif
 
 void mlp_forward(MLP *, float *);
 void mlp_backward(MLP *);
@@ -88,6 +95,7 @@ void zero_2d_arr(float **, size_t, size_t);
 //These are activation functions
 #ifdef GPU
 cl_kernel logistic_kernel, softmax_sum_kernel, softmax_kernel;
+void mlp_kernel_setup();
 #endif
 float inner_product(const float *, const float *, size_t);
 float cross_entropy_cost(float *, const float *, float *, size_t);

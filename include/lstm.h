@@ -6,7 +6,7 @@
 #include "mlp.h"
 
 #ifndef MAX_UNROLL_LENGTH
-#define MAX_UNROLL_LENGTH 800
+#define MAX_UNROLL_LENGTH 400
 #endif
 
 #define create_lstm(...) lstm_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
@@ -99,7 +99,7 @@ typedef struct lstm{
 
 	LSTM_layer *layers;
 
-	MLP output_layer;
+	MLP_layer output_layer;
 	float (*cost_fn)(float *y, const float *l, float *dest, size_t);
 	
 } LSTM;
