@@ -293,7 +293,6 @@ void cpu_lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 		f->output[t] = SIGMOID(inner_product(f->weights, tmp, l->input_dimension) + *f->bias);
 		o->output[t] = SIGMOID(inner_product(o->weights, tmp, l->input_dimension) + *o->bias);
 
-		printf("bias: %f\n", *f->bias);
 
 		a->dOutput[t] = D_HYPERTAN(a->output[t]);
 		i->dOutput[t] = D_SIGMOID(i->output[t]);
@@ -339,7 +338,6 @@ void cpu_lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 		if(j < l->size-1) printf(", ");
 	}
 	printf("]\n");
-	*/
 	printf("printing tmp_o3 : [");
 	for(int j = 0; j < l->size; j++){
 		Gate *g = &l->cells[j].forget_gate;
@@ -361,7 +359,6 @@ void cpu_lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 		if(j < l->size-1) printf(", ");
 	}
 	printf("]\n");
-	/*
 	PRINTLIST(l->output[t], l->size);
 	printf("printing tmp_c : [");
 	for(int j = 0; j < l->size; j++){
@@ -370,8 +367,8 @@ void cpu_lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 		if(j < l->size-1) printf(", ");
 	}
 	printf("]\n");
-	*/
 	getchar();
+	*/
 }
 
 /*
@@ -631,7 +628,6 @@ LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
 	initialize_opencl();
 	if(!ARE_KERNELS_INITIALIZED)
 		lstm_kernel_setup();
-	printf("done with gpu setup!\n");
 
 	LSTM n;
 	n.t = 0;
@@ -696,7 +692,6 @@ LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
 void simulate_gate(float *x, float *r, float *z, float *params, int dim, int size, int layer_param_idx, int skiplength){
 	for(int i = 0; i < size; i++){
 		const int w_idx = layer_param_idx + (skiplength * i);
-		printf("bias: %f\n", params[w_idx]);
 		float sum = 0.0f;
 		for(int j = 0; j < dim-size; j++)
 			sum += x[j] * params[w_idx + j + 1];
@@ -709,7 +704,6 @@ void simulate_gate(float *x, float *r, float *z, float *params, int dim, int siz
 
 /* oh boy here we go */
 static void gpu_lstm_layer_forward(LSTM_layer *l, cl_mem x, cl_mem params, size_t t, size_t num_p){
-	printf("i am inside lstm layer forward at t %lu\n", t);
 	l->input[t] = x;
 
 	/*
@@ -798,6 +792,7 @@ static void gpu_lstm_layer_forward(LSTM_layer *l, cl_mem x, cl_mem params, size_
 	check_error(clSetKernelArg(lstm_forward_kernel, 5, sizeof(cl_mem), &l->output[t]), "setting lstm forward arg 4");
 	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), lstm_forward_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't lstm forward kernel");
 
+	/*
 	ARR_FROM_GPU(tmp_x, x, (l->input_dimension - l->size));
 	ARR_FROM_GPU(tmp_l, l->loutput, l->size);
 	ARR_FROM_GPU(tmp_p, params, num_p);
@@ -818,20 +813,22 @@ static void gpu_lstm_layer_forward(LSTM_layer *l, cl_mem x, cl_mem params, size_
 	PRINTLIST(tmp_z3, l->size);	
 	PRINTLIST(cpu_z, l->size);
 	getchar();
+	*/
 
 	check_error(clEnqueueCopyBuffer(get_opencl_queue(), l->output[t], l->loutput, 0, 0, l->size * sizeof(float), 0, NULL, NULL), "copying output to loutput");
 }
 
 static void gpu_lstm_forward(LSTM *n, float *x){
-	printf("doing lstm forward\n");
 
 	size_t t = n->t;
 	check_error(clEnqueueWriteBuffer(get_opencl_queue(), n->network_input[t], 0, 0, sizeof(float) * n->input_dimension, x, 0, NULL, NULL), "copying input");
 
 	//Feedforward through all LSTM layers
 	cl_mem input = n->network_input[t];
+	/*
 	ARR_FROM_GPU(tmp_params, n->gpu_params, n->num_params);
 	PRINTLIST(tmp_params, n->num_params);
+	*/
 	for(int i = 0; i < n->depth; i++){
 		LSTM_layer *l = &n->layers[i];
 		gpu_lstm_layer_forward(l, input, n->gpu_params, t, n->num_params);
@@ -841,8 +838,6 @@ static void gpu_lstm_forward(LSTM *n, float *x){
 	//Feedforward through final MLP layer
 	gpu_mlp_layer_forward(&n->output_layer, input, n->gpu_params);
 
-	printf("reading %d floats, %d, %p\n", n->output_dimension, n->output_layer.size, n->output);
-	//ARR_FROM_GPU(tmp3, n->output_layer.output, n->output_dimension);
 	check_error(clEnqueueReadBuffer(get_opencl_queue(), n->output_layer.output, 1, 0, sizeof(float) * n->output_layer.size, n->output, 0, NULL, NULL), "error reading output from gpu");
 
   if(!(rand()%3))
@@ -995,5 +990,6 @@ LSTM load_lstm(const char *filename){
 	for(int i = 0; i < n.num_params; i++){
 		f = fscanf(fp, "%f", &n.params[i]);
 	}
+	check_error(clEnqueueWriteBuffer(get_opencl_queue(), n.gpu_params, 0, 0, sizeof(float) * n.num_params, n.params, 0, NULL, NULL), "copying input");
 	return n;
 }

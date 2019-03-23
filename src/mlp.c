@@ -418,7 +418,6 @@ void gpu_mlp_layer_forward(MLP_layer *l, cl_mem input, cl_mem params){
 	check_error(clSetKernelArg(mlp_forward_kernel, 3, sizeof(int), &l->input_dimension), "setting forward kernel arg3");
 	check_error(clSetKernelArg(mlp_forward_kernel, 4, sizeof(int), &l->param_offset), "setting forward kernel arg4");
 	check_error(clSetKernelArg(mlp_forward_kernel, 5, sizeof(int), &params_per_neuron), "setting forward kernel arg5");
-		printf("gpu_mlp_layer_forard(): global size is %d\n", l->size);
 	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), mlp_forward_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "gpu_mlp_layer_forward(): couldn't enqueue linear kernel");
 	
 	if(l->logistic != softmax){
