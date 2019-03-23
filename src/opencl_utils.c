@@ -51,7 +51,7 @@ void check_error(int err, char *str){
 				printf("CL_INVALID_ARG_VALUE.\n");
 				break;
 			case CL_INVALID_MEM_OBJECT:
-				printf("CL_INVALID_MEM_OBJECT.\n");
+				printf("CL_INVALID_MEM_OBJECT (remember to pass in arg_value with &).\n");
 				break;
 			case CL_INVALID_ARG_SIZE:
 				printf("CL_INVALID_ARG_SIZE.\n");
@@ -171,7 +171,9 @@ cl_program build_program(char *source_code){
 	char buffer[len];
 	check_error(clGetProgramBuildInfo(prog, SIEKNET_DEVICE, CL_PROGRAM_BUILD_LOG, len, buffer, NULL), "copying compiler output to buffer");
 
+#ifdef DEBUG
 	printf("<OPENCL COMPILER OUTPUT:\n%s<END OPENCL COMPILER OUTPUT>\n", buffer);
+#endif
 	check_error(err, "couldn't build program");
 	return prog;
 }

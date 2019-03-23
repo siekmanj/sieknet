@@ -2,9 +2,9 @@
 
 __kernel void mlp_forward_kernel(__global float *x, __global float *z, __global float *params, int dim, int layer_param_idx, int skiplength){
 	const int i = get_global_id(0);
-	z[i] = 0;
+	z[i] = 0.0f;
 	const int w_idx = layer_param_idx + (skiplength * i);
-	float sum = 0;
+	float sum = 0.0f;
 	for(int j = 0; j < dim; j++){
 		sum += x[j] * params[w_idx + j + 1]; //weights
 	}
@@ -22,7 +22,7 @@ __kernel void mlp_input_gradient_kernel(
 																				int dim
 																			 ){
 	const int i = get_global_id(0); //ith input gradient
-	dest[i] = 0;
+	dest[i] = 0.0f;
 	for(int j = 0; j < neurons; j++){
 		const int w_idx = layer_param_idx + ((dim + 1) * j) + i;
 		float w = params[w_idx+1];

@@ -29,8 +29,9 @@ int data[] = {
 };
 
 int main(void){
-	srand(time(NULL));
-	LSTM n = create_lstm(10, 20, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
+	//srand(time(NULL));
+	srand(1);
+	LSTM n = create_lstm(10, 4, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
 	SGD o = create_optimizer(SGD, n);
  	o.learning_rate = 0.05;
 
