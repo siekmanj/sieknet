@@ -22,10 +22,10 @@ float uniform(float minimum, float maximum){
 }
 int main(){
 	srand(1);
-	int input_dim = 4;
+	int input_dim = 1;
 	int trials = 50;
 
-	LSTM n = create_lstm(input_dim, 2, input_dim);
+	LSTM n = create_lstm(input_dim, 1, input_dim);
 	SGD o = create_optimizer(SGD, n);
 	n.seq_len = 4;
 
@@ -48,20 +48,7 @@ int main(){
 		lstm_backward(&n);
 		printf("doing optimizer step\n");
 		//o.step(o);
-		PRINTLIST(n.output_layer.output, n.output_dimension);
-		PRINTLIST(n.param_grad, 5);
-		PRINTLIST(n.layers[0].input_gradient[0], n.input_dimension);
-		PRINTLIST(n.output_layer.layers[0].gradient, n.output_layer.input_dimension);
     avg_time += ((float)(clock() - start)) / CLOCKS_PER_SEC;
 	}
-#ifdef GPU
-	float *tmp = (float*)malloc(sizeof(float) * n.num_params);
-	clEnqueueReadBuffer(get_opencl_queue(), n.gpu_params, 1, 0, sizeof(float) * n.num_params, n.params, 0, NULL, NULL);
-#endif
-	for(int i = 0; i < n.num_params; i++){
-		//printf("param %d: %f\n", i, n.params[i]);
-	}
-	printf("avg time over %d trials: %f\n", trials, avg_time);
-
 	printf("exit!\n");
 }

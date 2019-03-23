@@ -5,7 +5,7 @@ __kernel void logistic_kernel(__global float *x, __global float *y, Nonlinearity
 }
 
 __kernel void softmax_sum_kernel(__global float *z, __global float *sum, int dim){
-	sum[0] = 0;
+	sum[0] = 0.0f;
 	for(int i = 0; i < dim; i++)
 		sum[0] += exp(z[i]);
 }
@@ -16,7 +16,7 @@ __kernel void softmax_kernel(__global float *z, __global float *y, __global floa
 }
 
 __kernel void zero_init_kernel(__global float *x){
-	x[get_global_id(0)] = 0.0;
+	x[get_global_id(0)] = 0.0f;
 }
 
 /*<<KERNEL END>>*/

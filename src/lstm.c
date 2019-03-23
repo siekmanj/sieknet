@@ -1,6 +1,6 @@
 /* Author: Jonah Siekmann
  * 10/3/2018
- * This is a simple implementation of a Long Short-Term Memory (LSTM) network, as described by Sepp Hochreiter and Jurgen Schmidhuber in their 1993 paper, with the addition of the forget gate described by Felix Gers.
+ * This is a simple implementation of a Long Short-Term Memory (LSTM) network, as described by Sepp Hochreiter and Jurgen Schmidhuber in their 1997 paper, with the addition of the forget gate described by Felix Gers.
  * Big thanks to Aidan Gomez for his wonderful numerical example of the backpropagation algorithm for an LSTM cell:
  * https://blog.aidangomez.ca/2016/04/17/Backpropogating-an-LSTM-A-Numerical-Example/
  */
@@ -105,7 +105,7 @@ static void cpu_wipe(LSTM *n){
 		LSTM_layer *l = &n->layers[i];
 		for(long t = 0; t < MAX_UNROLL_LENGTH; t++){
 			for(long j = 0; j < l->size; j++){
-				l->output[t][i] = 0;
+				l->output[t][j] = 0;
 				l->cells[j].dOutput[t] = 0;
 				l->cells[j].state[t] = 0;
 				l->cells[j].dstate[t] = 0;
@@ -154,7 +154,7 @@ LSTM_layer cpu_create_LSTM_layer(size_t input_dim, size_t size, float *param_add
 
 		float *forget_gate_bias_grad = &param_grad[param_idx];
 		float *forget_gate_weight_grad = &param_grad[param_idx+1];
-		*forget_gate_bias = 1.0;
+		//*forget_gate_bias = 1.0;
 		param_idx += l.input_dimension+1;
 		
 		float *output_gate_bias = &param_addr[param_idx];
@@ -255,6 +255,7 @@ LSTM cpu_lstm_from_arr(size_t *arr, size_t len){
  * Computes the forward pass of a single layer
  */
 void cpu_lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
+	//printf("inside cpu lstm layer forward t %lu\n", t);
 	size_t recurrent_offset = l->input_dimension - l->size;
 
 	l->input[t] = input; //save pointer to input for backward pass
@@ -264,7 +265,22 @@ void cpu_lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 	for(int i = recurrent_offset; i < l->input_dimension; i++)
 		tmp[i] = l->cells[i - recurrent_offset].loutput;
 
+	//PRINTLIST(tmp, (l->input_dimension));
+	//if(t) {
+	//	PRINTLIST(l->output[t-1], l->size);
+	//}
+	//getchar();
+
 	//Do output calculations for every cell in this layer
+	/*
+	printf("printing tmp_l : [");
+	for(int j = 0; j < l->size; j++){
+		Cell *c = &l->cells[j];
+		printf("%5.4f", c->loutput);
+		if(j < l->size-1) printf(", ");
+	}
+	printf("]\n");
+	*/
 	for(long j = 0; j < l->size; j++){
 		Cell *c = &l->cells[j];
 		Gate *a = &c->input_nonl;
@@ -276,6 +292,8 @@ void cpu_lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 		i->output[t] = SIGMOID(inner_product(i->weights, tmp, l->input_dimension) + *i->bias); //all of the gates use sigmoid
 		f->output[t] = SIGMOID(inner_product(f->weights, tmp, l->input_dimension) + *f->bias);
 		o->output[t] = SIGMOID(inner_product(o->weights, tmp, l->input_dimension) + *o->bias);
+
+		printf("bias: %f\n", *f->bias);
 
 		a->dOutput[t] = D_HYPERTAN(a->output[t]);
 		i->dOutput[t] = D_SIGMOID(i->output[t]);
@@ -314,6 +332,46 @@ void cpu_lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 		if(c->lstate > MAX_STATE) c->lstate = MAX_STATE;
 		if(c->lstate < -MAX_STATE) c->lstate = -MAX_STATE;
 	}
+	/*
+	printf("printing tmp_x : [");
+	for(int j = 0; j < l->input_dimension - l->size; j++){
+		printf("%5.4f", input[j]);
+		if(j < l->size-1) printf(", ");
+	}
+	printf("]\n");
+	*/
+	printf("printing tmp_o3 : [");
+	for(int j = 0; j < l->size; j++){
+		Gate *g = &l->cells[j].forget_gate;
+		printf("%5.4f", g->output[t]);
+		if(j < l->size-1) printf(", ");
+	}
+	printf("]\n");
+	printf("printing tmp_z3 : [");
+	for(int j = 0; j < l->size; j++){
+		Gate *g = &l->cells[j].forget_gate;
+		printf("%5.4f", inner_product(g->weights, tmp, l->input_dimension) + *g->bias);
+		if(j < l->size-1) printf(", ");
+	}
+	printf("]\n");
+	printf("printing tmp_z4 : [");
+	for(int j = 0; j < l->size; j++){
+		Gate *g = &l->cells[j].output_gate;
+		printf("%5.4f", g->output[t]);
+		if(j < l->size-1) printf(", ");
+	}
+	printf("]\n");
+	/*
+	PRINTLIST(l->output[t], l->size);
+	printf("printing tmp_c : [");
+	for(int j = 0; j < l->size; j++){
+		Cell *c = &l->cells[j];
+		printf("%5.4f", c->state[t]);
+		if(j < l->size-1) printf(", ");
+	}
+	printf("]\n");
+	*/
+	getchar();
 }
 
 /*
@@ -326,6 +384,7 @@ void cpu_lstm_forward(LSTM *n, float *x){
 	}
 	//Feedforward through all LSTM layers
 	float *input = n->network_input[t];
+	//PRINTLIST(n->params, n->num_params);
 	for(int i = 0; i < n->depth; i++){
 		LSTM_layer *l = &n->layers[i];
 		cpu_lstm_layer_forward(l, input, t);
@@ -437,15 +496,18 @@ void cpu_lstm_backward(LSTM *n){
 
 /******** BEGIN GPU-ONLY FUNCTIONS ********/
 
-cl_kernel mlp_forward_kernel, mlp_backward_kernel;
+#define ARR_FROM_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_GPU)");
+
+//cl_kernel rnn_forward_kernel, mlp_backward_kernel;
+cl_kernel rnn_forward_kernel, rnn_backward_kernel;
 cl_kernel lstm_forward_kernel, lstm_backward_kernel;
-cl_kernel logistic_kernel;
+cl_kernel logistic_kernel, zero_init_kernel;
 
 static int ARE_KERNELS_INITIALIZED = 0;
 void lstm_kernel_setup(){
 	mlp_kernel_setup();
 
-	char *kernels[] = {"include/nonlinear.h", "src/lstm.cl", "src/mlp.cl", "src/logistic.cl"};
+	char *kernels[] = {"include/nonlinear.h", "src/lstm.cl", "src/rnn.cl", "src/logistic.cl"};
 
 	int err = 0;
 
@@ -453,14 +515,19 @@ void lstm_kernel_setup(){
 	cl_program prog = build_program(src);
 	free(src);
 
-	mlp_forward_kernel = clCreateKernel(prog, "mlp_forward_kernel", &err);
+	rnn_forward_kernel = clCreateKernel(prog, "rnn_forward_kernel", &err);
 	check_error(err, "couldn't make linear forward kernel");
 
 	logistic_kernel = clCreateKernel(prog, "logistic_kernel", &err);
 	check_error(err, "couldn't make logistic kernel");
 
-	//lstm_forward_kernel = clCreateKernel(prog, "lstm_forward_kernel", &err);
-	//check_error(&err, "couldn't make linear forward kernel");
+	lstm_forward_kernel = clCreateKernel(prog, "lstm_forward_kernel", &err);
+	check_error(err, "couldn't make linear forward kernel");
+
+	zero_init_kernel = clCreateKernel(prog, "zero_init_kernel", &err);
+	check_error(err, "couldn't make zero init kernel");
+
+	printf("done with lstm kernel setup\n");
 	
 }
 
@@ -469,14 +536,36 @@ void gpu_zero_2d_arr(cl_mem *arr, size_t arrs){
 }
 
 void gpu_wipe(LSTM *n){
-
+	for(int t = 0; t < MAX_UNROLL_LENGTH; t++){
+		check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), &n->network_gradient[t]), "couldn't set zero kernel arg 0, network gradient");
+		check_error(clEnqueueNDRangeKernel(get_opencl_queue(), zero_init_kernel, 1, NULL, &n->input_dimension, NULL, 0, NULL, NULL), "couldn't use zero kernel");
+		check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), &n->network_input[t]), "couldn't set zero kernel arg 0, network_input");
+		check_error(clEnqueueNDRangeKernel(get_opencl_queue(), zero_init_kernel, 1, NULL, &n->input_dimension, NULL, 0, NULL, NULL), "couldn't use zero kernel");
+	}
+	for(int i = 0; i < n->depth; i++){
+		LSTM_layer *l = &n->layers[i];
+		check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), &l->loutput), "couldn't set zero kernel arg 0");
+		check_error(clEnqueueNDRangeKernel(get_opencl_queue(), zero_init_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't use zero kernel");
+		for(int t = 0; t < MAX_UNROLL_LENGTH; t++){
+			check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), &l->output[t]), "couldn't set zero kernel arg 0");
+			check_error(clEnqueueNDRangeKernel(get_opencl_queue(), zero_init_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't use zero kernel");
+			check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), &l->cell_state[t]), "couldn't set zero kernel arg 0");
+			check_error(clEnqueueNDRangeKernel(get_opencl_queue(), zero_init_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't use zero kernel");
+		}
+	}
 }
 
-LSTM_layer gpu_create_LSTM_layer(size_t input_dim, size_t size, int param_offset){
+LSTM_layer gpu_create_LSTM_layer(size_t input_dim, size_t size, float *params, int param_offset){
 	LSTM_layer l;
 	l.size = size;
 	l.param_offset = param_offset;
-	l.input_dimension = input_dim;
+	l.input_dimension = input_dim + size;
+
+	size_t neuron_offset = 0;
+	for(int i = 0; i < size*4; i++){
+		xavier_init(&params[param_offset + neuron_offset], (l.input_dimension+1), size);
+		neuron_offset += l.input_dimension+1;
+	}
 
 	l.input_nonl_z  = ALLOCATE(cl_mem, MAX_UNROLL_LENGTH);
 	l.input_gate_z  = ALLOCATE(cl_mem, MAX_UNROLL_LENGTH);
@@ -526,17 +615,23 @@ LSTM_layer gpu_create_LSTM_layer(size_t input_dim, size_t size, int param_offset
 		check_error(err, "allocating internal lstm memory");
 		l.output_gate_gradient[t] = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err); 
 		check_error(err, "allocating internal lstm memory");
-	}
-	l.cell_state = ALLOCATE(cl_mem, MAX_UNROLL_LENGTH);
 
-	l.input  = ALLOCATE(cl_mem, MAX_UNROLL_LENGTH);
-	l.output = ALLOCATE(cl_mem, MAX_UNROLL_LENGTH);
+		l.output[t] = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err); 
+		check_error(err, "allocating internal lstm memory");
+		l.cell_state[t] = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err); 
+		check_error(err, "allocating internal lstm memory");
+	}
+	l.loutput = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err); 
+	check_error(err, "allocating internal lstm memory");
+
 	return l;
 }
 
 LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
+	initialize_opencl();
 	if(!ARE_KERNELS_INITIALIZED)
 		lstm_kernel_setup();
+	printf("done with gpu setup!\n");
 
 	LSTM n;
 	n.t = 0;
@@ -570,9 +665,11 @@ LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
 	n.network_gradient = ALLOCATE(cl_mem, MAX_UNROLL_LENGTH);
 	n.network_input    = ALLOCATE(cl_mem, MAX_UNROLL_LENGTH);
 
-	for(int i = 0; i < MAX_UNROLL_LENGTH; i++){
-		n.network_gradient[i] = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * arr[len-2], NULL, &err);
-		n.network_input[i] = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * arr[0], NULL, &err);
+	for(int t = 0; t < MAX_UNROLL_LENGTH; t++){
+		n.network_gradient[t] = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * arr[len-2], NULL, &err);
+		check_error(err, "couldn't make internal lstm memory (network gradient)");
+		n.network_input[t] = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * arr[0], NULL, &err);
+		check_error(err, "couldn't make internal lstm memory (network input)");
 	}
 
 	gpu_zero_2d_arr(n.network_gradient, MAX_UNROLL_LENGTH);
@@ -580,97 +677,173 @@ LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
 	
 	int param_idx = 0;
 	for(int i = 1; i < len-1; i++){
-		LSTM_layer l = gpu_create_LSTM_layer(arr[i-1], arr[i], param_idx);
+		int next_layer_recurrent_inputs = 0;
+		if(i < len-2)
+			next_layer_recurrent_inputs = arr[i+1];
+
+		//printf("making recurrent layer with input dim %d, size %d, and next layer inputs %d\n", arr[i-1], arr[i], next_layer_recurrent_inputs);
+		LSTM_layer l = gpu_create_LSTM_layer(arr[i-1], arr[i], n.params, param_idx);
 		param_idx += (4*(arr[i-1]+arr[i]+1))*arr[i];
 		n.layers[i-1] = l;
 	}
+	n.output_layer = gpu_create_MLP_layer(arr[len-2], arr[len-1], n.params, param_idx, softmax);
+	n.output = ALLOCATE(float, n.output_dimension);
 
+	check_error(clEnqueueWriteBuffer(get_opencl_queue(), n.gpu_params, 0, 0, sizeof(float) * n.num_params, n.params, 0, NULL, NULL), "copying parameters into gpu");
 	return n;
 }
 
+void simulate_gate(float *x, float *r, float *z, float *params, int dim, int size, int layer_param_idx, int skiplength){
+	for(int i = 0; i < size; i++){
+		const int w_idx = layer_param_idx + (skiplength * i);
+		printf("bias: %f\n", params[w_idx]);
+		float sum = 0.0f;
+		for(int j = 0; j < dim-size; j++)
+			sum += x[j] * params[w_idx + j + 1];
+
+		for(int j = 0; j < size; j++)
+			sum += r[j] * params[w_idx + (dim-size) + j + 1];
+		z[i] = sum + params[w_idx];
+	}
+}
+
 /* oh boy here we go */
-static void gpu_lstm_layer_forward(LSTM_layer *l, cl_mem x, cl_mem params, size_t t){
+static void gpu_lstm_layer_forward(LSTM_layer *l, cl_mem x, cl_mem params, size_t t, size_t num_p){
+	printf("i am inside lstm layer forward at t %lu\n", t);
 	l->input[t] = x;
 
+	/*
+	ARR_FROM_GPU(tmp1, l->input[t], (l->input_dimension-l->size));
+	ARR_FROM_GPU(tmp2, l->loutput, l->size);
+
+	PRINTLIST(tmp1, (l->input_dimension - l->size));
+	PRINTLIST(tmp2, l->size);
+	getchar();
+	*/
 	Nonlinearity gate_fn = sigmoid;
 	Nonlinearity nonl_fn = hypertan;
 
-	int params_per_gate  = (l->input_dimension+l->size+1);
+	int params_per_gate  = (l->input_dimension+1);
 	int input_nonl_base  = l->param_offset + 0 * params_per_gate;
 	int input_gate_base  = l->param_offset + 1 * params_per_gate;
 	int forget_gate_base = l->param_offset + 2 * params_per_gate;
 	int output_gate_base = l->param_offset + 3 * params_per_gate;
 	int skipdist         =                   4 * params_per_gate;
 
-	check_error(clSetKernelArg(mlp_forward_kernel, 0, sizeof(cl_mem), &x), "setting forward kernel arg0");
-	check_error(clSetKernelArg(mlp_forward_kernel, 1, sizeof(cl_mem), &l->input_nonl_z), "setting forward kernel arg1");
-	check_error(clSetKernelArg(mlp_forward_kernel, 2, sizeof(cl_mem), &params), "setting forward kernel arg2");
-	check_error(clSetKernelArg(mlp_forward_kernel, 3, sizeof(int), &l->input_dimension), "setting forward kernel arg3");
-	check_error(clSetKernelArg(mlp_forward_kernel, 4, sizeof(int), &input_nonl_base), "setting forward kernel arg4");
-	check_error(clSetKernelArg(mlp_forward_kernel, 5, sizeof(int), &skipdist), "setting forward kernel arg5");
-	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), mlp_forward_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue linear kernel");
+	check_error(clSetKernelArg(rnn_forward_kernel, 0, sizeof(cl_mem), &x), "setting forward kernel arg0");
+	check_error(clSetKernelArg(rnn_forward_kernel, 1, sizeof(cl_mem), &l->loutput), "setting forward kernel arg1");
+	check_error(clSetKernelArg(rnn_forward_kernel, 2, sizeof(cl_mem), &l->input_nonl_z[t]), "setting forward kernel arg2");
+	check_error(clSetKernelArg(rnn_forward_kernel, 3, sizeof(cl_mem), &params), "setting forward kernel arg3");
+	check_error(clSetKernelArg(rnn_forward_kernel, 4, sizeof(int), &l->input_dimension), "setting forward kernel arg4");
+	check_error(clSetKernelArg(rnn_forward_kernel, 5, sizeof(int), &l->size), "setting forward kernel arg4");
+	check_error(clSetKernelArg(rnn_forward_kernel, 6, sizeof(int), &input_nonl_base), "setting forward kernel arg5");
+	check_error(clSetKernelArg(rnn_forward_kernel, 7, sizeof(int), &skipdist), "setting forward kernel arg6");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), rnn_forward_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "gpu_lstm_layer_forward(): couldn't enqueue linear kernel");
 	
-	check_error(clSetKernelArg(mlp_forward_kernel, 0, sizeof(cl_mem), &x), "setting forward kernel arg0");
-	check_error(clSetKernelArg(mlp_forward_kernel, 1, sizeof(cl_mem), &l->input_gate_z), "setting forward kernel arg1");
-	check_error(clSetKernelArg(mlp_forward_kernel, 2, sizeof(cl_mem), &params), "setting forward kernel arg2");
-	check_error(clSetKernelArg(mlp_forward_kernel, 3, sizeof(int), &l->input_dimension), "setting forward kernel arg3");
-	check_error(clSetKernelArg(mlp_forward_kernel, 4, sizeof(int), &input_gate_base), "setting forward kernel arg4");
-	check_error(clSetKernelArg(mlp_forward_kernel, 5, sizeof(int), &skipdist), "setting forward kernel arg5");
-	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), mlp_forward_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue linear kernel");
+	check_error(clSetKernelArg(rnn_forward_kernel, 0, sizeof(cl_mem), &x), "setting forward kernel arg0");
+	check_error(clSetKernelArg(rnn_forward_kernel, 1, sizeof(cl_mem), &l->loutput), "setting forward kernel arg1");
+	check_error(clSetKernelArg(rnn_forward_kernel, 2, sizeof(cl_mem), &l->input_gate_z[t]), "setting forward kernel arg2");
+	check_error(clSetKernelArg(rnn_forward_kernel, 3, sizeof(cl_mem), &params), "setting forward kernel arg3");
+	check_error(clSetKernelArg(rnn_forward_kernel, 4, sizeof(int), &l->input_dimension), "setting forward kernel arg4");
+	check_error(clSetKernelArg(rnn_forward_kernel, 5, sizeof(int), &l->size), "setting forward kernel arg4");
+	check_error(clSetKernelArg(rnn_forward_kernel, 6, sizeof(int), &input_gate_base), "setting forward kernel arg5");
+	check_error(clSetKernelArg(rnn_forward_kernel, 7, sizeof(int), &skipdist), "setting forward kernel arg6");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), rnn_forward_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "gpu_lstm_layer_forward(): couldn't enqueue linear recurrent kernel");
 
-	check_error(clSetKernelArg(mlp_forward_kernel, 0, sizeof(cl_mem), &x), "setting forward kernel arg0");
-	check_error(clSetKernelArg(mlp_forward_kernel, 1, sizeof(cl_mem), &l->forget_gate_z), "setting forward kernel arg1");
-	check_error(clSetKernelArg(mlp_forward_kernel, 2, sizeof(cl_mem), &params), "setting forward kernel arg2");
-	check_error(clSetKernelArg(mlp_forward_kernel, 3, sizeof(int), &l->input_dimension), "setting forward kernel arg3");
-	check_error(clSetKernelArg(mlp_forward_kernel, 4, sizeof(int), &forget_gate_base), "setting forward kernel arg4");
-	check_error(clSetKernelArg(mlp_forward_kernel, 5, sizeof(int), &skipdist), "setting forward kernel arg5");
-	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), mlp_forward_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue linear kernel");
+	check_error(clSetKernelArg(rnn_forward_kernel, 0, sizeof(cl_mem), &x), "setting forward kernel arg0");
+	check_error(clSetKernelArg(rnn_forward_kernel, 1, sizeof(cl_mem), &l->loutput), "setting forward kernel arg1");
+	check_error(clSetKernelArg(rnn_forward_kernel, 2, sizeof(cl_mem), &l->forget_gate_z[t]), "setting forward kernel arg2");
+	check_error(clSetKernelArg(rnn_forward_kernel, 3, sizeof(cl_mem), &params), "setting forward kernel arg3");
+	check_error(clSetKernelArg(rnn_forward_kernel, 4, sizeof(int), &l->input_dimension), "setting forward kernel arg4");
+	check_error(clSetKernelArg(rnn_forward_kernel, 5, sizeof(int), &l->size), "setting forward kernel arg4");
+	check_error(clSetKernelArg(rnn_forward_kernel, 6, sizeof(int), &forget_gate_base), "setting forward kernel arg5");
+	check_error(clSetKernelArg(rnn_forward_kernel, 7, sizeof(int), &skipdist), "setting forward kernel arg6");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), rnn_forward_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "gpu_lstm_layer_forward(): couldn't enqueue linear recurrent kernel");
 
-	check_error(clSetKernelArg(mlp_forward_kernel, 0, sizeof(cl_mem), &x), "setting forward kernel arg0");
-	check_error(clSetKernelArg(mlp_forward_kernel, 1, sizeof(cl_mem), &l->output_gate_z), "setting forward kernel arg1");
-	check_error(clSetKernelArg(mlp_forward_kernel, 2, sizeof(cl_mem), &params), "setting forward kernel arg2");
-	check_error(clSetKernelArg(mlp_forward_kernel, 3, sizeof(int), &l->input_dimension), "setting forward kernel arg3");
-	check_error(clSetKernelArg(mlp_forward_kernel, 4, sizeof(int), &output_gate_base), "setting forward kernel arg4");
-	check_error(clSetKernelArg(mlp_forward_kernel, 5, sizeof(int), &skipdist), "setting forward kernel arg5");
-	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), mlp_forward_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue linear kernel");
-
-	check_error(clSetKernelArg(logistic_kernel, 0, sizeof(cl_mem), &l->input_nonl_z), "setting logistic arg 0");
-	check_error(clSetKernelArg(logistic_kernel, 1, sizeof(cl_mem), &l->input_nonl_output), "setting logistic arg 0");
+	check_error(clSetKernelArg(rnn_forward_kernel, 0, sizeof(cl_mem), &x), "setting forward kernel arg0");
+	check_error(clSetKernelArg(rnn_forward_kernel, 1, sizeof(cl_mem), &l->loutput), "setting forward kernel arg1");
+	check_error(clSetKernelArg(rnn_forward_kernel, 2, sizeof(cl_mem), &l->output_gate_z[t]), "setting forward kernel arg1");
+	check_error(clSetKernelArg(rnn_forward_kernel, 3, sizeof(cl_mem), &params), "setting forward kernel arg2");
+	check_error(clSetKernelArg(rnn_forward_kernel, 4, sizeof(int), &l->input_dimension), "setting forward kernel arg4");
+	check_error(clSetKernelArg(rnn_forward_kernel, 5, sizeof(int), &l->size), "setting forward kernel arg4");
+	check_error(clSetKernelArg(rnn_forward_kernel, 6, sizeof(int), &output_gate_base), "setting forward kernel arg5");
+	check_error(clSetKernelArg(rnn_forward_kernel, 7, sizeof(int), &skipdist), "setting forward kernel arg6");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), rnn_forward_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "gpu_lstm_layer_forward(): couldn't enqueue linear recurrent kernel");
+	
+	check_error(clSetKernelArg(logistic_kernel, 0, sizeof(cl_mem), &l->input_nonl_z[t]), "setting logistic arg 0");
+	check_error(clSetKernelArg(logistic_kernel, 1, sizeof(cl_mem), &l->input_nonl_output[t]), "setting logistic arg 0");
 	check_error(clSetKernelArg(logistic_kernel, 2, sizeof(Nonlinearity), &nonl_fn), "setting logistic arg 0");
-	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), logistic_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue logistic kernel");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), logistic_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "gpu_lstm_layer_forward(): couldn't enqueue logistic kernel");
 
-	check_error(clSetKernelArg(logistic_kernel, 0, sizeof(cl_mem), &l->input_gate_z), "setting logistic arg 0");
-	check_error(clSetKernelArg(logistic_kernel, 1, sizeof(cl_mem), &l->input_gate_output), "setting logistic arg 0");
+	check_error(clSetKernelArg(logistic_kernel, 0, sizeof(cl_mem), &l->input_gate_z[t]), "setting logistic arg 0");
+	check_error(clSetKernelArg(logistic_kernel, 1, sizeof(cl_mem), &l->input_gate_output[t]), "setting logistic arg 0");
+	check_error(clSetKernelArg(logistic_kernel, 2, sizeof(Nonlinearity), &gate_fn), "setting logistic arg 0");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), logistic_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "gpu_lstm_layer_forward(): couldn't enqueue logistic kernel");
+
+	check_error(clSetKernelArg(logistic_kernel, 0, sizeof(cl_mem), &l->forget_gate_z[t]), "setting logistic arg 0");
+	check_error(clSetKernelArg(logistic_kernel, 1, sizeof(cl_mem), &l->forget_gate_output[t]), "setting logistic arg 0");
 	check_error(clSetKernelArg(logistic_kernel, 2, sizeof(Nonlinearity), &gate_fn), "setting logistic arg 0");
 	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), logistic_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue logistic kernel");
 
-	check_error(clSetKernelArg(logistic_kernel, 0, sizeof(cl_mem), &l->forget_gate_z), "setting logistic arg 0");
-	check_error(clSetKernelArg(logistic_kernel, 1, sizeof(cl_mem), &l->forget_gate_output), "setting logistic arg 0");
-	check_error(clSetKernelArg(logistic_kernel, 2, sizeof(Nonlinearity), &gate_fn), "setting logistic arg 0");
+	check_error(clSetKernelArg(logistic_kernel, 0, sizeof(cl_mem), &l->output_gate_z[t]), "setting logistic arg 0");
+	check_error(clSetKernelArg(logistic_kernel, 1, sizeof(cl_mem), &l->output_gate_output[t]), "setting logistic arg 1");
+	check_error(clSetKernelArg(logistic_kernel, 2, sizeof(Nonlinearity), &gate_fn), "setting logistic arg 2");
 	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), logistic_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue logistic kernel");
 
-	check_error(clSetKernelArg(logistic_kernel, 0, sizeof(cl_mem), &l->output_gate_z), "setting logistic arg 0");
-	check_error(clSetKernelArg(logistic_kernel, 1, sizeof(cl_mem), &l->output_gate_output), "setting logistic arg 0");
-	check_error(clSetKernelArg(logistic_kernel, 2, sizeof(Nonlinearity), &gate_fn), "setting logistic arg 0");
-	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), logistic_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue logistic kernel");
+	check_error(clSetKernelArg(lstm_forward_kernel, 0, sizeof(cl_mem), &l->input_nonl_output[t]), "setting lstm forward arg 0");
+	check_error(clSetKernelArg(lstm_forward_kernel, 1, sizeof(cl_mem), &l->input_gate_output[t]), "setting lstm forward arg 1");
+	check_error(clSetKernelArg(lstm_forward_kernel, 2, sizeof(cl_mem), &l->forget_gate_output[t]), "setting lstm forward arg 2");
+	check_error(clSetKernelArg(lstm_forward_kernel, 3, sizeof(cl_mem), &l->output_gate_output[t]), "setting lstm forward arg 3");
+	check_error(clSetKernelArg(lstm_forward_kernel, 4, sizeof(cl_mem), &l->cell_state[t]), "setting lstm forward arg 4");
+	check_error(clSetKernelArg(lstm_forward_kernel, 5, sizeof(cl_mem), &l->output[t]), "setting lstm forward arg 4");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), lstm_forward_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't lstm forward kernel");
+
+	ARR_FROM_GPU(tmp_x, x, (l->input_dimension - l->size));
+	ARR_FROM_GPU(tmp_l, l->loutput, l->size);
+	ARR_FROM_GPU(tmp_p, params, num_p);
+
+	ARR_FROM_GPU(tmp_z3, l->forget_gate_z[t], l->size);
+	//ARR_FROM_GPU(tmp_o4, l->output_gate_output[t], l->size);
+	//ARR_FROM_GPU(tmp, l->output[t], l->size);
+	//ARR_FROM_GPU(tmp_c, l->cell_state[t], l->size);
+	//PRINTLIST(tmp_z1, l->size);	
+	//PRINTLIST(tmp_z2, l->size);	
+	//PRINTLIST(tmp_l, l->size);
+	//PRINTLIST(tmp_x, (l->input_dimension - l->size));
+	//PRINTLIST(tmp_o4, l->size);	
+	//PRINTLIST(tmp, l->size);	
+	//PRINTLIST(tmp_c, l->size);
+	float cpu_z[l->size];
+	simulate_gate(tmp_x, tmp_l, cpu_z, tmp_p, l->input_dimension, l->size, forget_gate_base, skipdist);
+	PRINTLIST(tmp_z3, l->size);	
+	PRINTLIST(cpu_z, l->size);
+	getchar();
+
+	check_error(clEnqueueCopyBuffer(get_opencl_queue(), l->output[t], l->loutput, 0, 0, l->size * sizeof(float), 0, NULL, NULL), "copying output to loutput");
 }
 
 static void gpu_lstm_forward(LSTM *n, float *x){
+	printf("doing lstm forward\n");
+
 	size_t t = n->t;
 	check_error(clEnqueueWriteBuffer(get_opencl_queue(), n->network_input[t], 0, 0, sizeof(float) * n->input_dimension, x, 0, NULL, NULL), "copying input");
 
 	//Feedforward through all LSTM layers
 	cl_mem input = n->network_input[t];
+	ARR_FROM_GPU(tmp_params, n->gpu_params, n->num_params);
+	PRINTLIST(tmp_params, n->num_params);
 	for(int i = 0; i < n->depth; i++){
 		LSTM_layer *l = &n->layers[i];
-		gpu_lstm_layer_forward(l, input, n->gpu_params, t);
+		gpu_lstm_layer_forward(l, input, n->gpu_params, t, n->num_params);
 		input = l->output[t];
 	}
 
 	//Feedforward through final MLP layer
 	gpu_mlp_layer_forward(&n->output_layer, input, n->gpu_params);
 
-	check_error(clEnqueueReadBuffer(get_opencl_queue(), n->output_layer.output, 1, 0, sizeof(float) * n->output_dimension, n->output, 0, NULL, NULL), "error reading from gpu");
+	printf("reading %d floats, %d, %p\n", n->output_dimension, n->output_layer.size, n->output);
+	//ARR_FROM_GPU(tmp3, n->output_layer.output, n->output_dimension);
+	check_error(clEnqueueReadBuffer(get_opencl_queue(), n->output_layer.output, 1, 0, sizeof(float) * n->output_layer.size, n->output, 0, NULL, NULL), "error reading output from gpu");
 
   if(!(rand()%3))
 		n->guess = sample_softmax(n->output, n->output_dimension);
