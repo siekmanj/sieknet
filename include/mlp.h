@@ -80,6 +80,7 @@ void cpu_mlp_layer_backward(MLP_layer *, float *);
 #else
 MLP_layer gpu_create_MLP_layer(size_t, size_t, float *, int, Nonlinearity);
 void gpu_mlp_layer_forward(MLP_layer *, cl_mem, cl_mem);
+void gpu_mlp_layer_backward(MLP_layer *, cl_mem, cl_mem, cl_mem);
 #endif
 
 void mlp_forward(MLP *, float *);

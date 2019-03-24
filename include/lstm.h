@@ -32,7 +32,7 @@ typedef struct cell{
 	float lstate;
 	float *state;
 	float *dstate;
-	float *dOutput;
+	float *gradient;
 } Cell;
 #endif
 
@@ -59,7 +59,11 @@ typedef struct lstm_layer{
 	cl_mem *forget_gate_gradient;
 	cl_mem *output_gate_gradient;
 
+	cl_mem *input_gradient;
+	cl_mem *cell_gradient;
+
 	cl_mem *cell_state;
+	cl_mem *cell_dstate;
 
 	cl_mem *input;
 	cl_mem *output;
@@ -84,6 +88,7 @@ typedef struct lstm{
 	cl_mem param_grad;
 	cl_mem *network_gradient;
 	cl_mem *network_input;
+	cl_mem mlp_cost_gradient;
 #endif
 
 	int stateful;
