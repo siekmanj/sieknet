@@ -56,6 +56,7 @@ static cl_kernel sgd_step_kernel, momentum_step_kernel;
 
 static int ARE_KERNELS_INITIALIZED = 0;
 void optimizer_gpu_setup(){
+	printf("in gpu setup\n");
 	char *kernels[] = {"src/optimizer.cl"};
 
 	char *src = get_kernel_source(kernels, 1);
@@ -71,6 +72,7 @@ void optimizer_gpu_setup(){
 	check_error(err, "couldn't make momentum kernel");
 	
 	ARE_KERNELS_INITIALIZED = 1;
+	printf("returning from gpu setup\n");
 }
 
 static float gpu_sgd_step(SGD o){
@@ -78,16 +80,17 @@ static float gpu_sgd_step(SGD o){
 	check_error(clSetKernelArg(sgd_step_kernel, 0, sizeof(cl_mem), &o.weights), "setting sgd step kernel arg 0");
 	check_error(clSetKernelArg(sgd_step_kernel, 1, sizeof(cl_mem), &o.gradient), "setting sgd step kernel arg 0");
 	check_error(clSetKernelArg(sgd_step_kernel, 2, sizeof(float), &o.learning_rate), "setting sgd step kernel arg 0");
-	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), sgd_step_kernel, 1, NULL, &o.num_params, NULL, 0, NULL, NULL), "couldn't enqueue param update kernel");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), sgd_step_kernel, 1, NULL, &o.num_params, NULL, 0, NULL, NULL), "couldn't enqueue param update kernel");
 	return 0.0;
 }
 
 static float gpu_momentum_step(Momentum o){
 	check_error(clSetKernelArg(momentum_step_kernel, 0, sizeof(cl_mem), &o.weights), "setting mom step kernel arg 0");
-	check_error(clSetKernelArg(momentum_step_kernel, 1, sizeof(cl_mem), &o.gradient), "setting mom step kernel arg 0");
-	check_error(clSetKernelArg(momentum_step_kernel, 2, sizeof(float), &o.alpha), "setting mom kernel arg 0");
-	check_error(clSetKernelArg(momentum_step_kernel, 3, sizeof(float), &o.beta), "setting mom step kernel arg 0");
-	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), momentum_step_kernel, 1, NULL, &o.num_params, NULL, 0, NULL, NULL), "couldn't enqueue param update kernel");
+	check_error(clSetKernelArg(momentum_step_kernel, 1, sizeof(cl_mem), &o.gradient), "setting mom step kernel arg 1");
+	check_error(clSetKernelArg(momentum_step_kernel, 2, sizeof(cl_mem), &o.z), "setting mom step kernel arg 1");
+	check_error(clSetKernelArg(momentum_step_kernel, 3, sizeof(float), &o.alpha), "setting mom kernel arg 2");
+	check_error(clSetKernelArg(momentum_step_kernel, 4, sizeof(float), &o.beta), "setting mom step kernel arg 3");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), momentum_step_kernel, 1, NULL, &o.num_params, NULL, 0, NULL, NULL), "couldn't enqueue param update kernel");
 	return 0.0;
 }
 
@@ -111,11 +114,12 @@ Momentum gpu_init_Momentum(cl_mem weights, cl_mem gradient, size_t num_params){
 	o.gradient = gradient;
 
 	int err;
-	float zeros[num_params];
+	float *zeros = (float*)malloc(sizeof(float)*num_params);
 	memset(zeros, '\0', num_params*sizeof(float));
 
 	o.z = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * num_params, zeros, &err);
 	check_error(err, "could not create momentum buffer");
+	free(zeros);
 
 	o.num_params = num_params;
 	o.alpha = 0.001;

@@ -14,7 +14,7 @@
 
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
 #define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
-#define ARR_FROM_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_GPU)");
+#define ARR_FROM_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue0(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_GPU)");
 
 /*
  * Calculates the inner product of two vectors.
@@ -417,32 +417,32 @@ void gpu_mlp_layer_forward(MLP_layer *l, cl_mem input, cl_mem params){
 	check_error(clSetKernelArg(mlp_forward_kernel, 3, sizeof(int), &l->input_dimension), "setting forward kernel arg3");
 	check_error(clSetKernelArg(mlp_forward_kernel, 4, sizeof(int), &l->param_offset), "setting forward kernel arg4");
 	check_error(clSetKernelArg(mlp_forward_kernel, 5, sizeof(int), &params_per_neuron), "setting forward kernel arg5");
-	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), mlp_forward_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "gpu_mlp_layer_forward(): couldn't enqueue linear kernel");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), mlp_forward_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "gpu_mlp_layer_forward(): couldn't enqueue linear kernel");
 	
 	if(l->logistic != softmax){
 		check_error(clSetKernelArg(logistic_kernel, 0, sizeof(cl_mem), &l->z), "setting logistic arg 0");
 		check_error(clSetKernelArg(logistic_kernel, 1, sizeof(cl_mem), &l->output), "setting logistic arg 1");
 		check_error(clSetKernelArg(logistic_kernel, 2, sizeof(Nonlinearity), &l->logistic), "setting logistic arg 2");
-		check_error(clEnqueueNDRangeKernel(get_opencl_queue(), logistic_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "gpu_mlp_layer_forward(): couldn't enqueue logistic kernel");
+		check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), logistic_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "gpu_mlp_layer_forward(): couldn't enqueue logistic kernel");
 	}else{
 		size_t one = 1;
 		cl_mem smsum = get_softmax_sum(); //retrieve global softmax sum placeholder
 		check_error(clSetKernelArg(softmax_sum_kernel, 0, sizeof(cl_mem), &l->z), "setting softmax sum arg 0");
 		check_error(clSetKernelArg(softmax_sum_kernel, 1, sizeof(cl_mem), &smsum), "setting softmax sum arg 1");
 		check_error(clSetKernelArg(softmax_sum_kernel, 2, sizeof(int), &l->size), "setting softmax sum arg 2");
-		check_error(clEnqueueNDRangeKernel(get_opencl_queue(), softmax_sum_kernel, 1, NULL, &one, NULL, 0, NULL, NULL), "couldn't do softmax sum");
+		check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), softmax_sum_kernel, 1, NULL, &one, NULL, 0, NULL, NULL), "couldn't do softmax sum");
 
 		check_error(clSetKernelArg(softmax_kernel, 0, sizeof(cl_mem), &l->z), "setting softmax arg 0");
 		check_error(clSetKernelArg(softmax_kernel, 1, sizeof(cl_mem), &l->output), "setting softmax arg 1");
 		check_error(clSetKernelArg(softmax_kernel, 2, sizeof(cl_mem), &smsum), "setting softmax arg 2");
-		check_error(clEnqueueNDRangeKernel(get_opencl_queue(), softmax_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't do softmax sum");
+		check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), softmax_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't do softmax sum");
 	}
 
 
 }
 
 void gpu_mlp_forward(MLP *n, float *x){
-	check_error(clEnqueueWriteBuffer(get_opencl_queue(), n->network_input, 0, 0, sizeof(float) * n->input_dimension, x, 0, NULL, NULL), "enqueuing network input");
+	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->network_input, 0, 0, sizeof(float) * n->input_dimension, x, 0, NULL, NULL), "enqueuing network input");
 
 	cl_mem input = n->network_input;
 	for(int i = 0; i < n->depth; i++){
@@ -452,7 +452,7 @@ void gpu_mlp_forward(MLP *n, float *x){
 		input = l->output;
 	}
 	
-	clEnqueueReadBuffer(get_opencl_queue(), input, 1, 0, sizeof(float) * n->output_dimension, n->output, 0, NULL, NULL);
+	clEnqueueReadBuffer(get_opencl_queue0(), input, 1, 0, sizeof(float) * n->output_dimension, n->output, 0, NULL, NULL);
 	n->guess = 0;
 	for(int i = 0; i < n->output_dimension; i++)
 		if(n->output[n->guess] < n->output[i])
@@ -468,7 +468,7 @@ void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem par
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 5, sizeof(int), &l->param_offset), "setting input grad kernel arg 4");
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 6, sizeof(int), &l->size), "setting input grad kernel arg 5");
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 7, sizeof(int), &l->input_dimension), "setting input grad kernel arg 6");
-	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), mlp_input_gradient_kernel, 1, NULL, &l->input_dimension, NULL, 0, NULL, NULL), "couldn't enqueue input grad kernel");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), mlp_input_gradient_kernel, 1, NULL, &l->input_dimension, NULL, 0, NULL, NULL), "couldn't enqueue input grad kernel");
 
 	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 0, sizeof(cl_mem), &grad), "setting param grad kernel arg 0");
 	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 1, sizeof(cl_mem), &l->output), "setting param grad kernel arg 1");
@@ -478,11 +478,14 @@ void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem par
 	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 5, sizeof(int), &l->param_offset), "setting param grad kernel arg 5");
 	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 6, sizeof(int), &l->size), "setting param grad kernel arg 6");
 	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 7, sizeof(int), &l->input_dimension), "setting param grad kernel arg 7");
-	check_error(clEnqueueNDRangeKernel(get_opencl_queue(), mlp_parameter_gradient_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue param grad kernel");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue1(), mlp_parameter_gradient_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue param grad kernel");
+
+	check_error(clFinish(get_opencl_queue0()), "waiting for queue 0 to finish executing (forward pass)");
+	check_error(clFinish(get_opencl_queue1()), "waiting for queue 1 to finish executing (forward pass)");
 }
 
 void gpu_mlp_backward(MLP *n){
-	check_error(clEnqueueWriteBuffer(get_opencl_queue(), n->network_grad, 0, 0, sizeof(float) * n->output_dimension, n->cost_gradient, 0, NULL, NULL), "enqueuing network grads");
+	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->network_grad, 0, 0, sizeof(float) * n->output_dimension, n->cost_gradient, 0, NULL, NULL), "enqueuing network grads");
 
 	cl_mem grads = n->network_grad;
 	int l_idx = n->depth;
@@ -514,13 +517,8 @@ void mlp_forward(MLP *n, float *x){
 void mlp_backward(MLP *n){
 #ifndef GPU
 	cpu_mlp_backward(n);
-	PRINTLIST(n->param_grad, n->num_params);
-	getchar();
 #else
 	gpu_mlp_backward(n);
-	ARR_FROM_GPU(tmp_pg, n->param_grad, n->num_params);
-	PRINTLIST(tmp_pg, n->num_params);
-	getchar();
 #endif
 }
 
@@ -541,7 +539,7 @@ static void getWord(FILE *fp, char* dest){
 void save_mlp(MLP *n, const char* filename){
 #ifdef GPU
 	float *tmp = (float*)malloc(sizeof(float) * n->num_params);
-	clEnqueueReadBuffer(get_opencl_queue(), n->gpu_params, 1, 0, sizeof(float) * n->num_params, tmp, 0, NULL, NULL);
+	clEnqueueReadBuffer(get_opencl_queue0(), n->gpu_params, 1, 0, sizeof(float) * n->num_params, tmp, 0, NULL, NULL);
 #endif
 	char buff[1024];
 	memset(buff, '\0', 1024);
