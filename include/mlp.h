@@ -26,7 +26,7 @@ typedef struct neuron{
 } Neuron;
 #endif
 
-typedef struct layer{
+typedef struct mlp_layer{
 #ifndef GPU
 	Neuron *neurons;
 	float *gradient;

@@ -6,8 +6,15 @@ __kernel void logistic_kernel(__global float *x, __global float *y, Nonlinearity
 
 __kernel void softmax_sum_kernel(__global float *z, __global float *sum, int dim){
 	sum[0] = 0.0f;
+	float fmax;
 	for(int i = 0; i < dim; i++)
-		sum[0] += exp(z[i]);
+		if(z[i] > fmax) fmax = z[i];
+
+	for(int i = 0; i < dim; i++){
+		sum[0] += exp(z[i]-fmax);
+		z[i] = z[i] - fmax;
+	}
+
 }
 
 __kernel void softmax_kernel(__global float *z, __global float *y, __global float *sum){

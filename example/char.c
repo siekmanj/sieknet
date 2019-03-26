@@ -14,13 +14,13 @@
 
 #define NEWLSEQ  0
 #define STATEFUL 1
-#define USE_MOMENTUM 1
+#define USE_MOMENTUM 0
 
 #define CHAR_OUTPUT 0
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 40;
+size_t HIDDEN_LAYER_SIZE = 500;
 size_t NUM_EPOCHS				 = 10;
 size_t SEQ_LEN					 = 75;
 size_t ASCII_RANGE			 = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
@@ -152,6 +152,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 
 		float avg_cost = 0;
 		float avg_seq_cost = 0;
+		float seq_time = 0;
 
 		wipe(n);
 
@@ -162,10 +163,12 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 #if CHAR_OUTPUT
 			printf("(sequence len %lu): '", n->seq_len);
 #else
-			printf("sequence len %3lu, (%3lu)/(%3lu)), epoch %2d %5.2f%% complete. Cost over last %3lu sequences: %6.5f. Epoch cost: %6.5f. Previous epoch cost: %6.5f. Current lr: %7.6f\r",
+			printf("seqlen %3lu, (%3lu)/(%3lu) (avg %3.2f s), epoch %2d %4.2f%% complete. Cost last %3lu seqs: %4.3f. Epoch cost: %5.4f. Previous epoch cost: %5.4f. Current lr: %7.6f\r",
 						n->seq_len, 
 						sequence_counter % training_iterations + 1 , 
-						training_iterations, 100 * completion, 
+						training_iterations,
+						seq_time,
+						100 * completion, 
 						i+1,
 						sequence_counter % training_iterations + 1, 
 						avg_seq_cost / (sequence_counter % training_iterations + 1), 
@@ -182,12 +185,13 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			input_char = '\n';
 #endif
 			float seq_cost = 0;
+			clock_t start_t = clock();
 			for(int j = 0; j < n->seq_len; j++){
 				char label = seq[j];
 
 				CREATEONEHOT(x, ASCII_RANGE, char2int(input_char));
 				CREATEONEHOT(y, ASCII_RANGE, char2int(label));
-
+				
 				lstm_forward(n, x);
 				float c = lstm_cost(n, y);
 				lstm_backward(n);
@@ -204,6 +208,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 
 				input_char = label;
 			}
+			seq_time = (double)(clock() - start_t) / CLOCKS_PER_SEC;
 #if CHAR_OUTPUT	
 			printf("'\n");
 #endif
@@ -278,7 +283,7 @@ int main(int argc, char** argv){
 
 	LSTM n;
 	if(newlstm){
-		n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
+		n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
 		printf("creating '%s'\n", modelfile);
 	}else{
 		printf("loading '%s'\n", modelfile);

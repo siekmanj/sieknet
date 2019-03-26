@@ -49,13 +49,12 @@ __kernel void mlp_parameter_gradient_kernel(
 	float g = grads[i];
 
 	const int w_idx = layer_param_idx + ((dim + 1) * i);
-	param_grad[w_idx] = d * g; //set bias grad
+	param_grad[w_idx] += d * g; //bias grad
 
 	for(int j = 0; j < dim; j++){
 		float x = input[j];
-		param_grad[w_idx+j+1] = x * d * g; //set weight grads
+		param_grad[w_idx+j+1] += x * d * g; //weight grads
 	}
 }
-
 
 /*<<KERNEL END>>*/

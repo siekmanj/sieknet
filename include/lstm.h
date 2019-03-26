@@ -14,7 +14,6 @@
 #ifndef GPU
 typedef struct gate{
 	float *output;
-	float *dOutput;
 	float *gradient;
 	float *weights;
 	float *bias;
@@ -32,7 +31,6 @@ typedef struct cell{
 	float lstate;
 	float *state;
 	float *dstate;
-	float *gradient;
 } Cell;
 #endif
 
