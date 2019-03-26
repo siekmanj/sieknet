@@ -45,8 +45,8 @@ __kernel void lstm_internal_gradient_kernel(__global float *input_nonl_out,
 		next_forget = future_forget_gate_out[i];
 	}else{
 		cell_grad = gradient[i];
-		next_dstate = 0;
-		next_forget = 0;
+		next_dstate = 0.0f;
+		next_forget = 0.0f;
 	}
 
 	dstate[i] = cell_grad * output_gate_out[i] * D_HYPERTAN(HYPERTAN(state[i])) + next_dstate * next_forget;
@@ -56,7 +56,7 @@ __kernel void lstm_internal_gradient_kernel(__global float *input_nonl_out,
 	if(use_past_outputs) 
 		forget_gate_grad[i] = dstate[i] * last_state[i] * differentiate(forget_gate_out[i], gate_fn);
 	else
-		forget_gate_grad[i] = 0;
+		forget_gate_grad[i] = 0.0f;
 	output_gate_grad[i] = cell_grad * HYPERTAN(state[i]) * differentiate(output_gate_out[i], gate_fn);
 }
 

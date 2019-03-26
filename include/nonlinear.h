@@ -26,8 +26,8 @@ static float SIGMOID(float x){
 }
 
 static float HYPERTAN(float x){
-	if(x > 7.0)  return 0.999998;
-	if(x < -7.0) return -0.999998;
+	if(x > 7.0f)  return 0.999998f;
+	if(x < -7.0f) return -0.999998f;
 	return (exp(x) - exp(-x)) / (exp(x) + exp(-x));
 }
 
@@ -46,7 +46,7 @@ static float differentiate(float x, Nonlinearity n){
 			return D_SOFTMAX(x);
 			break;
 	}
-	return 0;
+	return 0.0f;
 }
 
 static float activate(float x, Nonlinearity n){
@@ -60,11 +60,11 @@ static float activate(float x, Nonlinearity n){
 		case relu:
 			return RELU(x);
 			break;
-		//case softmax:
-		//	return SOFTMAX(x);
-		//	break;
+		case softmax:
+			//do nothing
+			break;
 	}
-	return 0;
+	return 0.0f;
 }
 /*<<KERNEL END>>*/
 

@@ -32,11 +32,13 @@ int main(void){
 	//srand(time(NULL));
 	srand(1);
 	LSTM n = create_lstm(10, 4, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
-	SGD o = create_optimizer(SGD, n);
- 	o.learning_rate = 0.05;
+	//LSTM n = load_lstm("./model/test.lstm");
+	Momentum o = create_optimizer(Momentum, n);
+ 	o.alpha = 0.005;
+	o.beta = 0.95;
 
 	float cost = 0;
-	float cost_threshold = 0.6;
+	float cost_threshold = 1.0;
 	int count = 0;
 
 	for(int epoch = 0; epoch < 100000; epoch++){ //Train for 1000 epochs.
@@ -59,9 +61,6 @@ int main(void){
 			float c = lstm_cost(&n, expected);
 			lstm_backward(&n);
 
-			//printf("t: %lu, mlp paramgrad: %f, lstm paramgrad: %f\n", n.t, n.output_layer.param_grad[0], n.param_grad[10]);
-			//o2.step(o2);
-      //if(!n.t && i) o1.step(o1);
 			if(!n.t){
 				o.step(o);
 			}
@@ -93,6 +92,7 @@ int main(void){
         input = n.guess;
       }
 			printf("\n");
+			save_lstm(&n, "./model/test.lstm");
 			exit(0);
 		}
 	}
