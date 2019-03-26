@@ -25,6 +25,15 @@ int main(){
 	int input_dim = 2;
 	int trials = 10;
 
+/*
+	MLP m = create_mlp(input_dim, 1, input_dim);
+	float x[] = {0.5, 1.0};
+	float y[] = {0.0, 1.0};
+
+	mlp_forward(&m, x);
+	mlp_cost(&m, y);
+	mlp_backward(&m);
+*/
 	LSTM n = create_lstm(input_dim, 1, input_dim);
 	SGD o = create_optimizer(SGD, n);
 	n.seq_len = 4;
@@ -41,14 +50,13 @@ int main(){
     clock_t start = clock();
 		printf("doing forward\n");
 		lstm_forward(&n, x);
+		PRINTLIST(n.output, n.output_dimension);
 		printf("doing cost\n");
 		lstm_cost(&n, x);
-		/*
 		printf("doing backward\n");
-		//lstm_backward(&n);
-		printf("doing optimizer step\n");
+		lstm_backward(&n);
+		//printf("doing optimizer step\n");
 		//o.step(o);
-		*/
     avg_time += ((float)(clock() - start)) / CLOCKS_PER_SEC;
 	}
 	printf("exit!\n");

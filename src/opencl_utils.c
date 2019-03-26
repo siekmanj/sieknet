@@ -1,4 +1,5 @@
 #include <opencl_utils.h>
+#include <conf.h>
 #ifdef GPU
 #include <string.h>
 #include <stdlib.h>

@@ -12,13 +12,13 @@
 #define CREATEONEHOT(name, size, index) float name[size]; memset(name, '\0', size*sizeof(float)); name[index] = 1.0;
 
 int main(){
-	srand(time(NULL));
+	srand(1);
 
 	MLP n = create_mlp(4, 16);
-  Momentum o = create_optimizer(Momentum, n);
+  SGD o = create_optimizer(SGD, n);
 
 	//n.layers[0].logistic = relu;
-	float avg_cost;
+	float avg_cost = 0;
 	for(int i = 0; i < 100000; i++){ //Run the network for a while
 		//Create a random 4-bit binary number
 		int bit0 = rand()%2==0;
@@ -39,12 +39,12 @@ int main(){
 		avg_cost += cost;
 
 		//Debug stuff
-		if(!(i % 1000)){
+		if(!(i % 10000)){
 			printf("CURRENTLY ON EXAMPLE %d\n", i);
 			printf("Label %2d, guess %2lu, Cost: %5.3f, avg: %5.3f\n\n(ENTER to continue, CTRL+C to quit)\n", (int)ans, n.guess, cost, avg_cost/i);
 			getchar();
 		}	
 	}
-	save_mlp(&n, "../model/binary.mlp");
-	dealloc_mlp(&n);
+	//save_mlp(&n, "../model/binary.mlp");
+	//dealloc_mlp(&n);
 }

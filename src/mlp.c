@@ -14,9 +14,7 @@
 
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
 #define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
-
-#define MAX_GRAD 5
-#define DEBUG 0
+#define ARR_FROM_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_GPU)");
 
 /*
  * Calculates the inner product of two vectors.
@@ -71,7 +69,8 @@ float cross_entropy_cost(float *o, const float *y, float *dest, size_t dim){
 			printf("ERROR: cross_entropy_cost(): got a nan from y: %f, o: %f\n", y[i], o[i]);
 			exit(1);
 		}
-#if DEBUG
+		/*
+#ifdef DEBUG
 		if(grad > MAX_GRAD){
 			printf("WARNING: cross_entropy_cost(): cost gradient massive (%5.3f). Is there an issue with the label (%5.3f)?\n", grad, y[i]);
 			grad = MAX_GRAD;
@@ -81,6 +80,7 @@ float cross_entropy_cost(float *o, const float *y, float *dest, size_t dim){
 			grad = -MAX_GRAD;
 		}
 #endif
+		*/
 		dest[i] = grad;
 		sum += -(y[i] * log(o[i]) + (1-y[i]) * log(1-o[i]));
 	}
@@ -407,7 +407,6 @@ MLP gpu_mlp_from_arr(size_t arr[], size_t size, int initialize){
 	return n;
 }
 
-#define ARR_FROM_GPU(clmem, size, name) float name[size]; clEnqueueReadBuffer(get_opencl_context(), clmem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL); 
 
 void gpu_mlp_layer_forward(MLP_layer *l, cl_mem input, cl_mem params){
 	l->input = input;
@@ -515,8 +514,13 @@ void mlp_forward(MLP *n, float *x){
 void mlp_backward(MLP *n){
 #ifndef GPU
 	cpu_mlp_backward(n);
+	PRINTLIST(n->param_grad, n->num_params);
+	getchar();
 #else
 	gpu_mlp_backward(n);
+	ARR_FROM_GPU(tmp_pg, n->param_grad, n->num_params);
+	PRINTLIST(tmp_pg, n->num_params);
+	getchar();
 #endif
 }
 

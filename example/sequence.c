@@ -36,7 +36,7 @@ int main(void){
  	o.learning_rate = 0.05;
 
 	float cost = 0;
-	float cost_threshold = 0.4;
+	float cost_threshold = 0.6;
 	int count = 0;
 
 	for(int epoch = 0; epoch < 100000; epoch++){ //Train for 1000 epochs.
@@ -72,9 +72,9 @@ int main(void){
 
 			count++;	
 		
-			//if(!(epoch % 1000) && label != data[i]){
-				printf("label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", label, data[i], guess, c, cost/count, guess == label);
-			//}
+			if(!(epoch % 10)){
+				printf("iter %d: label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", epoch, label, data[i], guess, c, cost/count, guess == label);
+			}
 		}
 
 	  if(cost/count < cost_threshold){

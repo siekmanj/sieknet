@@ -1,0 +1,67 @@
+#include <nonlinear.h>
+
+/*
+ * In this file, lstm kernels are implemented as macros to be used in both the gpu and cpu
+ * implementation of Sieknet.
+ * This was a design decision to emphasize re-use of code, and enforce under-the-hood
+ * homogeneity across implementations. Unfortunately, OpenCL does not allow address space
+ * changes (i.e., passing a __global pointer to a function that takes a pointer), which
+ * necessitated the use of macros to provide an implementation that worked on the GPU as
+ * well as the CPU.
+ */
+
+/*<<KERNEL START>>*/
+void no_op(){}
+
+#define agnostic_lstm_forward_kernel(input_nonl, input_gate, forget_gate, output_gate, cell_state, cell_lstate, layer_output, i) \
+	cell_state[i] = input_nonl[i] * input_gate[i] + forget_gate[i] * cell_lstate[i]; \
+	layer_output[i] = HYPERTAN(cell_state[i]) * output_gate[i]; \
+	no_op()
+
+#define agnostic_lstm_internal_gradient_kernel( \
+																	 input_nonl_out, \
+																	 input_gate_out, \
+																   forget_gate_out, \
+																	 future_forget_gate_out, \
+																	 output_gate_out, \
+																	 \
+																   input_nonl_grad, \
+																	 input_gate_grad, \
+																	 forget_gate_grad, \
+																	 output_gate_grad, \
+																	 \
+																	 gradient, \
+																	 state, \ 
+																	 lstate,\ 
+																	 future_dstate, \
+																	 last_state, \
+																	 input_gradient, \
+																	 \
+																	 gate_fn, \
+																	 nonl_fn, \
+																	 \
+																 	 recurrent_offset, \
+															 		 use_future_grads, \
+																 	 use_past_outputs, \
+																	 i) \
+	float cell_grad, next_dstate, next_forget; \
+	if(use_future_grads){ \
+		cell_grad = gradient[i] + input_gradient[recurrent_offset + i]; \
+		next_dstate = future_dstate[i]; \
+		next_forget = future_forget_gate_out[i]; \
+	}else{ \
+		cell_grad = gradient[i]; \
+		next_dstate = 0; \
+		next_forget = 0; \
+	} \
+	dstate[i] = cell_grad * output_gate_out[i] * D_HYPERTAN(HYPERTAN(state[i])) + next_dstate * next_forget; \
+	input_nonl_grad[i] = dstate[i] * input_gate_out[i] * differentiate(input_nonl_out[i], nonl_fn); \
+	input_gate_grad[i] = dstate[i] * input_nonl_out[i] * differentiate(input_gate_out[i], gate_fn); \
+	if(use_past_outputs) \
+		forget_gate_grad[i] = dstate[i] * last_state[i] * differentiate(forget_gate_out[i], gate_fn); \
+	else \
+		forget_gate_grad[i] = 0; \
+	output_gate_grad[i] = cell_grad * HYPERTAN(state[i]) * differentiate(output_gate_out[i], gate_fn); \
+ 	no_op()
+
+/*<<KERNEL END>>*/
