@@ -56,7 +56,6 @@ static cl_kernel sgd_step_kernel, momentum_step_kernel;
 
 static int ARE_KERNELS_INITIALIZED = 0;
 void optimizer_gpu_setup(){
-	printf("in gpu setup\n");
 	char *kernels[] = {"src/optimizer.cl"};
 
 	char *src = get_kernel_source(kernels, 1);
@@ -72,7 +71,6 @@ void optimizer_gpu_setup(){
 	check_error(err, "couldn't make momentum kernel");
 	
 	ARE_KERNELS_INITIALIZED = 1;
-	printf("returning from gpu setup\n");
 }
 
 static float gpu_sgd_step(SGD o){

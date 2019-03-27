@@ -328,7 +328,7 @@ void mlp_kernel_setup(){
 	ARE_KERNELS_INITIALIZED = 1;
 }
 
-MLP_layer gpu_create_MLP_layer(size_t input_dim, size_t size, float *params, int param_offset, Nonlinearity nonlin){
+MLP_layer gpu_create_MLP_layer(size_t input_dim, size_t size, cl_mem params, int param_offset, Nonlinearity nonlin){
 	MLP_layer l;
 	l.input_dimension = input_dim;
 	l.size = size;
@@ -344,13 +344,15 @@ MLP_layer gpu_create_MLP_layer(size_t input_dim, size_t size, float *params, int
 	check_error(err, "creating output buffer.");
 
 	l.logistic = nonlin;
+	float *tmp = (float*)malloc(sizeof(float)*(input_dim+1)*size);
 	for(int j = 0; j < l.size; j++){
-		xavier_init(&params[param_offset + j * (input_dim+1)], input_dim+1, size);
+		xavier_init(&tmp[j * (input_dim+1)], input_dim+1, l.size);
 	}
+	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), params, 1, param_offset * sizeof(float), sizeof(float)*l.size*(l.input_dimension+1) , tmp, 0, NULL, NULL), "copying into gpu params");
 	return l;
 }
 
-MLP gpu_mlp_from_arr(size_t arr[], size_t size, int initialize){
+MLP gpu_mlp_from_arr(size_t arr[], size_t size){
 	initialize_opencl();
 	if(!ARE_KERNELS_INITIALIZED)
 		mlp_kernel_setup();
@@ -367,8 +369,10 @@ MLP gpu_mlp_from_arr(size_t arr[], size_t size, int initialize){
 	}
 
 	int err = 0;
-	n.params = ALLOCATE(float, n.num_params);
 	n.layers = ALLOCATE(MLP_layer, (size-1));
+
+	n.params = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.num_params, NULL, &err);
+	check_error(err, "creating & copying gpu params");
 
 	int param_idx = 0;
 	for(int i = 1; i < size; i++){
@@ -382,17 +386,11 @@ MLP gpu_mlp_from_arr(size_t arr[], size_t size, int initialize){
 		param_idx += (arr[i-1]+1)*arr[i];
 	}
 
-	if(initialize){ //set initialize to zero if want to load in non-random params
-		n.gpu_params = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * n.num_params, n.params, &err);
-		check_error(err, "creating & copying gpu params");
-	}
-
 	n.param_grad = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.num_params, NULL, &err);
 	check_error(err, "creating gpu param grads");
 
-	//check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), n.param_grad), "couldn't set zero init kernel arg 0");
-	//check_error(clEnqueueNDRangeKernel(n.queue, zero_init_kernel, 1, NULL, &n.num_params, NULL, 0, NULL, NULL), "couldn't enqueue zero init kernel");
-
+	check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), &n.param_grad), "couldn't set zero init kernel arg 0");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), zero_init_kernel, 1, NULL, &n.num_params, NULL, 0, NULL, NULL), "couldn't enqueue zero init kernel");
 
 	n.network_input = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.input_dimension, NULL, &err);
 	check_error(err, "creating temp input buffer");
@@ -437,8 +435,7 @@ void gpu_mlp_layer_forward(MLP_layer *l, cl_mem input, cl_mem params){
 		check_error(clSetKernelArg(softmax_kernel, 2, sizeof(cl_mem), &smsum), "setting softmax arg 2");
 		check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), softmax_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't do softmax sum");
 	}
-
-
+	//check_error(clFinish(get_opencl_queue0()), "couldn't wait for queue0 to end");
 }
 
 void gpu_mlp_forward(MLP *n, float *x){
@@ -448,11 +445,12 @@ void gpu_mlp_forward(MLP *n, float *x){
 	for(int i = 0; i < n->depth; i++){
 		MLP_layer *l = &n->layers[i];
 		l->input = input;
-		gpu_mlp_layer_forward(l, input, n->gpu_params);
+		gpu_mlp_layer_forward(l, input, n->params);
 		input = l->output;
 	}
 	
 	clEnqueueReadBuffer(get_opencl_queue0(), input, 1, 0, sizeof(float) * n->output_dimension, n->output, 0, NULL, NULL);
+	check_error(clFinish(get_opencl_queue0()), "couldn't wait for queue0 to end");
 	n->guess = 0;
 	for(int i = 0; i < n->output_dimension; i++)
 		if(n->output[n->guess] < n->output[i])
@@ -478,31 +476,30 @@ void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem par
 	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 5, sizeof(int), &l->param_offset), "setting param grad kernel arg 5");
 	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 6, sizeof(int), &l->size), "setting param grad kernel arg 6");
 	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 7, sizeof(int), &l->input_dimension), "setting param grad kernel arg 7");
-	check_error(clEnqueueNDRangeKernel(get_opencl_queue1(), mlp_parameter_gradient_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue param grad kernel");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), mlp_parameter_gradient_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue param grad kernel");
 
 	check_error(clFinish(get_opencl_queue0()), "waiting for queue 0 to finish executing (forward pass)");
-	check_error(clFinish(get_opencl_queue1()), "waiting for queue 1 to finish executing (forward pass)");
 }
 
 void gpu_mlp_backward(MLP *n){
-	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->network_grad, 0, 0, sizeof(float) * n->output_dimension, n->cost_gradient, 0, NULL, NULL), "enqueuing network grads");
+	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->network_grad, 1, 0, sizeof(float) * n->output_dimension, n->cost_gradient, 0, NULL, NULL), "enqueuing network grads");
 
 	cl_mem grads = n->network_grad;
 	int l_idx = n->depth;
-	while(l_idx --> 0){ //l_idx goes to 0!
+	while(l_idx --> 0){ //l_idx goes to 0
 		MLP_layer *l = &n->layers[l_idx];
-		gpu_mlp_layer_backward(l, grads, n->gpu_params, n->param_grad);
+		gpu_mlp_layer_backward(l, grads, n->params, n->param_grad);
 		grads = l->gradient;
 	}
 }
 
 #endif
 
-MLP mlp_from_arr(size_t arr[], size_t size, int initialize){
+MLP mlp_from_arr(size_t arr[], size_t size){
 #ifndef GPU
-	return cpu_mlp_from_arr(arr, size, initialize);
+	return cpu_mlp_from_arr(arr, size);
 #else
-	return gpu_mlp_from_arr(arr, size, initialize);
+	return gpu_mlp_from_arr(arr, size);
 #endif
 }
 
@@ -539,7 +536,7 @@ static void getWord(FILE *fp, char* dest){
 void save_mlp(MLP *n, const char* filename){
 #ifdef GPU
 	float *tmp = (float*)malloc(sizeof(float) * n->num_params);
-	clEnqueueReadBuffer(get_opencl_queue0(), n->gpu_params, 1, 0, sizeof(float) * n->num_params, tmp, 0, NULL, NULL);
+	clEnqueueReadBuffer(get_opencl_queue0(), n->params, 1, 0, sizeof(float) * n->num_params, tmp, 0, NULL, NULL);
 #endif
 	char buff[1024];
 	memset(buff, '\0', 1024);
@@ -598,13 +595,18 @@ MLP load_mlp(const char *filename){
 	}
 
 	MLP n;
-	n = mlp_from_arr(arr, num_layers+1, 0);
+	n = mlp_from_arr(arr, num_layers+1);
+#ifndef GPU
 	for(int i = 0; i < n.num_params; i++){
 		f = fscanf(fp, "%f", &n.params[i]);
 	}
-#ifdef GPU
+#else
+	float *tmp = (float*)malloc(sizeof(float)*n.num_params);
+	for(int i = 0; i < n.num_params; i++){
+		f = fscanf(fp, "%f", &tmp[i]);
+	}
 	int err;
-	n.gpu_params = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * n.num_params, n.params, &err);
+	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n.params, 1, 0, sizeof(float)*n.num_params, tmp, 0, NULL, NULL), "could not enqueue layer params");
 	check_error(err, "could not write params into gpu");
 #endif
 	return n;

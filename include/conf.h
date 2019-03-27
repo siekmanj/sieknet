@@ -4,6 +4,7 @@
 /*<<KERNEL START>>*/
 
 #define SIEKNET_MAX_GRAD  0.5f
+#define SIEKNET_MAX_STATE 10.0f
 #define SIEKNET_STOP_ON_NAN
 #define SIEKNET_DEBUG
 
@@ -13,7 +14,6 @@
 /* this is a list of compile-time options which you can
  * copy and paste above to enable
 
-#define SIEKNET_MAX_STATE 10.0f
 
  *
  */
