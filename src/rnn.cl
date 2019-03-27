@@ -1,4 +1,11 @@
 /*<<KERNEL START>>*/
+__kernel void make_onehot_kernel(__global float *dest, const int h){
+	const int i = get_global_id(0);
+	if(i == h)
+		dest[i] = 1.0f;
+	else
+		dest[i] = 0.0f;
+}
 __kernel void rnn_forward_kernel(__constant float *x, // inputs
 																 __constant float *r, // recurrent inputs
 																 __global float *z, // linear output

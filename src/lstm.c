@@ -468,6 +468,7 @@ void cpu_lstm_backward(LSTM *n){
 /******** BEGIN GPU-ONLY FUNCTIONS ********/
 
 
+cl_kernel make_onehot_kernel;
 cl_kernel rnn_forward_kernel, rnn_backward_kernel;
 cl_kernel lstm_forward_kernel;
 cl_kernel lstm_input_gradient_kernel, lstm_parameter_gradient_kernel;
@@ -515,6 +516,10 @@ void lstm_kernel_setup(){
 
 	zero_init_kernel = clCreateKernel(prog, "zero_init_kernel", &err);
 	check_error(err, "couldn't make zero init kernel");
+
+	make_onehot_kernel = clCreateKernel(prog, "make_onehot_kernel", &err);
+	check_error(err, "couldn't make onehot kernel");
+
 
 	
 }
@@ -696,7 +701,6 @@ LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
 	n.output_layer = gpu_create_MLP_layer(arr[len-2], arr[len-1], n.params, param_idx, softmax);
 	n.output = ALLOCATE(float, n.output_dimension);
 
-	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n.params, 0, 0, sizeof(float) * n.num_params, n.params, 0, NULL, NULL), "copying parameters into gpu");
 	gpu_wipe(&n);
 	return n;
 }
@@ -800,7 +804,15 @@ static void gpu_lstm_layer_forward(LSTM_layer *l, cl_mem x, cl_mem params, size_
 static void gpu_lstm_forward(LSTM *n, float *x){
 
 	size_t t = n->t;
+#ifdef SIEKNET_ONEHOT_SPEEDUP
+	int m = argmax(x, n->input_dimension);
+	check_error(clSetKernelArg(make_onehot_kernel, 0, sizeof(cl_mem), &n->network_input[t]), "couldn't set onehot arg 0");
+	check_error(clSetKernelArg(make_onehot_kernel, 1, sizeof(int), &m), "couldn't set onehot arg 1");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), make_onehot_kernel, 1, NULL, &n->input_dimension, NULL, 0, NULL, NULL), "couldn't do onehot kernel");
+
+#else
 	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->network_input[t], 1, 0, sizeof(float) * n->input_dimension, x, 0, NULL, NULL), "copying input");
+#endif
 
 	//Feedforward through all LSTM layers
 	cl_mem input = n->network_input[t];
@@ -1142,7 +1154,7 @@ LSTM load_lstm(const char *filename){
 	for(int i = 0; i < n.num_params; i++){
 		f = fscanf(fp, "%f", &tmp[i]);
 	}
-	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n.params, 0, 0, sizeof(float) * n.num_params, tmp, 0, NULL, NULL), "copying input");
+	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n.params, 1, 0, sizeof(float) * n.num_params, tmp, 0, NULL, NULL), "copying input");
 	free(tmp);
 #endif
 	return n;

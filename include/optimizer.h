@@ -10,7 +10,7 @@
 #include <stdio.h>
 
 #ifdef GPU
-#define create_optimizer(TYPE, network) gpu_init_## TYPE ((network).gpu_params, (network).param_grad, (network).num_params)
+#define create_optimizer(TYPE, network) gpu_init_## TYPE ((network).params, (network).param_grad, (network).num_params)
 #else
 #define create_optimizer(TYPE, network) cpu_init_## TYPE ((network).params, (network).param_grad, (network).num_params)
 #endif

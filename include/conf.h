@@ -8,6 +8,8 @@
 #define SIEKNET_STOP_ON_NAN
 #define SIEKNET_DEBUG
 
+#define SIEKNET_ONEHOT_SPEEDUP
+
 #define SIEKNET_USE_PLATFORM 0 //use first available opencl platform
 #define SIEKNET_USE_DEVICE   0 //use first available GPU
 

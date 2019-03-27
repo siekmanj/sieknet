@@ -25,8 +25,8 @@ size_t ASCII_RANGE			 = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$
 size_t SAMPLE_EVERY			 = 100;
 size_t SAMPLE_CHARS			 = 1000;
 
-float LEARNING_RATE			 = 0.001;
-float MOMENTUM					 = 0.95;
+float LEARNING_RATE			 = 0.0075;
+float MOMENTUM					 = 0.99;
 
 /*
  * This file is for training an LSTM character-by-character on any text (ascii) file provided.
@@ -182,6 +182,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			sequence_counter++;
 
 			if(!(sequence_counter % (training_iterations))){
+				printf("\n");
 				wipe(n);
 				for(int i = 3; i > 0; i--){
 					printf("Sampling from lstm in %d\r", i);
@@ -212,6 +213,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 
 int main(int argc, char** argv){
 
+	printf("made it to %d\n", __LINE__);
 	if(argc < 4){ printf("%d args needed. Usage: ./char [new/load] [path_to_modelfile] [path_to_datafile]\n", 3); exit(1);}
 
 	printf("   _____ ____________ __ _   ______________\n");
