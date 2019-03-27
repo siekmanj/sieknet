@@ -29,13 +29,13 @@ typedef struct neuron{
 typedef struct mlp_layer{
 #ifndef GPU
 	Neuron *neurons;
-	float *gradient;
+	float *input_gradient;
 	float *z;
 	float *output;
 	float *input;
 #else
 	int param_offset;
-  cl_mem gradient;
+  cl_mem input_gradient;
   cl_mem z;
   cl_mem output;
   cl_mem input;

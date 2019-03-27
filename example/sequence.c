@@ -72,7 +72,7 @@ int main(void){
 			count++;	
 		
 			if(!(epoch % 10)){
-				printf("iter %d: label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", epoch, label, data[i], guess, c, cost/count, guess == label);
+				//printf("iter %d: label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", epoch, label, data[i], guess, c, cost/count, guess == label);
 			}
 		}
 
