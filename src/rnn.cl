@@ -1,12 +1,12 @@
 /*<<KERNEL START>>*/
-__kernel void rnn_forward_kernel(__global float *x, // inputs
-																 __global float *r, // recurrent inputs
+__kernel void rnn_forward_kernel(__constant float *x, // inputs
+																 __constant float *r, // recurrent inputs
 																 __global float *z, // linear output
-																 __global float *params, //parameters
-																 int dim, 
-																 int size,
-																 int layer_param_idx, 
-																 int skiplength){
+																 __constant float *params, //parameters
+																 const int dim, 
+																 const int size,
+																 const int layer_param_idx, 
+																 const int skiplength){
 	const int i = get_global_id(0);
 	z[i] = 0.0f;
 	const int w_idx = layer_param_idx + (skiplength * i);

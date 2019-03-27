@@ -63,13 +63,13 @@ float lstm_cost(LSTM *n, float *y){
 	/* On the CPU, will run backward pass serially on softmax output layer, * 
 	 * and copy resulting gradient into lstm's network_gradient[t] array.   */
 	cpu_mlp_layer_backward(mlp, tmp);
-	float *grads = mlp->gradient;
+	float *grads = mlp->input_gradient;
 #else
 	/* On the GPU, will run backward pass in parallel, then use clEnqueueCopyBuffer *
 	 * to copy resulting gradient into network_gradient[t].                         */
 	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->mlp_cost_gradient, 0, 0, sizeof(float) * n->output_dimension, tmp, 0, NULL, NULL), "enqueuing cost gradient");
 	gpu_mlp_layer_backward(mlp, n->mlp_cost_gradient, n->params, n->param_grad);
-	cl_mem grads = mlp->gradient;
+	cl_mem grads = mlp->input_gradient;
 #endif
 	
 	size_t t = n->t;

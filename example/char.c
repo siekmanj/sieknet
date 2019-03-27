@@ -18,14 +18,14 @@
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 1024;
+size_t HIDDEN_LAYER_SIZE = 50;
 size_t NUM_EPOCHS				 = 10;
 size_t SEQ_LEN					 = 75;
 size_t ASCII_RANGE			 = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 size_t SAMPLE_EVERY			 = 100;
 size_t SAMPLE_CHARS			 = 1000;
 
-float LEARNING_RATE			 = 0.0002;
+float LEARNING_RATE			 = 0.001;
 float MOMENTUM					 = 0.95;
 
 /*
@@ -62,6 +62,18 @@ char *get_sequence(FILE *fp, size_t *size){
 	return ret;
 }
 
+struct timespec diff(struct timespec start, struct timespec end){
+	struct timespec temp;
+	if ((end.tv_nsec-start.tv_nsec)<0){
+		temp.tv_sec = end.tv_sec-start.tv_sec-1;
+		temp.tv_nsec = 1000000000+end.tv_nsec-start.tv_nsec;
+	}else{
+		temp.tv_sec = end.tv_sec-start.tv_sec;
+		temp.tv_nsec = end.tv_nsec-start.tv_nsec;
+	}
+	return temp;
+}
+
 void sample(LSTM *n, size_t chars, char seed){
 	wipe(n);
 	int input = char2int(seed);
@@ -87,7 +99,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 	fclose(tmp);
 
 	float learning_schedule[] = {
-															 learning_rate* 1.0,
+															 learning_rate * 1.0,
 															 learning_rate * 0.7, 
 															 learning_rate * 0.5, 
 															 learning_rate * 0.5, 
@@ -124,15 +136,23 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 		char *seq = get_sequence(fp, &n->seq_len);
 		char input_char = '\n';
 		do{
-			clock_t start_t = clock();
-			float completion =((float)ctr/datafilelen);
-			printf("seqlen %3lu, (%3lu)/(%3lu) (avg %5.4f s), epoch %2d %4.2f%% complete. Cost last %3lu seqs: %4.3f. Epoch cost: %5.4f. Previous epoch cost: %5.4f. Current lr: %7.6f\r",
+			struct timespec start, end;
+			clock_gettime(CLOCK_REALTIME, &start);
+
+			float completion = ((float)ctr/datafilelen);
+			float time_left = (1-completion) * ((datafilelen / n->seq_len) * seq_time);
+			int hrs_left = (int)(time_left / (60*60));
+			int min_left = ((int)(time_left - (hrs_left * 60 * 60))) / 60;
+			//printf("%5.4fs, appr. %2dh %2dm left.\n", seq_time, hrs_left, min_left);
+			printf("seqlen %3lu | (%3lu)/(%3lu) | (%5.4f s, appr. %2dh %2dmin left) | epoch %2d %4.2f%% | last %3lu seqs: %4.3f | epoch cost: %5.4f | previous epoch: %5.4f | lr: %7.6f\r",
 						n->seq_len, 
 						sequence_counter % training_iterations + 1 , 
 						training_iterations,
 						seq_time,
+						hrs_left,
+						min_left,
+						i,
 						100 * completion, 
-						i+1,
 						sequence_counter % training_iterations + 1, 
 						avg_seq_cost / (sequence_counter % training_iterations + 1), 
 						avg_cost/sequence_counter, 
@@ -164,7 +184,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			if(!(sequence_counter % (training_iterations))){
 				wipe(n);
 				for(int i = 3; i > 0; i--){
-					printf("\nSampling from lstm in %d\r", i);
+					printf("Sampling from lstm in %d\r", i);
 					sleep(1);
 				}
 				sample(n, SAMPLE_CHARS, '\n');
@@ -176,13 +196,13 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 				}
 				printf("\n***\nResuming training...\n");
 				avg_seq_cost = 0;
-				sleep(1);
-				avg_seq_cost = 0;
 				wipe(n);
 			}
 			free(seq);
 			seq = get_sequence(fp, &n->seq_len);
-			seq_time = (double)(clock() - start_t) / CLOCKS_PER_SEC;
+			clock_gettime(CLOCK_REALTIME, &end);
+			struct timespec elapsed = diff(start, end);
+			seq_time = (double)elapsed.tv_sec + ((double)elapsed.tv_nsec) / 1000000000;
 		}
 		while(seq && n->seq_len > 0);
 		fclose(fp);
@@ -217,7 +237,7 @@ int main(int argc, char** argv){
 
 	LSTM n;
 	if(newlstm){
-		n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
+		n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
 		printf("creating '%s'\n", modelfile);
 	}else{
 		printf("loading '%s'\n", modelfile);

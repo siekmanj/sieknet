@@ -1,6 +1,11 @@
 /*<<KERNEL START>>*/
 
-__kernel void mlp_forward_kernel(__global float *x, __global float *z, __global float *params, int dim, int layer_param_idx, int skiplength){
+__kernel void mlp_forward_kernel(__constant float *x, 
+																 __global float *z, 
+																 __constant float *params, 
+																 const int dim, 
+																 const int layer_param_idx, 
+																 const int skiplength){
 	const int i = get_global_id(0);
 	z[i] = 0.0f;
 	const int w_idx = layer_param_idx + (skiplength * i);
@@ -11,16 +16,14 @@ __kernel void mlp_forward_kernel(__global float *x, __global float *z, __global 
 	z[i] = sum + params[w_idx]; //wx + b
 }
 
-__kernel void mlp_input_gradient_kernel(
-																				__global float *grads,
-																				__global float *output,
-																				__global float *params,
+__kernel void mlp_input_gradient_kernel(__constant float *grads,
+																				__constant float *output,
+																				__constant float *params,
 																				__global float *dest,
-																				Nonlinearity nonlinearity_type,
-																				int layer_param_idx,
-																				int neurons,
-																				int dim
-																			 ){
+																				const Nonlinearity nonlinearity_type,
+																				const int layer_param_idx,
+																				const int neurons,
+																				const int dim){
 	const int i = get_global_id(0); //ith input gradient
 	dest[i] = 0.0f;
 	for(int j = 0; j < neurons; j++){
@@ -33,16 +36,14 @@ __kernel void mlp_input_gradient_kernel(
 
 }
 
-__kernel void mlp_parameter_gradient_kernel(
-																						__global float *grads,
-																						__global float *output,
-																						__global float *input,
+__kernel void mlp_parameter_gradient_kernel(__constant float *grads,
+																						__constant float *output,
+																						__constant float *input,
 																						__global float *param_grad,
-																						Nonlinearity nonlinearity_type,
-																						int layer_param_idx,
-																						int neurons,
-																						int dim
-																					 ){
+																						const Nonlinearity nonlinearity_type,
+																						const int layer_param_idx,
+																						const int neurons,
+																						const int dim){
 	const int i = get_global_id(0); //ith neuron of current layer
 
 	float d = differentiate(output[i], nonlinearity_type);

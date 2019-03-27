@@ -14,7 +14,7 @@ INCLUDE=-Iinclude
 LIBS=-lm 
 GPULIBS=$(LIBS) -lOpenCL
 
-CFLAGS=-O0
+CFLAGS=-O3
 GPUFLAGS=$(CFLAGS) -DGPU
 
 LSTM_SRC=$(SRC_DIR)/lstm.c
@@ -36,29 +36,26 @@ char:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
 char_gpu:
 	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) $(CL_SRC) example/char.c -o $(BIN)/$@ $(GPULIBS)
-#shakespeare:
-#	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
+
 mlp_mnist:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MNIST_SRC) $(MLP_SRC) $(CL_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
 mlp_mnist_gpu:
-	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MNIST_SRC) $(MLP_SRC) $(CL_SRC) example/mlp_mnist.c -o $(BIN)/mlp_mnist $(GPULIBS)
+	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MNIST_SRC) $(MLP_SRC) $(CL_SRC) example/mlp_mnist.c -o $(BIN)/$@ $(GPULIBS)
+
 binary:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
 binary_gpu:
 	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(CL_SRC) example/binary.c -o $(BIN)/$@ $(GPULIBS)
+
 sequence:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(LSTM_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
 sequence_gpu:
 	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(LSTM_SRC) $(CL_SRC) example/sequence.c -o $(BIN)/$@ $(GPULIBS)
+
 test:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
-	#$(CC) $(CFLAGS) $(INCLUDE) $(SRC_DIR)/*.c example/test.c -o $(BIN)/test $(LIBS)
 test_gpu:
-	$(CC) $(GPUFLAGS) $(INCLUDE) $(SRC_DIR)/*.c example/test.c -o $(BIN)/test $(GPULIBS)
-#test_cpu:
-#	$(CC) -o bin/test $(INCLUDE) $(SRC_DIR)/*.c example/test.c $(LIBS)
-#test_gpu:
-#	$(CC) -o bin/test $(INCLUDE) $(SRC_DIR)/*.c example/test.c $(GPULIBS) -DGPU
+	$(CC) $(GPUFLAGS) $(INCLUDE) $(SRC_DIR)/*.c example/test.c -o $(BIN)/$@ $(GPULIBS)
 
 $(shell mkdir -p $(DIRS))
 

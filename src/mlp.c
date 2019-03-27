@@ -101,6 +101,7 @@ void zero_2d_arr(float **arr, size_t sequence_length, size_t input_dimension){
 
 
 float mlp_cost(MLP *n, float *y){
+	//PRINTLIST(n->output, n->output_dimension);
 	return n->cost_fn(n->output, y, n->cost_gradient, n->output_dimension);
 }
 
@@ -131,7 +132,7 @@ MLP_layer cpu_create_MLP_layer(size_t input_dimension, size_t num_neurons, float
 
 	layer.z = ALLOCATE(float, num_neurons);
 	layer.output = ALLOCATE(float, num_neurons);
-	layer.gradient = ALLOCATE(float, input_dimension);
+	layer.input_gradient = ALLOCATE(float, input_dimension);
 
 	layer.neurons = neurons;
 	layer.size = num_neurons;
@@ -144,7 +145,7 @@ MLP_layer cpu_create_MLP_layer(size_t input_dimension, size_t num_neurons, float
 /*
  * A function called through the createMLP() macro that allows creation of a network with any arbitrary number of layers.
  */
-MLP cpu_mlp_from_arr(size_t arr[], size_t size, int initialize){
+MLP cpu_mlp_from_arr(size_t arr[], size_t size){
 	MLP n;
 	n.input_dimension = arr[0];
 	n.output_dimension = arr[size-1];
@@ -232,7 +233,7 @@ void cpu_mlp_forward(MLP *n, float *input){
 void cpu_mlp_layer_backward(MLP_layer *l, float *grads){
 	float *avg_outs = l->output;
 	for(int j = 0; j < l->input_dimension; j++)
-		l->gradient[j] = 0;
+		l->input_gradient[j] = 0;
 
 	for(int i = 0; i < l->size; i++){
 		float gradient = grads[i]; //gradient of this neuron's output with respect to cost
@@ -244,7 +245,7 @@ void cpu_mlp_layer_backward(MLP_layer *l, float *grads){
 			float g = gradient;
 			float x = l->input[j];
 
-			l->gradient[j] += w * d * g;
+			l->input_gradient[j] += w * d * g;
 			l->neurons[i].weight_grad[j] += x * d * g;
 		}
 		*l->neurons[i].bias_grad += gradient * d_output;
@@ -259,7 +260,7 @@ void cpu_mlp_backward(MLP *n){
 	float *grads = n->cost_gradient;
 	for(int i = n->depth-1; i >= 0; i--){
 		cpu_mlp_layer_backward(&n->layers[i], grads);
-		grads = n->layers[i].gradient;
+		grads = n->layers[i].input_gradient;
 	}
 	//printf("printing p %p\n", n->param_grad);
 	//PRINTLIST(n->param_grad, 10);
@@ -274,7 +275,7 @@ void dealloc_mlp(MLP *n){
 	for(int i = 0; i < n->depth; i++){
 		MLP_layer *l = &n->layers[i];
 		free(l->output);
-		free(l->gradient);
+		free(l->input_gradient);
 		free(l->neurons);
 	}
 	free(n->params);
@@ -334,7 +335,7 @@ MLP_layer gpu_create_MLP_layer(size_t input_dim, size_t size, cl_mem params, int
 	l.size = size;
 	l.param_offset = param_offset;
 	int err;
-	l.gradient = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.input_dimension, NULL, &err);
+	l.input_gradient = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.input_dimension, NULL, &err);
 	check_error(err, "creating gradient buffer.");
 	
 	l.z = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err);
@@ -461,7 +462,7 @@ void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem par
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 0, sizeof(cl_mem), &grad), "setting input grad kernel arg 0");
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 1, sizeof(cl_mem), &l->output), "setting input grad kernel arg 1");
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 2, sizeof(cl_mem), &params), "setting input grad kernel arg 2");
-	check_error(clSetKernelArg(mlp_input_gradient_kernel, 3, sizeof(cl_mem), &l->gradient), "setting input grad kernel arg 3");
+	check_error(clSetKernelArg(mlp_input_gradient_kernel, 3, sizeof(cl_mem), &l->input_gradient), "setting input grad kernel arg 3");
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 4, sizeof(Nonlinearity), &l->logistic), "setting input grad kernel arg 3");
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 5, sizeof(int), &l->param_offset), "setting input grad kernel arg 4");
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 6, sizeof(int), &l->size), "setting input grad kernel arg 5");
@@ -489,7 +490,7 @@ void gpu_mlp_backward(MLP *n){
 	while(l_idx --> 0){ //l_idx goes to 0
 		MLP_layer *l = &n->layers[l_idx];
 		gpu_mlp_layer_backward(l, grads, n->params, n->param_grad);
-		grads = l->gradient;
+		grads = l->input_gradient;
 	}
 }
 
