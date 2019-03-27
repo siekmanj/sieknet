@@ -76,16 +76,17 @@ typedef struct lstm_layer{
 
 typedef struct lstm{
 	float *output;
-	float *params;
 #ifndef GPU
+	float *params;
 	float *param_grad;
 	float **network_gradient;
 	float **network_input;
 #else
-	cl_mem gpu_params;
+	cl_mem params;
 	cl_mem param_grad;
 	cl_mem *network_gradient;
 	cl_mem *network_input;
+
 	cl_mem mlp_cost_gradient;
 #endif
 

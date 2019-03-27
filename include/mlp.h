@@ -15,7 +15,7 @@
 #include <CL/cl.h>
 #endif
 
-#define create_mlp(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t), 1)
+#define create_mlp(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
 #ifndef GPU
 typedef struct neuron{
@@ -56,12 +56,12 @@ typedef struct mlp{
 	size_t guess;
 
 	float learning_rate;
-	float *params;
 	float *output;
 #ifndef GPU
+	float *params;
 	float *param_grad;
 #else
-	cl_mem gpu_params;
+	cl_mem params;
 	cl_mem param_grad;
 	cl_mem network_input;
 	cl_mem network_grad;
@@ -70,7 +70,7 @@ typedef struct mlp{
 	float (*cost_fn)(float *y, const float *l, float *dest, size_t);
 } MLP;
 
-MLP mlp_from_arr(size_t arr[], size_t size, int initialize);
+MLP mlp_from_arr(size_t arr[], size_t size);
 MLP load_mlp(const char *filename);
 
 #ifndef GPU
@@ -78,7 +78,7 @@ MLP_layer cpu_create_MLP_layer(size_t, size_t, float *, float *, Nonlinearity);
 void cpu_mlp_layer_forward(MLP_layer *, float *);
 void cpu_mlp_layer_backward(MLP_layer *, float *);
 #else
-MLP_layer gpu_create_MLP_layer(size_t, size_t, float *, int, Nonlinearity);
+MLP_layer gpu_create_MLP_layer(size_t, size_t, cl_mem, int, Nonlinearity);
 void gpu_mlp_layer_forward(MLP_layer *, cl_mem, cl_mem);
 void gpu_mlp_layer_backward(MLP_layer *, cl_mem, cl_mem, cl_mem);
 #endif
