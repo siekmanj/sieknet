@@ -4,9 +4,12 @@
  * Every function beginning with static is meant for internal use only. You may call any other function.
  */
 
-#include <mlp.h>
 #include <math.h>
 #include <string.h>
+
+#include <logistic.kernel>
+#include <mlp.kernel>
+#include <mlp.h>
 
 #ifdef GPU
 #include <opencl_utils.h>
@@ -111,29 +114,28 @@ float mlp_cost(MLP *n, float *y){
 /* 
  * Creates mlp layer for cpu
  */
-MLP_layer cpu_create_MLP_layer(size_t input_dimension, size_t num_neurons, float *params, float *param_grad, Nonlinearity logistic){
+MLP_layer cpu_create_MLP_layer(const size_t input_dimension, const size_t num_neurons, float *params, const int param_idx, const Nonlinearity logistic){
+
 	MLP_layer layer;
 
-	Neuron* neurons = ALLOCATE(Neuron, num_neurons);
+	layer.param_offset = param_idx;
 
-	int param_idx = 0;
 	for(int i = 0; i < num_neurons; i++){
-		neurons[i].bias = &params[param_idx];
-		neurons[i].weights = &params[param_idx+1];
+		//neurons[i].bias = &params[param_idx];
+		//neurons[i].weights = &params[param_idx+1];
 
 		//Xavier (or Xavier-like) bias+weight initialization
-		xavier_init(&params[param_idx], input_dimension+1, num_neurons);
+		xavier_init(&params[param_idx + i*(input_dimension+1)], input_dimension+1, num_neurons);
 
-		neurons[i].bias_grad = &param_grad[param_idx];
-		neurons[i].weight_grad = &param_grad[param_idx+1];
-		param_idx += input_dimension + 1;
+		//neurons[i].bias_grad = &param_grad[param_idx];
+		//neurons[i].weight_grad = &param_grad[param_idx+1];
 	}
 
 	layer.z = ALLOCATE(float, num_neurons);
 	layer.output = ALLOCATE(float, num_neurons);
 	layer.input_gradient = ALLOCATE(float, input_dimension);
 
-	layer.neurons = neurons;
+	//layer.neurons = neurons;
 	layer.size = num_neurons;
 	layer.input_dimension = input_dimension;
 	
@@ -168,22 +170,14 @@ MLP cpu_mlp_from_arr(size_t arr[], size_t size){
 
 	int param_idx = 0;
 	for(int i = 1; i < size; i++){
-
 			MLP_layer l;
-			size_t layer_size = arr[i];
-			size_t input_dimension = arr[i-1];
-
-			float *param_addr = &n.params[param_idx];
-			float *grad_addr = &n.param_grad[param_idx];
-
-			param_idx += layer_size * (input_dimension+1);
-
 			if(i < size-1)
-				l = cpu_create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, sigmoid);
+				l = cpu_create_MLP_layer(arr[i-1], arr[i], n.params, param_idx, sigmoid);
 			else
-				l = cpu_create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, softmax);
-			
+				l = cpu_create_MLP_layer(arr[i-1], arr[i], n.params, param_idx, softmax);
+
 			n.layers[i-1] = l;
+			param_idx += arr[i] * (arr[i-1]+1);
 	}
 	n.output = n.layers[n.depth-1].output;
 	return n;
@@ -192,11 +186,26 @@ MLP cpu_mlp_from_arr(size_t arr[], size_t size){
 /*
  * Does a forward pass for a single layer.
  */
-void cpu_mlp_layer_forward(MLP_layer *l, float *x){
-	l->input = x; //need to save pointer for backward pass
+void cpu_mlp_layer_forward(MLP_layer *l, float *input, float *params){
+	l->input = input; //need to save pointer for backward pass
+	for(int i = 0; i < l->size; i++){
+		agnostic_mlp_forward_kernel(input, l->z, params, l->input_dimension, l->param_offset, (l->input_dimension+1), i);
+	}
+	if(l->logistic != softmax){
+		for(int i = 0; i < l->size; i++){
+			agnostic_logistic_kernel(l->z, l->output, l->logistic, i);
+		}
+	}else{
+		float smsum;
+		agnostic_softmax_sum_kernel(l->z, &smsum, l->size);
+		for(int i = 0; i < l->size; i++){
+			agnostic_softmax_kernel(l->z, l->output, &smsum, i);
+		}
+	}
+	/*
 	for(int i = 0; i < l->size; i++){
 		float *w = l->neurons[i].weights; 
-		l->z[i] = inner_product(x, w, l->input_dimension) + *l->neurons[i].bias;
+		l->z[i] = inner_product(input, w, l->input_dimension) + *l->neurons[i].bias;
 		if(l->logistic != softmax)
 			l->output[i] = activate(l->z[i], l->logistic);
 	}
@@ -208,6 +217,7 @@ void cpu_mlp_layer_forward(MLP_layer *l, float *x){
 		for(int i = 0; i < l->size; i++)
 			l->output[i] = exp(l->z[i]) / sum;
 	}
+	*/
 }
 
 /*
@@ -217,7 +227,7 @@ void cpu_mlp_forward(MLP *n, float *input){
 	float *x = input;
 	for(int i = 0; i < n->depth; i++){
 		MLP_layer *l = &n->layers[i];
-		cpu_mlp_layer_forward(l, x); //Do forward pass for this layer
+		cpu_mlp_layer_forward(l, x, n->params); //Do forward pass for this layer
 		x = l->output; //Use this layer's output as the next layer's input
 	}
 	n->guess = 0;
@@ -230,6 +240,7 @@ void cpu_mlp_forward(MLP *n, float *input){
  * Calculates the backward pass for a single layer (does parameter update)
  */
 void cpu_mlp_layer_backward(MLP_layer *l, float *grads){
+	/*
 	float *avg_outs = l->output;
 	for(int j = 0; j < l->input_dimension; j++)
 		l->input_gradient[j] = 0;
@@ -249,6 +260,7 @@ void cpu_mlp_layer_backward(MLP_layer *l, float *grads){
 		}
 		*l->neurons[i].bias_grad += gradient * d_output;
 	}
+	*/
 }
 
 /*
@@ -270,6 +282,7 @@ void cpu_mlp_backward(MLP *n){
  * Deallocates a network's memory from the heap
  */
 void dealloc_mlp(MLP *n){
+	/*
 	for(int i = 0; i < n->depth; i++){
 		MLP_layer *l = &n->layers[i];
 		free(l->output);
@@ -279,6 +292,7 @@ void dealloc_mlp(MLP *n){
 	free(n->params);
 	free(n->cost_gradient);
 	free(n->layers);
+	*/
 }
 #endif
 /********* END CPU-ONLY FUNCTIONS **********/
@@ -348,6 +362,7 @@ MLP_layer gpu_create_MLP_layer(size_t input_dim, size_t size, cl_mem params, int
 		xavier_init(&tmp[j * (input_dim+1)], input_dim+1, l.size);
 	}
 	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), params, 1, param_offset * sizeof(float), sizeof(float)*l.size*(l.input_dimension+1) , tmp, 0, NULL, NULL), "copying into gpu params");
+	free(tmp);
 	return l;
 }
 
@@ -542,7 +557,6 @@ void save_mlp(MLP *n, const char* filename){
 
 	//Create file
 	FILE *fp = fopen(filename, "w");
-	printf("Saving mlp to: %s\n", filename);
 	memset(buff, '\0', strlen(buff));
 
 	//Write header info to file

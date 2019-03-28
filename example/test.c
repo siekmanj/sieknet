@@ -27,7 +27,6 @@ int assert_equal(float *v1, float *v2, size_t len){
 		float diff = v1[i] - v2[i];
 		if(diff < 0) diff*=-1;
 		if(diff > 0.0001){
-			printf("%f is not %f\n", v1[i], v2[i]);
 			return 0;
 		}
 	}
@@ -173,6 +172,22 @@ int main(){
 		}else{
 			printf("  | TEST PASSED: Network parameter gradients were as expected.\n");
 		}
+		dispose_array(tmp);
+
+		save_mlp(&n, "./model/test.mlp");
+
+		MLP m = load_mlp("./model/test.mlp");
+
+		float *tmp1 = retrieve_array(n.params, n.num_params);
+		float *tmp2 = retrieve_array(m.params, m.num_params);
+		if(!assert_equal(tmp1, tmp2, n.num_params)){
+			printf("X | TEST FAILED: MLP saved to disk did not match once loaded back into memory.\n");
+		}else{
+			printf("  | TEST PASSED: MLP saved to disk was identical to original.\n");
+		}
+		dispose_array(tmp1);
+		dispose_array(tmp2);
+
 
 		//TODO - tests for saving/loading file, once gpu dealloc works
 		sleep(1);
@@ -497,6 +512,20 @@ int main(){
 			printf("  | TEST PASSED: LSTM parameter gradient was as expected.\n");
 		}
 		dispose_array(tmp);
+
+		save_lstm(&n, "./model/test.lstm");
+
+		LSTM m = load_lstm("./model/test.lstm");
+
+		float *tmp1 = retrieve_array(n.params, n.num_params);
+		float *tmp2 = retrieve_array(m.params, m.num_params);
+		if(!assert_equal(tmp1, tmp2, n.num_params)){
+			printf("X | TEST FAILED: LSTM saved to disk did not match once loaded back into memory.\n");
+		}else{
+			printf("  | TEST PASSED: LSTM saved to disk was identical to original.\n");
+		}
+		dispose_array(tmp1);
+		dispose_array(tmp2);
 		sleep(1);
 	}
 

@@ -17,6 +17,7 @@
 
 #define create_mlp(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
+/*
 #ifndef GPU
 typedef struct neuron{
 	float *weight_grad;
@@ -25,25 +26,27 @@ typedef struct neuron{
 	float *bias;
 } Neuron;
 #endif
+*/
 
 typedef struct mlp_layer{
 #ifndef GPU
-	Neuron *neurons;
+	//Neuron *neurons;
 	float *input_gradient;
 	float *z;
 	float *output;
 	float *input;
 #else
-	int param_offset;
   cl_mem input_gradient;
   cl_mem z;
   cl_mem output;
   cl_mem input;
+
 	cl_program prog;
 #endif
-	Nonlinearity logistic;
+	int param_offset;
 	size_t size;
 	size_t input_dimension;
+	Nonlinearity logistic;
 } MLP_layer;
 
 
@@ -74,8 +77,8 @@ MLP mlp_from_arr(size_t arr[], size_t size);
 MLP load_mlp(const char *filename);
 
 #ifndef GPU
-MLP_layer cpu_create_MLP_layer(size_t, size_t, float *, float *, Nonlinearity);
-void cpu_mlp_layer_forward(MLP_layer *, float *);
+MLP_layer cpu_create_MLP_layer(const size_t, const size_t, float *, const int, const Nonlinearity);
+void cpu_mlp_layer_forward(MLP_layer *, float *, float *);
 void cpu_mlp_layer_backward(MLP_layer *, float *);
 #else
 MLP_layer gpu_create_MLP_layer(size_t, size_t, cl_mem, int, Nonlinearity);
