@@ -125,12 +125,16 @@ void check_error(int err, char *str){
 
 /*
  * Creates an OpenCL context object and returns it.
- * Global variables SIEKNET_USE_PLATFORM is 0, no guarantees
+ * Global variable SIEKNET_USE_PLATFORM is 0, no guarantees
  * if you use any other value than 0.
  */
 static cl_context create_opencl_context(){
 	cl_uint num_platforms, num_devices;
 	int status = clGetPlatformIDs(0, NULL, &num_platforms);
+	if(num_platforms == 0){
+		printf("ERROR: create_opencl_context(): no platforms found. OpenCL was not able to find a GPU, or was not correctly installed.\n");
+		exit(1);
+	}
 	if(SIEKNET_USE_PLATFORM >= num_platforms){
 		printf("ERROR: create_opencl_context(): USE PLATFORM is %d, but only platforms 0 through %d available.\n", SIEKNET_USE_PLATFORM, num_platforms-1);
 		exit(1);
