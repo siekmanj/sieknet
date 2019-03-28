@@ -1,0 +1,46 @@
+/*
+ * In this file, mlp kernels are implemented as macros to be used in both the gpu and cpu
+ * implementation of Sieknet.
+ * This was a design decision to emphasize re-use of code, and enforce under-the-hood
+ * homogeneity across implementations. Unfortunately, OpenCL does not allow address space
+ * changes (i.e., passing a __global pointer to a function that takes a pointer), which
+ * necessitated the use of macros to provide an implementation that could be reused on the 
+ * GPU as well as the CPU.
+ */
+
+/*<<KERNEL START>>*/
+void no_op(){}
+
+#define agnostic_mlp_forward_kernel(x, z, params, dim, layer_param_idx, skiplength, i) \
+	z[i] = 0.0f;                                          \
+	const int w_idx = layer_param_idx + (skiplength * i); \
+	float sum = 0.0f;                                     \
+	for(int j = 0; j < dim; j++)                          \
+		sum += x[j] * params[w_idx + j + 1];                \
+	z[i] = sum + params[w_idx];                           \
+	no_op()
+
+
+#define agnostic_mlp_input_gradient_kernel(grads, output, params, dest, nonlinearity_type, layer_param_idx, size, dim, i) \
+	dest[i] = 0.0f;                                            \
+	for(int j = 0; j < size; j++){                          \
+		const int w_idx = layer_param_idx + ((dim + 1) * j) + i; \
+		float w = params[w_idx+1];                               \
+		float d = differentiate(output[j], nonlinearity_type);   \
+		float g = grads[j];                                      \
+		dest[i] += w * d * g;                                    \
+	}                                                          \
+	no_op()
+
+#define agnostic_mlp_parameter_gradient_kernel(grads, output, input, param_grad, nonlinearity_type, layer_param_idx, size, dim, i) \
+	float d = differentiate(output[i], nonlinearity_type); \
+	float g = grads[i];                                    \
+	const int w_idx = layer_param_idx + ((dim + 1) * i);   \
+	param_grad[w_idx] += d * g;                            \
+	for(int j = 0; j < dim; j++){                          \
+		float x = input[j];                                  \
+		param_grad[w_idx+j+1] += x * d * g;                  \
+	}                                                      \
+	no_op();
+
+/*<<KERNEL END>>*/

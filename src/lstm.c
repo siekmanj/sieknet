@@ -265,10 +265,8 @@ LSTM cpu_lstm_from_arr(size_t *arr, size_t len){
 	zero_2d_arr(n.network_gradient, MAX_UNROLL_LENGTH, arr[len-2]);
 	zero_2d_arr(n.network_input, MAX_UNROLL_LENGTH, arr[0]);
 
-	n.output_layer = cpu_create_MLP_layer(arr[len-2], arr[len-1], &n.params[param_idx], &n.param_grad[param_idx], softmax);
+	n.output_layer = cpu_create_MLP_layer(arr[len-2], arr[len-1], n.params, param_idx, softmax);
 
-	//n.output_layer = cpu_create_MLP_layer(arr[len-2], arr[len-1], n.params, n.param_grad, softmax); //this should not work but does??
-	
 	n.output = n.output_layer.output;
 	return n;
 }
@@ -352,7 +350,7 @@ void cpu_lstm_forward(LSTM *n, float *x){
 	}
 
 	//Feedforward through final MLP layer
-	cpu_mlp_layer_forward(&n->output_layer, input);
+	cpu_mlp_layer_forward(&n->output_layer, input, n->params);
   if(!(rand()%3))
 		n->guess = sample_softmax(n->output_layer.output, n->output_dimension);
 	else
