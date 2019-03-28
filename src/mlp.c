@@ -116,7 +116,6 @@ MLP_layer cpu_create_MLP_layer(size_t input_dimension, size_t num_neurons, float
 
 	Neuron* neurons = ALLOCATE(Neuron, num_neurons);
 
-	int param_bound = num_neurons * input_dimension; //The number of parameters to read from network's param array
 	int param_idx = 0;
 	for(int i = 0; i < num_neurons; i++){
 		neurons[i].bias = &params[param_idx];
@@ -271,7 +270,6 @@ void cpu_mlp_backward(MLP *n){
  * Deallocates a network's memory from the heap
  */
 void dealloc_mlp(MLP *n){
-	int counter = 0;
 	for(int i = 0; i < n->depth; i++){
 		MLP_layer *l = &n->layers[i];
 		free(l->output);
@@ -524,10 +522,10 @@ void mlp_backward(MLP *n){
 	* IO FUNCTIONS FOR READING AND WRITING TO A FILE
 	*/
 
-static void getWord(FILE *fp, char* dest){
+static int getWord(FILE *fp, char* dest){
 	memset(dest, '\0', strlen(dest));
 	//printf("bytes read: %lu\n", fread(dest, 1024, 1, fp));
-	int res = fscanf(fp, " %1023s", dest);
+	return fscanf(fp, " %1023s", dest);
 }
 /* 
  * Saves the network's state to a file that can be read later.
@@ -575,7 +573,6 @@ void save_mlp(MLP *n, const char* filename){
  * filename: The path to the file.
  */
 MLP load_mlp(const char *filename){
-	int f;
 	FILE *fp = fopen(filename, "rb");
 	char buff[1024];
 	memset(buff, '\0', 1024);
@@ -588,23 +585,35 @@ MLP load_mlp(const char *filename){
 	}
 	size_t num_layers, input_dim;
 
-	f = fscanf(fp, "%lu %lu", &num_layers, &input_dim);
+	if(fscanf(fp, "%lu %lu", &num_layers, &input_dim) == EOF){
+		printf("ERROR: '%s' corrupted.\n", filename);
+		exit(1);
+	}
 	size_t arr[num_layers+1];
 	arr[0] = input_dim;
 	for(int i = 1; i <= num_layers; i++){
-		f = fscanf(fp, " %lu", &arr[i]);
+		if(fscanf(fp, " %lu", &arr[i]) == EOF){
+			printf("ERROR: '%s' corrupted.\n", filename);
+			exit(1);
+		}
 	}
 
 	MLP n;
 	n = mlp_from_arr(arr, num_layers+1);
 #ifndef GPU
 	for(int i = 0; i < n.num_params; i++){
-		f = fscanf(fp, "%f", &n.params[i]);
+		if(fscanf(fp, "%f", &n.params[i]) == EOF){
+			printf("ERROR: '%s' corrupted.\n", filename);
+			exit(1);
+		}
 	}
 #else
 	float *tmp = (float*)malloc(sizeof(float)*n.num_params);
 	for(int i = 0; i < n.num_params; i++){
-		f = fscanf(fp, "%f", &tmp[i]);
+		if(fscanf(fp, "%f", &tmp[i]) == EOF){
+			printf("ERROR: '%s' corrupted.\n", filename);
+			exit(1);
+		}
 	}
 	int err;
 	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n.params, 1, 0, sizeof(float)*n.num_params, tmp, 0, NULL, NULL), "could not enqueue layer params");
