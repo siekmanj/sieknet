@@ -5,23 +5,19 @@
 #include <stdlib.h>
 
 #ifndef SIEKNET_USE_GPU
-static float cpu_sgd_step(SGD o){
-	float entropy = 0;
+static void cpu_sgd_step(SGD o){
 	for(int i = 0; i < o.num_params; i++){
 		o.weights[i] += o.learning_rate * o.gradient[i];
 		o.gradient[i] = 0.0;
 	}
-	return entropy;
 }
 
-static float cpu_momentum_step(Momentum o){
-	float entropy = 0;
+static void cpu_momentum_step(Momentum o){
 	for(int i = 0; i < o.num_params; i++){
       o.z[i] = o.beta * o.z[i] + o.alpha * o.gradient[i];
       o.weights[i] += o.z[i];
       o.gradient[i] = 0.0;
 	}
-	return entropy;
 }
 
 SGD cpu_init_SGD(float *weights, float *gradient, size_t num_params){
@@ -73,23 +69,20 @@ void optimizer_gpu_setup(){
 	ARE_KERNELS_INITIALIZED = 1;
 }
 
-static float gpu_sgd_step(SGD o){
-	float entropy = 0;
+static void gpu_sgd_step(SGD o){
 	check_error(clSetKernelArg(sgd_step_kernel, 0, sizeof(cl_mem), &o.weights), "setting sgd step kernel arg 0");
 	check_error(clSetKernelArg(sgd_step_kernel, 1, sizeof(cl_mem), &o.gradient), "setting sgd step kernel arg 0");
 	check_error(clSetKernelArg(sgd_step_kernel, 2, sizeof(float), &o.learning_rate), "setting sgd step kernel arg 0");
 	check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), sgd_step_kernel, 1, NULL, &o.num_params, NULL, 0, NULL, NULL), "couldn't enqueue param update kernel");
-	return 0.0;
 }
 
-static float gpu_momentum_step(Momentum o){
+static void gpu_momentum_step(Momentum o){
 	check_error(clSetKernelArg(momentum_step_kernel, 0, sizeof(cl_mem), &o.weights), "setting mom step kernel arg 0");
 	check_error(clSetKernelArg(momentum_step_kernel, 1, sizeof(cl_mem), &o.gradient), "setting mom step kernel arg 1");
 	check_error(clSetKernelArg(momentum_step_kernel, 2, sizeof(cl_mem), &o.z), "setting mom step kernel arg 1");
 	check_error(clSetKernelArg(momentum_step_kernel, 3, sizeof(float), &o.alpha), "setting mom kernel arg 2");
 	check_error(clSetKernelArg(momentum_step_kernel, 4, sizeof(float), &o.beta), "setting mom step kernel arg 3");
 	check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), momentum_step_kernel, 1, NULL, &o.num_params, NULL, 0, NULL, NULL), "couldn't enqueue param update kernel");
-	return 0.0;
 }
 
 SGD gpu_init_SGD(cl_mem weights, cl_mem gradient, size_t num_params){
