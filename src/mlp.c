@@ -615,7 +615,7 @@ MLP load_mlp(const char *filename){
 			exit(1);
 		}
 	}
-	int err;
+	int err = 0;
 	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n.params, 1, 0, sizeof(float)*n.num_params, tmp, 0, NULL, NULL), "could not enqueue layer params");
 	check_error(err, "could not write params into gpu");
 #endif

@@ -14,7 +14,6 @@ __kernel void softmax_sum_kernel(__global float *z, __global float *sum, int dim
 		sum[0] += exp(z[i]-fmax);
 		z[i] = z[i] - fmax;
 	}
-
 }
 
 __kernel void softmax_kernel(__global float *z, __global float *y, __global float *sum){

@@ -816,12 +816,10 @@ static void gpu_lstm_forward(LSTM *n, float *x){
 
 	//Feedforward through all LSTM layers
 	cl_mem input = n->network_input[t];
-	size_t s;
 	for(int i = 0; i < n->depth; i++){
 		LSTM_layer *l = &n->layers[i];
 		gpu_lstm_layer_forward(l, input, n->params, t, n->num_params);
 		input = l->output[t];
-		s = l->size;
 	}
 
 	gpu_mlp_layer_forward(&n->output_layer, input, n->params);
