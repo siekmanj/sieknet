@@ -14,7 +14,7 @@ INCLUDE=-Iinclude
 LIBS=-lm 
 GPULIBS=$(LIBS) -lOpenCL
 
-CFLAGS=-O3
+CFLAGS=-O3 -Wall
 GPUFLAGS=$(CFLAGS) -DGPU
 
 LSTM_SRC=$(SRC_DIR)/lstm.c

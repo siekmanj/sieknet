@@ -56,17 +56,21 @@ int argmax(float *args, size_t len){
  */
 float lstm_cost(LSTM *n, float *y){
 	MLP_layer *mlp = &n->output_layer;
-	float tmp[n->output_dimension];
-	float c = n->cost_fn(n->output, y, tmp, n->output_dimension);
+	//float tmp[n->output_dimension];
+	float c = n->cost_fn(n->output, y, n->mlp_cost_gradient, n->output_dimension);
 
 #ifndef GPU
 	/* On the CPU, will run backward pass serially on softmax output layer, * 
 	 * and copy resulting gradient into lstm's network_gradient[t] array.   */
-	cpu_mlp_layer_backward(mlp, tmp);
+	cpu_mlp_layer_backward(mlp, n->mlp_cost_gradient);
 	float *grads = mlp->input_gradient;
 #else
 	/* On the GPU, will run backward pass in parallel, then use clEnqueueCopyBuffer *
 	 * to copy resulting gradient into network_gradient[t].                         */
+
+	//THIS MAY NOT WORK - TEST ON GPU
+	printf("WARNING: NEED TO IMPLEMENT GPU-SIDE COST CALC HERE!!!\n");
+
 	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->mlp_cost_gradient, 0, 0, sizeof(float) * n->output_dimension, tmp, 0, NULL, NULL), "enqueuing cost gradient");
 	gpu_mlp_layer_backward(mlp, n->mlp_cost_gradient, n->params, n->param_grad);
 	cl_mem grads = mlp->input_gradient;
@@ -255,6 +259,8 @@ LSTM cpu_lstm_from_arr(size_t *arr, size_t len){
 	n.network_input = ALLOCATE(float*, MAX_UNROLL_LENGTH);
 	for(int i = 0; i < MAX_UNROLL_LENGTH; i++)
 		n.network_input[i] = ALLOCATE(float, arr[0]);
+
+	n.mlp_cost_gradient = ALLOCATE(float, n.output_dimension);
 
 	zero_2d_arr(n.network_gradient, MAX_UNROLL_LENGTH, arr[len-2]);
 	zero_2d_arr(n.network_input, MAX_UNROLL_LENGTH, arr[0]);
@@ -454,8 +460,6 @@ void cpu_lstm_backward(LSTM *n){
 			zero_2d_arr(l->output, MAX_UNROLL_LENGTH, l->size);
 			zero_2d_arr(l->input_gradient, MAX_UNROLL_LENGTH, l->input_dimension);
 		}
-		//PRINTLIST(n->param_grad, n->num_params);
-		//getchar();
 		if(!n->stateful) wipe(n);
 		n->t = 0;
 	}
@@ -690,10 +694,6 @@ LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
 	
 	int param_idx = 0;
 	for(int i = 1; i < len-1; i++){
-		int next_layer_recurrent_inputs = 0;
-		if(i < len-2)
-			next_layer_recurrent_inputs = arr[i+1];
-
 		LSTM_layer l = gpu_create_LSTM_layer(arr[i-1], arr[i], n.params, param_idx);
 		param_idx += (4*(arr[i-1]+arr[i]+1))*arr[i];
 		n.layers[i-1] = l;
@@ -1087,15 +1087,15 @@ void dealloc_lstm(LSTM *n){
   * IO FUNCTIONS FOR READING AND WRITING TO A FILE
   */
 
-static void getWord(FILE *fp, char* dest){
+static int getWord(FILE *fp, char* dest){
   memset(dest, '\0', strlen(dest));
-  int res = fscanf(fp, " %1023s", dest);
+  return fscanf(fp, " %1023s", dest);
 }
 
 void save_lstm(LSTM *n, const char *filename){
 	FILE *fp = fopen(filename, "w");
 	if(!fp){
-		printf("ERROR: save_lstm(): could not open file '%s' (correct filepath? does dir exist?)");
+		printf("ERROR: save_lstm(): could not open file '%s' (correct filepath? does dir exist?)", filename);
 		exit(1);
 	}
 	fprintf(fp, "LSTM %lu %lu ", n->depth, n->input_dimension);
@@ -1127,7 +1127,6 @@ void save_lstm(LSTM *n, const char *filename){
 LSTM load_lstm(const char *filename){
   FILE *fp = fopen(filename, "rb");
   char buff[1024];
-	int f;
   memset(buff, '\0', 1024);
 
   getWord(fp, buff); //Get first word to check if MLP file
@@ -1137,22 +1136,38 @@ LSTM load_lstm(const char *filename){
     exit(1);
   }
 	size_t num_layers, input_dim;
-	f = fscanf(fp, "%lu %lu", &num_layers, &input_dim);
+	if(fscanf(fp, "%lu %lu", &num_layers, &input_dim) == EOF){
+		printf("ERROR: '%s' potentially corrupted.\n", filename);
+		exit(1);
+	}
+
 	size_t arr[num_layers+2];
 	arr[0] = input_dim;
 	for(int i = 1; i <= num_layers; i++){
-		f = fscanf(fp, " %lu", &arr[i]);
+		if(fscanf(fp, " %lu", &arr[i]) == EOF){
+			printf("ERROR: '%s' potentially corrupted.\n", filename);
+			exit(1);
+		}
 	}
-	f = fscanf(fp, " %lu", &arr[num_layers+1]);
+	if(fscanf(fp, " %lu", &arr[num_layers+1]) == EOF){
+		printf("ERROR: '%s' potentially corrupted.\n", filename);
+		exit(1);
+	}
 	LSTM n = lstm_from_arr(arr, num_layers+2);
 #ifndef GPU
 	for(int i = 0; i < n.num_params; i++){
-		f = fscanf(fp, "%f", &n.params[i]);
+		if(fscanf(fp, "%f", &n.params[i]) == EOF){
+			printf("ERROR: '%s' potentially corrupted.\n", filename);
+			exit(1);
+		}
 	}
 #else
 	float *tmp = (float*)malloc(sizeof(float)*n.num_params);
 	for(int i = 0; i < n.num_params; i++){
-		f = fscanf(fp, "%f", &tmp[i]);
+		if(fscanf(fp, "%f", &tmp[i]) == EOF){
+			printf("ERROR: '%s' potentially corrupted.\n", filename);
+			exit(1);
+  	}
 	}
 	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n.params, 1, 0, sizeof(float) * n.num_params, tmp, 0, NULL, NULL), "copying input");
 	free(tmp);

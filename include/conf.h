@@ -3,12 +3,14 @@
 
 /*<<KERNEL START>>*/
 
-#define SIEKNET_MAX_GRAD  0.5f
-#define SIEKNET_MAX_STATE 10.0f
-#define SIEKNET_STOP_ON_NAN
-#define SIEKNET_DEBUG
+#define SIEKNET_MAX_GRAD           0.5f //the max gradient of any parameter across all network types
+#define SIEKNET_MAX_STATE         10.0f //the max value for any cell state in an lstm
+#define SIEKNET_MAX_UNROLL_LENGTH   600 //the max number of timesteps that can be backpropagated through (n.seq_len must be less)
 
-#define SIEKNET_ONEHOT_SPEEDUP
+#define SIEKNET_STOP_ON_NAN //stop execution if any nan's are found
+#define SIEKNET_DEBUG       //print debug information during execution
+
+#define SIEKNET_ONEHOT_SPEEDUP //send only a single int across the PCI-E slot to GPU when using one-hot vectors.
 
 #define SIEKNET_USE_PLATFORM 0 //use first available opencl platform
 #define SIEKNET_USE_DEVICE   0 //use first available GPU
