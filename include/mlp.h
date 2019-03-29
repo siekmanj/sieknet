@@ -10,7 +10,7 @@
 #include <conf.h>
 #include <nonlinear.h>
 
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 #include <CL/cl.h>
 #endif
@@ -18,7 +18,7 @@
 #define create_mlp(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
 /*
-#ifndef GPU
+#ifndef SIEKNET_USE_GPU
 typedef struct neuron{
 	float *weight_grad;
 	float *bias_grad;
@@ -29,7 +29,7 @@ typedef struct neuron{
 */
 
 typedef struct mlp_layer{
-#ifndef GPU
+#ifndef SIEKNET_USE_GPU
 	//Neuron *neurons;
 	float *input_gradient;
 	float *z;
@@ -60,7 +60,7 @@ typedef struct mlp{
 
 	float learning_rate;
 	float *output;
-#ifndef GPU
+#ifndef SIEKNET_USE_GPU
 	float *params;
 	float *param_grad;
 #else
@@ -76,10 +76,10 @@ typedef struct mlp{
 MLP mlp_from_arr(size_t arr[], size_t size);
 MLP load_mlp(const char *filename);
 
-#ifndef GPU
+#ifndef SIEKNET_USE_GPU
 MLP_layer cpu_create_MLP_layer(const size_t, const size_t, float *, const int, const Nonlinearity);
 void cpu_mlp_layer_forward(MLP_layer *, float *, float *);
-void cpu_mlp_layer_backward(MLP_layer *, float *);
+void cpu_mlp_layer_backward(MLP_layer *, float *, float *, float *);
 #else
 MLP_layer gpu_create_MLP_layer(size_t, size_t, cl_mem, int, Nonlinearity);
 void gpu_mlp_layer_forward(MLP_layer *, cl_mem, cl_mem);
@@ -97,7 +97,7 @@ void xavier_init(float *, size_t, size_t);
 void zero_2d_arr(float **, size_t, size_t);
 
 //These are activation functions
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 cl_kernel logistic_kernel, softmax_sum_kernel, softmax_kernel;
 void mlp_kernel_setup();
 #endif

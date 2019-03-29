@@ -2,21 +2,21 @@
 #define OPTIM_H
 
 #include "conf.h"
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 #include "opencl_utils.h"
 #endif
 
 #include <stdlib.h>
 #include <stdio.h>
 
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 #define create_optimizer(TYPE, network) gpu_init_## TYPE ((network).params, (network).param_grad, (network).num_params)
 #else
 #define create_optimizer(TYPE, network) cpu_init_## TYPE ((network).params, (network).param_grad, (network).num_params)
 #endif
 
 typedef struct sgd{
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 	cl_mem weights;
 	cl_mem gradient;
 	cl_command_queue q;
@@ -32,7 +32,7 @@ typedef struct sgd{
 } SGD;
 
 typedef struct momentum{
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 	cl_mem weights;
 	cl_mem gradient;
 	cl_mem z;
@@ -53,7 +53,7 @@ typedef struct adam{
 	/*...*/
 } Adam;
 
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 SGD gpu_init_SGD(cl_mem, cl_mem, size_t);
 Momentum gpu_init_Momentum(cl_mem, cl_mem, size_t);
 #else

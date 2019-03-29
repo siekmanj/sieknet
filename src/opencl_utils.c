@@ -1,6 +1,6 @@
 #include <opencl_utils.h>
 #include <conf.h>
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
