@@ -25,7 +25,7 @@ size_t ASCII_RANGE			 = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$
 size_t SAMPLE_EVERY			 = 100;
 size_t SAMPLE_CHARS			 = 1000;
 
-float LEARNING_RATE			 = 0.0075;
+float LEARNING_RATE			 = 0.0025;
 float MOMENTUM					 = 0.99;
 
 /*
