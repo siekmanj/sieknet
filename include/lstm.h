@@ -81,6 +81,8 @@ typedef struct lstm{
 	float *param_grad;
 	float **network_gradient;
 	float **network_input;
+
+	float *mlp_cost_gradient;
 #else
 	cl_mem params;
 	cl_mem param_grad;
