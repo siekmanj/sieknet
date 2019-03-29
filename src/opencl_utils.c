@@ -185,7 +185,8 @@ static cl_context create_opencl_context(){
  */
 cl_device_id create_opencl_device(){
 	cl_uint num_platforms, num_devices;
-	int status = clGetPlatformIDs(0, NULL, &num_platforms);
+	int err = clGetPlatformIDs(0, NULL, &num_platforms);
+	check_error(err, "getting opencl platforms");
 
 	cl_platform_id platforms[num_platforms];
 
@@ -220,9 +221,9 @@ cl_device_id create_opencl_device(){
 	clGetDeviceInfo(devices[SIEKNET_USE_DEVICE], CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(ui), &ui, NULL );
 	printf("OPENCL_SETUP: \tDevice Maximum Work Item Dimensions = %d\n", ui );
 	clGetDeviceInfo(devices[SIEKNET_USE_DEVICE], CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(sizes), sizes, NULL );
-	printf("OPENCL_SETUP: \tDevice Maximum Work Item Sizes = %d x %d x %d\n", sizes[0], sizes[1], sizes[2] );
+	printf("OPENCL_SETUP: \tDevice Maximum Work Item Sizes = %lu x %lu x %lu\n", sizes[0], sizes[1], sizes[2] );
 	clGetDeviceInfo(devices[SIEKNET_USE_DEVICE], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size), &size, NULL );
-	printf("OPENCL_SETUP: \tDevice Maximum Work Group Size = %d\n", size );
+	printf("OPENCL_SETUP: \tDevice Maximum Work Group Size = %lu\n", size );
 	clGetDeviceInfo(devices[SIEKNET_USE_DEVICE], CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(ui), &ui, NULL );
 	printf("OPENCL_SETUP: \tDevice Maximum Clock Frequency = %d MHz\n", ui );
 #endif

@@ -27,7 +27,7 @@ typedef struct sgd{
 #endif
 	float learning_rate;
 	size_t num_params;
-	float (*step)(struct sgd);
+	void (*step)(struct sgd);
 
 } SGD;
 
@@ -46,7 +46,7 @@ typedef struct momentum{
 	float alpha;
 	float beta;
 	size_t num_params;
-	float (*step)(struct momentum);
+	void (*step)(struct momentum);
 } Momentum;
 
 typedef struct adam{

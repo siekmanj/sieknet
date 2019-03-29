@@ -242,13 +242,11 @@ int main(){
 		}
 		dispose_array(tmp);
 
-		tmp = retrieve_array(n.output, n.output_dimension);
-		if(!assert_equal(tmp, l3_t1, n.output_dimension)){
+		if(!assert_equal(n.output, l3_t1, n.output_dimension)){
 			printf("X | TEST FAILED: LSTM network output was incorrect on 0th timestep (without incrementing n.t).\n");
 		}else{
 			printf("  | TEST PASSED: LSTM network output was as expected on 0th timestep (without incrementing n.t).\n");
 		}
-		dispose_array(tmp);
 
 		printf("\n");
 		lstm_forward(&n, x2);
@@ -277,13 +275,11 @@ int main(){
 		}
 		dispose_array(tmp);
 
-		tmp = retrieve_array(n.output, n.output_dimension);
-		if(!assert_equal(tmp, l3_t2, n.output_dimension)){
+		if(!assert_equal(n.output, l3_t2, n.output_dimension)){
 			printf("X | TEST FAILED: LSTM network output was incorrect on 1st timestep (without incrementing n.t).\n");
 		}else{
 			printf("  | TEST PASSED: LSTM network output was as expected on 1st timestep (without incrementing n.t).\n");
 		}
-		dispose_array(tmp);
 
 		printf("\n");
 		lstm_forward(&n, x3);
@@ -312,14 +308,11 @@ int main(){
 		}
 		dispose_array(tmp);
 
-		tmp = retrieve_array(n.output, n.output_dimension);
-		if(!assert_equal(tmp, l3_t3, n.output_dimension)){
+		if(!assert_equal(n.output, l3_t3, n.output_dimension)){
 			printf("X | TEST FAILED: LSTM network output was incorrect on 2nd timestep (without incrementing n.t).\n");
 		}else{
 			printf("  | TEST PASSED: LSTM network output was as expected on 2nd timestep (without incrementing n.t).\n");
 		}
-		dispose_array(tmp);
-
 
 		sleep(1);
 		printf("\ntesting forward + backward pass in conjunction...\n");
@@ -353,8 +346,7 @@ int main(){
 		}
 		dispose_array(tmp);
 
-		tmp = retrieve_array(n.output, n.output_dimension);
-		if(!assert_equal(tmp, l3_t1, n.output_dimension)){
+		if(!assert_equal(n.output, l3_t1, n.output_dimension)){
 			printf("X | TEST FAILED: LSTM network output was incorrect on 0th timestep (while incrementing n.t).\n");
 		}else{
 			printf("  | TEST PASSED: LSTM network output was as expected on 0th timestep (while incrementing n.t).\n");
@@ -407,13 +399,11 @@ int main(){
 		}
 		dispose_array(tmp);
 
-		tmp = retrieve_array(n.output, n.output_dimension);
-		if(!assert_equal(tmp, l3_t2, n.output_dimension)){
+		if(!assert_equal(n.output, l3_t2, n.output_dimension)){
 			printf("X | TEST FAILED: LSTM network output was incorrect on 1st timestep (while incrementing n.t).\n");
 		}else{
 			printf("  | TEST PASSED: LSTM network output was as expected on 1st timestep (while incrementing n.t).\n");
 		}
-		dispose_array(tmp);
 
 		printf("\n");
 		lstm_cost(&n, y2);
@@ -461,13 +451,11 @@ int main(){
 		}
 		dispose_array(tmp);
 
-		tmp = retrieve_array(n.output, n.output_dimension);
-		if(!assert_equal(tmp, l3_t3, n.output_dimension)){
+		if(!assert_equal(n.output, l3_t3, n.output_dimension)){
 			printf("X | TEST FAILED: LSTM network output was incorrect on 2nd timestep (while incrementing n.t).\n");
 		}else{
 			printf("  | TEST PASSED: LSTM network output was as expected on 2nd timestep (while incrementing n.t).\n");
 		}
-		dispose_array(tmp);
 
 		printf("\n");
 		lstm_cost(&n, y3);
