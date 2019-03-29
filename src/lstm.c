@@ -10,11 +10,11 @@
 #include <math.h>
 #include <string.h>
 
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 #include "opencl_utils.h"
 #endif
 
-#define ARR_FROM_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue0(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_GPU)");
+#define ARR_FROM_SIEKNET_USE_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue0(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_SIEKNET_USE_GPU)");
 
 #define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
@@ -51,6 +51,16 @@ int argmax(float *args, size_t len){
 }
 
 /*
+ * Handy function for zeroing out a 2d array
+ */
+void cpu_zero_2d_arr(float **arr, size_t sequence_length, size_t input_dimension){
+	for(long i = 0; i < sequence_length; i++){
+		for(long j = 0; j < input_dimension; j++){
+			arr[i][j] = 0.0;
+		}
+	}
+}
+/*
  * Calculates the cost gradient for an lstm given a label vector y.
  * y is expected to be of size n.output_dimension. 
  */
@@ -59,17 +69,17 @@ float lstm_cost(LSTM *n, float *y){
 	//float tmp[n->output_dimension];
 	float c = n->cost_fn(n->output, y, n->mlp_cost_gradient, n->output_dimension);
 
-#ifndef GPU
+#ifndef SIEKNET_USE_GPU
 	/* On the CPU, will run backward pass serially on softmax output layer, * 
 	 * and copy resulting gradient into lstm's network_gradient[t] array.   */
-	cpu_mlp_layer_backward(mlp, n->mlp_cost_gradient);
+	cpu_mlp_layer_backward(mlp, n->mlp_cost_gradient, n->params, n->param_grad);
 	float *grads = mlp->input_gradient;
 #else
-	/* On the GPU, will run backward pass in parallel, then use clEnqueueCopyBuffer *
+	/* On the SIEKNET_USE_GPU, will run backward pass in parallel, then use clEnqueueCopyBuffer *
 	 * to copy resulting gradient into network_gradient[t].                         */
 
-	//THIS MAY NOT WORK - TEST ON GPU
-	printf("WARNING: NEED TO IMPLEMENT GPU-SIDE COST CALC HERE!!!\n");
+	//THIS MAY NOT WORK - TEST ON SIEKNET_USE_GPU
+	printf("WARNING: NEED TO IMPLEMENT SIEKNET_USE_GPU-SIDE COST CALC HERE!!!\n");
 
 	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->mlp_cost_gradient, 0, 0, sizeof(float) * n->output_dimension, tmp, 0, NULL, NULL), "enqueuing cost gradient");
 	gpu_mlp_layer_backward(mlp, n->mlp_cost_gradient, n->params, n->param_grad);
@@ -81,12 +91,12 @@ float lstm_cost(LSTM *n, float *y){
 		printf("ERROR: cost_wrapper(): Size mismatch between mlp output layer and final lstm layer (%lu vs %lu)\n", mlp->input_dimension, n->layers[n->depth-1].size);
 		exit(1);
 	}
-#ifndef GPU
+#ifndef SIEKNET_USE_GPU
 	/* CPU: copy gradient serially from mlp output layer to lstm network gradient. */
 	for(int i = 0; i < mlp->input_dimension; i++)
 		n->network_gradient[t][i] = grads[i];
 #else
-	/* GPU: copy gradient in parallel from mlp output layer to lstm network gradient */
+	/* SIEKNET_USE_GPU: copy gradient in parallel from mlp output layer to lstm network gradient */
 	check_error(clEnqueueCopyBuffer(get_opencl_queue0(), grads, n->network_gradient[t], 0, 0, sizeof(float) * mlp->input_dimension, 0, NULL, NULL), "copying mlp grads to lstm network grads");
 #endif
 
@@ -97,7 +107,7 @@ float lstm_cost(LSTM *n, float *y){
 }
 
 
-#ifndef GPU
+#ifndef SIEKNET_USE_GPU
 
 /********* BEGIN CPU-ONLY FUNCTIONS *******/
 
@@ -132,10 +142,10 @@ static void cpu_wipe(LSTM *n){
 				l->cells[j].loutput = 0;
 			}
 		}
-		zero_2d_arr(l->output, MAX_UNROLL_LENGTH, l->size);
-		zero_2d_arr(l->input_gradient, MAX_UNROLL_LENGTH, l->input_dimension);
+		cpu_zero_2d_arr(l->output, MAX_UNROLL_LENGTH, l->size);
+		cpu_zero_2d_arr(l->input_gradient, MAX_UNROLL_LENGTH, l->input_dimension);
 	}
-	zero_2d_arr(n->network_gradient, MAX_UNROLL_LENGTH, n->layers[n->depth-1].size);
+	cpu_zero_2d_arr(n->network_gradient, MAX_UNROLL_LENGTH, n->layers[n->depth-1].size);
 	n->t = 0;
 }	
 
@@ -208,7 +218,7 @@ LSTM_layer cpu_create_LSTM_layer(size_t input_dim, size_t size, float *param_add
 	for(long t = 0; t < MAX_UNROLL_LENGTH; t++) 
 		l.input_gradient[t] = ALLOCATE(float, l.input_dimension);
 
-	zero_2d_arr(l.input_gradient, MAX_UNROLL_LENGTH, l.input_dimension);
+	cpu_zero_2d_arr(l.input_gradient, MAX_UNROLL_LENGTH, l.input_dimension);
 
 	return l;
 }
@@ -262,13 +272,11 @@ LSTM cpu_lstm_from_arr(size_t *arr, size_t len){
 
 	n.mlp_cost_gradient = ALLOCATE(float, n.output_dimension);
 
-	zero_2d_arr(n.network_gradient, MAX_UNROLL_LENGTH, arr[len-2]);
-	zero_2d_arr(n.network_input, MAX_UNROLL_LENGTH, arr[0]);
+	cpu_zero_2d_arr(n.network_gradient, MAX_UNROLL_LENGTH, arr[len-2]);
+	cpu_zero_2d_arr(n.network_input, MAX_UNROLL_LENGTH, arr[0]);
 
-	n.output_layer = cpu_create_MLP_layer(arr[len-2], arr[len-1], &n.params[param_idx], &n.param_grad[param_idx], softmax);
+	n.output_layer = cpu_create_MLP_layer(arr[len-2], arr[len-1], n.params, param_idx, softmax);
 
-	//n.output_layer = cpu_create_MLP_layer(arr[len-2], arr[len-1], n.params, n.param_grad, softmax); //this should not work but does??
-	
 	n.output = n.output_layer.output;
 	return n;
 }
@@ -352,7 +360,7 @@ void cpu_lstm_forward(LSTM *n, float *x){
 	}
 
 	//Feedforward through final MLP layer
-	cpu_mlp_layer_forward(&n->output_layer, input);
+	cpu_mlp_layer_forward(&n->output_layer, input, n->params);
   if(!(rand()%3))
 		n->guess = sample_softmax(n->output_layer.output, n->output_dimension);
 	else
@@ -457,8 +465,8 @@ void cpu_lstm_backward(LSTM *n){
 		}
 		for(int i = 0; i < n->depth; i++){
 			LSTM_layer *l = &n->layers[i];
-			zero_2d_arr(l->output, MAX_UNROLL_LENGTH, l->size);
-			zero_2d_arr(l->input_gradient, MAX_UNROLL_LENGTH, l->input_dimension);
+			cpu_zero_2d_arr(l->output, MAX_UNROLL_LENGTH, l->size);
+			cpu_zero_2d_arr(l->input_gradient, MAX_UNROLL_LENGTH, l->input_dimension);
 		}
 		if(!n->stateful) wipe(n);
 		n->t = 0;
@@ -469,7 +477,7 @@ void cpu_lstm_backward(LSTM *n){
 
 #else
 
-/******** BEGIN GPU-ONLY FUNCTIONS ********/
+/******** BEGIN SIEKNET_USE_GPU-ONLY FUNCTIONS ********/
 
 
 cl_kernel make_onehot_kernel;
@@ -996,7 +1004,7 @@ static void gpu_lstm_backward(LSTM *n){
 #endif
 
 LSTM lstm_from_arr(size_t *arr, size_t len){
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 	return gpu_lstm_from_arr(arr, len);
 #else
 	return cpu_lstm_from_arr(arr, len);
@@ -1004,7 +1012,7 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 }
 
 void lstm_forward(LSTM *n, float *x){
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 	gpu_lstm_forward(n, x);
 #else
 	cpu_lstm_forward(n, x);
@@ -1012,7 +1020,7 @@ void lstm_forward(LSTM *n, float *x){
 }
 
 void lstm_backward(LSTM *n){
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 	gpu_lstm_backward(n);
 #else
 	cpu_lstm_backward(n);
@@ -1020,7 +1028,7 @@ void lstm_backward(LSTM *n){
 }
 
 void wipe(LSTM *n){
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 	gpu_wipe(n);
 #else
 	cpu_wipe(n);
@@ -1103,7 +1111,7 @@ void save_lstm(LSTM *n, const char *filename){
 	}
 	fprintf(fp, "%lu\n", n->output_layer.size);
 
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 	float *tmp = (float*)malloc(sizeof(float)*n->num_params);
 	check_error(clEnqueueReadBuffer(get_opencl_queue0(), n->params, 1, 0, sizeof(float) * n->num_params, tmp, 0, NULL, NULL), "error reading params from gpu");
 	for(int i = 0; i < n->num_params; i++){
@@ -1152,7 +1160,7 @@ LSTM load_lstm(const char *filename){
 		exit(1);
 	}
 	LSTM n = lstm_from_arr(arr, num_layers+2);
-#ifndef GPU
+#ifndef SIEKNET_USE_GPU
 	for(int i = 0; i < n.num_params; i++){
 		if(fscanf(fp, "%f", &n.params[i]) == EOF){
 			printf("ERROR: '%s' potentially corrupted.\n", filename);

@@ -4,17 +4,60 @@
  * Every function beginning with static is meant for internal use only. You may call any other function.
  */
 
-#include <mlp.h>
 #include <math.h>
 #include <string.h>
 
-#ifdef GPU
+#include <logistic.kernel>
+#include <mlp.kernel>
+#include <mlp.h>
+
+#ifdef SIEKNET_USE_GPU
 #include <opencl_utils.h>
 #endif
 
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
 #define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
-#define ARR_FROM_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue0(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_GPU)");
+#define ARR_FROM_SIEKNET_USE_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue0(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_SIEKNET_USE_GPU)");
+
+#ifdef SIEKNET_USE_GPU
+static cl_kernel mlp_forward_kernel;
+static cl_kernel mlp_input_gradient_kernel, mlp_parameter_gradient_kernel;
+static cl_kernel zero_init_kernel;
+
+static int ARE_KERNELS_INITIALIZED = 0;
+void mlp_kernel_setup(){
+	char *kernels[] = {"include/nonlinear.h", "src/mlp.cl", "src/logistic.cl"};
+
+	int err = 0;
+
+	char *src = get_kernel_source(kernels, 3);
+	cl_program prog = build_program(src);
+	free(src);
+
+	mlp_forward_kernel = clCreateKernel(prog, "mlp_forward_kernel", &err);
+	check_error(err, "couldn't make forwards kernel");
+
+	mlp_input_gradient_kernel = clCreateKernel(prog, "mlp_input_gradient_kernel", &err);
+	check_error(err, "couldn't make mlp input grad kernel");
+	
+	mlp_parameter_gradient_kernel = clCreateKernel(prog, "mlp_parameter_gradient_kernel", &err);
+	check_error(err, "couldn't make mlp param grad kernel");
+
+	logistic_kernel = clCreateKernel(prog, "logistic_kernel", &err);
+	check_error(err, "couldn't make sigmoid kernel");
+
+	zero_init_kernel = clCreateKernel(prog, "zero_init_kernel", &err);
+	check_error(err, "couldn't make zero init kernel");
+
+	softmax_sum_kernel = clCreateKernel(prog, "softmax_sum_kernel", &err);
+	check_error(err, "couldn't make softmax sum kernel");
+
+	softmax_kernel = clCreateKernel(prog, "softmax_kernel", &err);
+	check_error(err, "couldn't make softmax kernel");
+
+	ARE_KERNELS_INITIALIZED = 1;
+}
+#endif
 
 /*
  * Calculates the inner product of two vectors.
@@ -88,16 +131,6 @@ float cross_entropy_cost(float *o, const float *y, float *dest, size_t dim){
 }
 
 
-/*
- * Handy function for zeroing out a 2d array
- */
-void zero_2d_arr(float **arr, size_t sequence_length, size_t input_dimension){
-	for(long i = 0; i < sequence_length; i++){
-		for(long j = 0; j < input_dimension; j++){
-			arr[i][j] = 0.0;
-		}
-	}
-}
 
 
 float mlp_cost(MLP *n, float *y){
@@ -105,45 +138,69 @@ float mlp_cost(MLP *n, float *y){
 	return n->cost_fn(n->output, y, n->cost_gradient, n->output_dimension);
 }
 
-/********* BEGIN CPU-ONLY FUNCTIONS **********/
-#ifndef GPU
-
 /* 
  * Creates mlp layer for cpu
  */
-MLP_layer cpu_create_MLP_layer(size_t input_dimension, size_t num_neurons, float *params, float *param_grad, Nonlinearity logistic){
+#ifndef SIEKNET_USE_GPU
+MLP_layer cpu_create_MLP_layer(const size_t input_dimension, const size_t num_neurons, float *params, const int param_idx, const Nonlinearity logistic){
+
 	MLP_layer layer;
 
-	Neuron* neurons = ALLOCATE(Neuron, num_neurons);
+	layer.param_offset = param_idx;
 
-	int param_idx = 0;
 	for(int i = 0; i < num_neurons; i++){
-		neurons[i].bias = &params[param_idx];
-		neurons[i].weights = &params[param_idx+1];
+		//neurons[i].bias = &params[param_idx];
+		//neurons[i].weights = &params[param_idx+1];
 
 		//Xavier (or Xavier-like) bias+weight initialization
-		xavier_init(&params[param_idx], input_dimension+1, num_neurons);
+		xavier_init(&params[param_idx + i*(input_dimension+1)], input_dimension+1, num_neurons);
 
-		neurons[i].bias_grad = &param_grad[param_idx];
-		neurons[i].weight_grad = &param_grad[param_idx+1];
-		param_idx += input_dimension + 1;
+		//neurons[i].bias_grad = &param_grad[param_idx];
+		//neurons[i].weight_grad = &param_grad[param_idx+1];
 	}
 
 	layer.z = ALLOCATE(float, num_neurons);
 	layer.output = ALLOCATE(float, num_neurons);
 	layer.input_gradient = ALLOCATE(float, input_dimension);
 
-	layer.neurons = neurons;
+	//layer.neurons = neurons;
 	layer.size = num_neurons;
 	layer.input_dimension = input_dimension;
 	
 	layer.logistic = logistic; //Set layer activation function
 	return layer;
 }
+#else
+MLP_layer gpu_create_MLP_layer(size_t input_dim, size_t size, cl_mem params, int param_offset, Nonlinearity nonlin){
+	MLP_layer l;
+	l.input_dimension = input_dim;
+	l.size = size;
+	l.param_offset = param_offset;
+	int err;
+	l.input_gradient = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.input_dimension, NULL, &err);
+	check_error(err, "creating gradient buffer.");
+	
+	l.z = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err);
+	check_error(err, "creating linear buffer.");
+
+	l.output = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err);
+	check_error(err, "creating output buffer.");
+
+	l.logistic = nonlin;
+	float *tmp = (float*)malloc(sizeof(float)*(input_dim+1)*size);
+	for(int j = 0; j < l.size; j++){
+		xavier_init(&tmp[j * (input_dim+1)], input_dim+1, l.size);
+	}
+	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), params, 1, param_offset * sizeof(float), sizeof(float)*l.size*(l.input_dimension+1) , tmp, 0, NULL, NULL), "copying into gpu params");
+	free(tmp);
+	return l;
+}
+#endif
 
 /*
  * A function called through the createMLP() macro that allows creation of a network with any arbitrary number of layers.
  */
+#ifndef SIEKNET_USE_GPU
 MLP cpu_mlp_from_arr(size_t arr[], size_t size){
 	MLP n;
 	n.input_dimension = arr[0];
@@ -168,189 +225,19 @@ MLP cpu_mlp_from_arr(size_t arr[], size_t size){
 
 	int param_idx = 0;
 	for(int i = 1; i < size; i++){
-
 			MLP_layer l;
-			size_t layer_size = arr[i];
-			size_t input_dimension = arr[i-1];
-
-			float *param_addr = &n.params[param_idx];
-			float *grad_addr = &n.param_grad[param_idx];
-
-			param_idx += layer_size * (input_dimension+1);
-
 			if(i < size-1)
-				l = cpu_create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, sigmoid);
+				l = cpu_create_MLP_layer(arr[i-1], arr[i], n.params, param_idx, sigmoid);
 			else
-				l = cpu_create_MLP_layer(input_dimension, layer_size, param_addr, grad_addr, softmax);
-			
+				l = cpu_create_MLP_layer(arr[i-1], arr[i], n.params, param_idx, softmax);
+
 			n.layers[i-1] = l;
+			param_idx += arr[i] * (arr[i-1]+1);
 	}
 	n.output = n.layers[n.depth-1].output;
 	return n;
 }
-
-/*
- * Does a forward pass for a single layer.
- */
-void cpu_mlp_layer_forward(MLP_layer *l, float *x){
-	l->input = x; //need to save pointer for backward pass
-	for(int i = 0; i < l->size; i++){
-		float *w = l->neurons[i].weights; 
-		l->z[i] = inner_product(x, w, l->input_dimension) + *l->neurons[i].bias;
-		if(l->logistic != softmax)
-			l->output[i] = activate(l->z[i], l->logistic);
-	}
-	if(l->logistic == softmax){
-		double sum = 0; //must be double
-		for(int i = 0; i < l->size; i++)
-			sum += exp(l->z[i]);
-
-		for(int i = 0; i < l->size; i++)
-			l->output[i] = exp(l->z[i]) / sum;
-	}
-}
-
-/*
- * Does a forward pass for the entire network.
- */
-void cpu_mlp_forward(MLP *n, float *input){
-	float *x = input;
-	for(int i = 0; i < n->depth; i++){
-		MLP_layer *l = &n->layers[i];
-		cpu_mlp_layer_forward(l, x); //Do forward pass for this layer
-		x = l->output; //Use this layer's output as the next layer's input
-	}
-	n->guess = 0;
-	for(int i = 0; i < n->output_dimension; i++)
-		if(n->output[n->guess] < n->output[i])
-			n->guess = i;
-}
-
-/*
- * Calculates the backward pass for a single layer (does parameter update)
- */
-void cpu_mlp_layer_backward(MLP_layer *l, float *grads){
-	float *avg_outs = l->output;
-	for(int j = 0; j < l->input_dimension; j++)
-		l->input_gradient[j] = 0;
-
-	for(int i = 0; i < l->size; i++){
-		float gradient = grads[i]; //gradient of this neuron's output with respect to cost
-		float d_output = differentiate(avg_outs[i], l->logistic);
-
-		for(int j = 0; j < l->input_dimension; j++){
-			float w = l->neurons[i].weights[j];
-			float d = d_output;
-			float g = gradient;
-			float x = l->input[j];
-
-			l->input_gradient[j] += w * d * g;
-			l->neurons[i].weight_grad[j] += x * d * g;
-		}
-		*l->neurons[i].bias_grad += gradient * d_output;
-	}
-}
-
-/*
- * Does backward pass for entire network (calculates n.param_grad)
- */
-void cpu_mlp_backward(MLP *n){
-
-	float *grads = n->cost_gradient;
-	for(int i = n->depth-1; i >= 0; i--){
-		cpu_mlp_layer_backward(&n->layers[i], grads);
-		grads = n->layers[i].input_gradient;
-	}
-	//printf("printing p %p\n", n->param_grad);
-	//PRINTLIST(n->param_grad, 10);
-	//getchar();
-}
-
-/*
- * Deallocates a network's memory from the heap
- */
-void dealloc_mlp(MLP *n){
-	for(int i = 0; i < n->depth; i++){
-		MLP_layer *l = &n->layers[i];
-		free(l->output);
-		free(l->input_gradient);
-		free(l->neurons);
-	}
-	free(n->params);
-	free(n->cost_gradient);
-	free(n->layers);
-}
-#endif
-/********* END CPU-ONLY FUNCTIONS **********/
-
-/********* BEGIN GPU-ONLY FUNCTIONS **********/
-#ifdef GPU
-
-static cl_kernel mlp_forward_kernel;
-static cl_kernel mlp_input_gradient_kernel, mlp_parameter_gradient_kernel;
-static cl_kernel zero_init_kernel;
-
-/* 
- * Creates mlp layer for gpu
- */
-static int ARE_KERNELS_INITIALIZED = 0;
-void mlp_kernel_setup(){
-	char *kernels[] = {"include/nonlinear.h", "src/mlp.cl", "src/logistic.cl"};
-
-	int err = 0;
-
-	char *src = get_kernel_source(kernels, 3);
-	cl_program prog = build_program(src);
-	free(src);
-
-	mlp_forward_kernel = clCreateKernel(prog, "mlp_forward_kernel", &err);
-	check_error(err, "couldn't make forwards kernel");
-
-	mlp_input_gradient_kernel = clCreateKernel(prog, "mlp_input_gradient_kernel", &err);
-	check_error(err, "couldn't make mlp input grad kernel");
-	
-	mlp_parameter_gradient_kernel = clCreateKernel(prog, "mlp_parameter_gradient_kernel", &err);
-	check_error(err, "couldn't make mlp param grad kernel");
-
-	logistic_kernel = clCreateKernel(prog, "logistic_kernel", &err);
-	check_error(err, "couldn't make sigmoid kernel");
-
-	zero_init_kernel = clCreateKernel(prog, "zero_init_kernel", &err);
-	check_error(err, "couldn't make zero init kernel");
-
-	softmax_sum_kernel = clCreateKernel(prog, "softmax_sum_kernel", &err);
-	check_error(err, "couldn't make softmax sum kernel");
-
-	softmax_kernel = clCreateKernel(prog, "softmax_kernel", &err);
-	check_error(err, "couldn't make softmax kernel");
-
-	ARE_KERNELS_INITIALIZED = 1;
-}
-
-MLP_layer gpu_create_MLP_layer(size_t input_dim, size_t size, cl_mem params, int param_offset, Nonlinearity nonlin){
-	MLP_layer l;
-	l.input_dimension = input_dim;
-	l.size = size;
-	l.param_offset = param_offset;
-	int err;
-	l.input_gradient = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.input_dimension, NULL, &err);
-	check_error(err, "creating gradient buffer.");
-	
-	l.z = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err);
-	check_error(err, "creating linear buffer.");
-
-	l.output = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err);
-	check_error(err, "creating output buffer.");
-
-	l.logistic = nonlin;
-	float *tmp = (float*)malloc(sizeof(float)*(input_dim+1)*size);
-	for(int j = 0; j < l.size; j++){
-		xavier_init(&tmp[j * (input_dim+1)], input_dim+1, l.size);
-	}
-	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), params, 1, param_offset * sizeof(float), sizeof(float)*l.size*(l.input_dimension+1) , tmp, 0, NULL, NULL), "copying into gpu params");
-	return l;
-}
-
+#else
 MLP gpu_mlp_from_arr(size_t arr[], size_t size){
 	initialize_opencl();
 	if(!ARE_KERNELS_INITIALIZED)
@@ -403,8 +290,30 @@ MLP gpu_mlp_from_arr(size_t arr[], size_t size){
 
 	return n;
 }
+#endif
 
-
+/*
+ * Does a forward pass for a single layer.
+ */
+#ifndef SIEKNET_USE_GPU
+void cpu_mlp_layer_forward(MLP_layer *l, float *input, float *params){
+	l->input = input; //need to save pointer for backward pass
+	for(int i = 0; i < l->size; i++){
+		agnostic_mlp_forward_kernel(input, l->z, params, l->input_dimension, l->param_offset, (l->input_dimension+1), i);
+	}
+	if(l->logistic != softmax){
+		for(int i = 0; i < l->size; i++){
+			agnostic_logistic_kernel(l->z, l->output, l->logistic, i);
+		}
+	}else{
+		float smsum;
+		agnostic_softmax_sum_kernel(l->z, &smsum, l->size);
+		for(int i = 0; i < l->size; i++){
+			agnostic_softmax_kernel(l->z, l->output, &smsum, i);
+		}
+	}
+}
+#else
 void gpu_mlp_layer_forward(MLP_layer *l, cl_mem input, cl_mem params){
 	l->input = input;
 	int params_per_neuron = l->input_dimension + 1;
@@ -434,9 +343,26 @@ void gpu_mlp_layer_forward(MLP_layer *l, cl_mem input, cl_mem params){
 		check_error(clSetKernelArg(softmax_kernel, 2, sizeof(cl_mem), &smsum), "setting softmax arg 2");
 		check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), softmax_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't do softmax sum");
 	}
-	//check_error(clFinish(get_opencl_queue0()), "couldn't wait for queue0 to end");
 }
+#endif
 
+/*
+ * Does a forward pass for the entire network.
+ */
+#ifndef SIEKNET_USE_GPU
+void cpu_mlp_forward(MLP *n, float *input){
+	float *x = input;
+	for(int i = 0; i < n->depth; i++){
+		MLP_layer *l = &n->layers[i];
+		cpu_mlp_layer_forward(l, x, n->params); //Do forward pass for this layer
+		x = l->output; //Use this layer's output as the next layer's input
+	}
+	n->guess = 0;
+	for(int i = 0; i < n->output_dimension; i++)
+		if(n->output[n->guess] < n->output[i])
+			n->guess = i;
+}
+#else
 void gpu_mlp_forward(MLP *n, float *x){
 	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->network_input, 0, 0, sizeof(float) * n->input_dimension, x, 0, NULL, NULL), "enqueuing network input");
 
@@ -450,12 +376,28 @@ void gpu_mlp_forward(MLP *n, float *x){
 	
 	clEnqueueReadBuffer(get_opencl_queue0(), input, 1, 0, sizeof(float) * n->output_dimension, n->output, 0, NULL, NULL);
 	check_error(clFinish(get_opencl_queue0()), "couldn't wait for queue0 to end");
+
 	n->guess = 0;
 	for(int i = 0; i < n->output_dimension; i++)
 		if(n->output[n->guess] < n->output[i])
 			n->guess = i;
 }
+#endif
 
+
+/*
+ * Calculates the backward pass for a single layer (does parameter update)
+ */
+#ifndef SIEKNET_USE_GPU
+void cpu_mlp_layer_backward(MLP_layer *l, float *grads, float *params, float *param_grad){
+	for(int i = 0; i < l->input_dimension; i++){
+		agnostic_mlp_input_gradient_kernel(grads, l->output, params, l->input_gradient, l->logistic, l->param_offset, l->size, l->input_dimension, i);
+	}
+	for(int i = 0; i < l->size; i++){
+		agnostic_mlp_parameter_gradient_kernel(grads, l->output, l->input, param_grad, l->logistic, l->param_offset, l->size, l->input_dimension, i);
+	}
+}
+#else
 void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem param_grad){
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 0, sizeof(cl_mem), &grad), "setting input grad kernel arg 0");
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 1, sizeof(cl_mem), &l->output), "setting input grad kernel arg 1");
@@ -479,7 +421,24 @@ void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem par
 
 	check_error(clFinish(get_opencl_queue0()), "waiting for queue 0 to finish executing (forward pass)");
 }
+#endif
 
+/*
+ * Does backward pass for entire network (calculates n.param_grad)
+ */
+#ifndef SIEKNET_USE_GPU
+void cpu_mlp_backward(MLP *n){
+
+	float *grads = n->cost_gradient;
+	for(int i = n->depth-1; i >= 0; i--){
+		cpu_mlp_layer_backward(&n->layers[i], grads, n->params, n->param_grad);
+		grads = n->layers[i].input_gradient;
+	}
+	//printf("printing p %p\n", n->param_grad);
+	//PRINTLIST(n->param_grad, 10);
+	//getchar();
+}
+#else
 void gpu_mlp_backward(MLP *n){
 	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->network_grad, 1, 0, sizeof(float) * n->output_dimension, n->cost_gradient, 0, NULL, NULL), "enqueuing network grads");
 
@@ -491,11 +450,27 @@ void gpu_mlp_backward(MLP *n){
 		grads = l->input_gradient;
 	}
 }
-
 #endif
 
+/*
+ * Deallocates a network's memory from the heap
+ */
+void dealloc_mlp(MLP *n){
+	/*
+	for(int i = 0; i < n->depth; i++){
+		MLP_layer *l = &n->layers[i];
+		free(l->output);
+		free(l->input_gradient);
+		free(l->neurons);
+	}
+	free(n->params);
+	free(n->cost_gradient);
+	free(n->layers);
+	*/
+}
+
 MLP mlp_from_arr(size_t arr[], size_t size){
-#ifndef GPU
+#ifndef SIEKNET_USE_GPU
 	return cpu_mlp_from_arr(arr, size);
 #else
 	return gpu_mlp_from_arr(arr, size);
@@ -503,7 +478,7 @@ MLP mlp_from_arr(size_t arr[], size_t size){
 }
 
 void mlp_forward(MLP *n, float *x){
-#ifndef GPU
+#ifndef SIEKNET_USE_GPU
 	cpu_mlp_forward(n, x);
 #else
 	gpu_mlp_forward(n, x);
@@ -511,7 +486,7 @@ void mlp_forward(MLP *n, float *x){
 }
 
 void mlp_backward(MLP *n){
-#ifndef GPU
+#ifndef SIEKNET_USE_GPU
 	cpu_mlp_backward(n);
 #else
 	gpu_mlp_backward(n);
@@ -533,7 +508,7 @@ static int getWord(FILE *fp, char* dest){
  * filename: The desired filename and path.
  */
 void save_mlp(MLP *n, const char* filename){
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 	float *tmp = (float*)malloc(sizeof(float) * n->num_params);
 	clEnqueueReadBuffer(get_opencl_queue0(), n->params, 1, 0, sizeof(float) * n->num_params, tmp, 0, NULL, NULL);
 #endif
@@ -542,7 +517,6 @@ void save_mlp(MLP *n, const char* filename){
 
 	//Create file
 	FILE *fp = fopen(filename, "w");
-	printf("Saving mlp to: %s\n", filename);
 	memset(buff, '\0', strlen(buff));
 
 	//Write header info to file
@@ -554,7 +528,7 @@ void save_mlp(MLP *n, const char* filename){
 	}
 	
 	for(int i = 0; i < n->num_params; i++){
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 		fprintf(fp, "%f", tmp[i]);
 #else
 		fprintf(fp, "%f", n->params[i]);
@@ -563,7 +537,7 @@ void save_mlp(MLP *n, const char* filename){
 		else fprintf(fp, "\n");
 	}
 	fclose(fp);
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 	free(tmp);
 #endif
 }
@@ -600,7 +574,7 @@ MLP load_mlp(const char *filename){
 
 	MLP n;
 	n = mlp_from_arr(arr, num_layers+1);
-#ifndef GPU
+#ifndef SIEKNET_USE_GPU
 	for(int i = 0; i < n.num_params; i++){
 		if(fscanf(fp, "%f", &n.params[i]) == EOF){
 			printf("ERROR: '%s' corrupted.\n", filename);
