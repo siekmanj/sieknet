@@ -11,7 +11,7 @@
 
 #define create_lstm(...) lstm_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
-#ifndef GPU
+#ifndef SIEKNET_USE_GPU
 typedef struct gate{
 	float *output;
 	float *gradient;
@@ -35,7 +35,7 @@ typedef struct cell{
 #endif
 
 typedef struct lstm_layer{
-#ifndef GPU
+#ifndef SIEKNET_USE_GPU
 	Cell *cells;
 	float **output;
 	float **input;
@@ -76,7 +76,7 @@ typedef struct lstm_layer{
 
 typedef struct lstm{
 	float *output;
-#ifndef GPU
+#ifndef SIEKNET_USE_GPU
 	float *params;
 	float *param_grad;
 	float **network_gradient;

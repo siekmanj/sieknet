@@ -23,7 +23,7 @@ void no_op(){}
 
 #define agnostic_mlp_input_gradient_kernel(grads, output, params, dest, nonlinearity_type, layer_param_idx, size, dim, i) \
 	dest[i] = 0.0f;                                            \
-	for(int j = 0; j < size; j++){                          \
+	for(int j = 0; j < size; j++){                             \
 		const int w_idx = layer_param_idx + ((dim + 1) * j) + i; \
 		float w = params[w_idx+1];                               \
 		float d = differentiate(output[j], nonlinearity_type);   \
@@ -41,6 +41,6 @@ void no_op(){}
 		float x = input[j];                                  \
 		param_grad[w_idx+j+1] += x * d * g;                  \
 	}                                                      \
-	no_op();
+	no_op()
 
 /*<<KERNEL END>>*/

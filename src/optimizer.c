@@ -4,7 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#ifndef GPU
+#ifndef SIEKNET_USE_GPU
 static float cpu_sgd_step(SGD o){
 	float entropy = 0;
 	for(int i = 0; i < o.num_params; i++){
@@ -51,7 +51,7 @@ Momentum cpu_init_Momentum(float *weights, float *gradient, size_t num_params){
 
 #endif
 
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 static cl_kernel sgd_step_kernel, momentum_step_kernel;
 
 static int ARE_KERNELS_INITIALIZED = 0;

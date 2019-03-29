@@ -1,5 +1,5 @@
 #include <conf.h>
-#ifdef GPU
+#ifdef SIEKNET_USE_GPU
 #ifndef OPENCL_UTILS
 #define OPENCL_UTILS
 
