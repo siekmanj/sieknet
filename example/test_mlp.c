@@ -198,7 +198,7 @@ int main(){
 		dispose_array(tmp2);
 		
 		dealloc_mlp(&n);
-		dealloc_mlp(&n);
+		dealloc_mlp(&m);
 
 		sleep(1);
 	}
