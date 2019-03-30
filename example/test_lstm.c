@@ -8,6 +8,9 @@
 #include <opencl_utils.h>
 #endif
 
+int ALLOCS = 0;
+int FREES  = 0;
+
 #define createonehot(name, size, index) float name[size]; memset(name, '\0', size*sizeof(float)); name[index] = 1.0;
 #define printlist(name, len) printf("printing %s: {", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("};\n");}
 
@@ -49,12 +52,16 @@ float *retrieve_array(cl_mem arr, size_t len){
 	float *tmp = (float*)malloc(sizeof(float)*len);
 	memset(tmp, '\0', len*sizeof(float)); 
 	check_error(clEnqueueReadBuffer(get_opencl_queue0(), arr, 1, 0, sizeof(float) * len, tmp, 0, NULL, NULL), "error reading from gpu (retrieve_array)");
+	check_error(clFinish(get_opencl_queue0()), "waiting on queue to finish");
+	ALLOCS++;
 	return tmp;
 }
 void assign_array(float *arr, cl_mem dest, size_t len){
 	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), dest, 1, 0, sizeof(float) * len, arr, 0, NULL, NULL), "enqueuing cost gradient");
+	check_error(clFinish(get_opencl_queue0()), "waiting on queue to finish");
 }
 void dispose_array(float *arr){
+	FREES++;
 	free(arr);
 }
 
@@ -75,8 +82,6 @@ int main(){
 	{
 		printf("\n******** TESTING LSTM FUNCTIONALITY ********\n\n");
 		sleep(1);
-		LSTM n = create_lstm(5, 6, 7, 4);
-		n.seq_len = 3;
 		float x1[] = {0.34, 1.00, 0.00, 0.25, 0.89};
 		float x2[] = {0.99, 0.00, 1.00, 0.59, 0.89};
 		float x3[] = {0.13, 0.66, 0.72, 0.01, 0.89};
@@ -105,116 +110,127 @@ int main(){
 		//float ig_l1_t1 = 
 		//float ig_l1_t1 = 
 
+		/*{
+			LSTM n = create_lstm(5, 6, 7, 4);
+			n.seq_len = 3;
+			assign_array(p, n.params, n.num_params);
+
+			wipe(&n);
+			printf("Testing forward pass functionality...\n\n");
+			sleep(1);
+			lstm_forward(&n, x1);
+
+			float *tmp = retrieve_array(n.layers[0].output[0], n.layers[0].size);
+			if(!assert_equal(tmp, l1_t1, n.layers[0].size)){
+				printf("X | TEST FAILED: First hidden LSTM layer output was incorrect on 0th timestep (without incrementing n.t).\n");
+			}else{
+				printf("  | TEST PASSED: First hidden LSTM layer output was as expected on 0th timestep (without incrementing n.t).\n");
+			}
+			dispose_array(tmp);
+
+			tmp = retrieve_array(n.layers[1].output[0], n.layers[1].size);
+			if(!assert_equal(tmp, l2_t1, n.layers[1].size)){
+				printf("X | TEST FAILED: Second hidden LSTM layer output was incorrect on 0th timestep (without incrementing n.t).\n");
+			}else{
+				printf("  | TEST PASSED: Second hidden LSTM layer output was as expected on 0th timestep (without incrementing n.t).\n");
+			}
+			dispose_array(tmp);
+
+			tmp = retrieve_array(n.output_layer.output, n.output_dimension);
+			if(!assert_equal(tmp, l3_t1, n.output_dimension)){
+				printf("X | TEST FAILED: LSTM output layer output was incorrect on 0th timestep (without incrementing n.t).\n");
+			}else{
+				printf("  | TEST PASSED: LSTM output layer output was as expected on 0th timestep (without incrementing n.t).\n");
+			}
+			dispose_array(tmp);
+
+			if(!assert_equal(n.output, l3_t1, n.output_dimension)){
+				printf("X | TEST FAILED: LSTM network output was incorrect on 0th timestep (without incrementing n.t).\n");
+			}else{
+				printf("  | TEST PASSED: LSTM network output was as expected on 0th timestep (without incrementing n.t).\n");
+			}
+
+			printf("\n");
+			lstm_forward(&n, x2);
+
+			tmp = retrieve_array(n.layers[0].output[0], n.layers[0].size);
+			if(!assert_equal(tmp, l1_t2, n.layers[0].size)){
+				printf("X | TEST FAILED: First hidden LSTM layer output was incorrect on 1st timestep (without incrementing n.t).\n");
+			}else{
+				printf("  | TEST PASSED: First hidden LSTM layer output was as expected on 1st timestep (without incrementing n.t).\n");
+			}
+			dispose_array(tmp);
+
+			tmp = retrieve_array(n.layers[1].output[0], n.layers[1].size);
+			if(!assert_equal(tmp, l2_t2, n.layers[0].size)){
+				printf("X | TEST FAILED: Second hidden LSTM layer output was incorrect on 1st timestep (without incrementing n.t).\n");
+			}else{
+				printf("  | TEST PASSED: Second hidden LSTM layer output was as expected on 1st timestep (without incrementing n.t).\n");
+			}
+			dispose_array(tmp);
+
+			tmp = retrieve_array(n.output_layer.output, n.output_dimension);
+			if(!assert_equal(tmp, l3_t2, n.output_dimension)){
+				printf("X | TEST FAILED: LSTM output layer output was incorrect on 1st timestep (without incrementing n.t).\n");
+			}else{
+				printf("  | TEST PASSED: LSTM output layer output was as expected on 1st timestep (without incrementing n.t).\n");
+			}
+			dispose_array(tmp);
+
+			if(!assert_equal(n.output, l3_t2, n.output_dimension)){
+				printf("X | TEST FAILED: LSTM network output was incorrect on 1st timestep (without incrementing n.t).\n");
+			}else{
+				printf("  | TEST PASSED: LSTM network output was as expected on 1st timestep (without incrementing n.t).\n");
+			}
+
+			printf("\n");
+			lstm_forward(&n, x3);
+
+			tmp = retrieve_array(n.layers[0].output[0], n.layers[0].size);
+			if(!assert_equal(tmp, l1_t3, n.layers[0].size)){
+				printf("X | TEST FAILED: First hidden LSTM layer output was incorrect on 2nd timestep (without incrementing n.t).\n");
+			}else{
+				printf("  | TEST PASSED: First hidden LSTM layer output was as expected on 2nd timestep (without incrementing n.t).\n");
+			}
+			dispose_array(tmp);
+
+			tmp = retrieve_array(n.layers[1].output[0], n.layers[1].size);
+			if(!assert_equal(tmp, l2_t3, n.layers[0].size)){
+				printf("X | TEST FAILED: Second hidden LSTM layer output was incorrect on 2nd timestep (without incrementing n.t).\n");
+			}else{
+				printf("  | TEST PASSED: Second hidden LSTM layer output was as expected on 2nd timestep (without incrementing n.t).\n");
+			}
+			dispose_array(tmp);
+
+			tmp = retrieve_array(n.output_layer.output, n.output_dimension);
+			if(!assert_equal(tmp, l3_t3, n.output_dimension)){
+				printf("X | TEST FAILED: LSTM output layer output was incorrect on 2nd timestep (without incrementing n.t).\n");
+			}else{
+				printf("  | TEST PASSED: LSTM output layer output was as expected on 2nd timestep (without incrementing n.t).\n");
+			}
+			dispose_array(tmp);
+
+			if(!assert_equal(n.output, l3_t3, n.output_dimension)){
+				printf("X | TEST FAILED: LSTM network output was incorrect on 2nd timestep (without incrementing n.t).\n");
+			}else{
+				printf("  | TEST PASSED: LSTM network output was as expected on 2nd timestep (without incrementing n.t).\n");
+			}
+
+			sleep(1);
+			printf("\ntesting forward + backward pass in conjunction...\n");
+			sleep(1);
+		}*/
+		//wipe(&n);
+		float *tmp;
+		LSTM n = create_lstm(5, 6, 7, 4);
+		n.seq_len = 3;
 		assign_array(p, n.params, n.num_params);
 
-		wipe(&n);
-		printf("Testing forward pass functionality...\n\n");
-		sleep(1);
-		lstm_forward(&n, x1);
-
-		float *tmp = retrieve_array(n.layers[0].output[0], n.layers[0].size);
-		if(!assert_equal(tmp, l1_t1, n.layers[0].size)){
-			printf("X | TEST FAILED: First hidden LSTM layer output was incorrect on 0th timestep (without incrementing n.t).\n");
-		}else{
-			printf("  | TEST PASSED: First hidden LSTM layer output was as expected on 0th timestep (without incrementing n.t).\n");
-		}
-		dispose_array(tmp);
-
-		tmp = retrieve_array(n.layers[1].output[0], n.layers[1].size);
-		if(!assert_equal(tmp, l2_t1, n.layers[1].size)){
-			printf("X | TEST FAILED: Second hidden LSTM layer output was incorrect on 0th timestep (without incrementing n.t).\n");
-		}else{
-			printf("  | TEST PASSED: Second hidden LSTM layer output was as expected on 0th timestep (without incrementing n.t).\n");
-		}
-		dispose_array(tmp);
-
-		tmp = retrieve_array(n.output_layer.output, n.output_dimension);
-		if(!assert_equal(tmp, l3_t1, n.output_dimension)){
-			printf("X | TEST FAILED: LSTM output layer output was incorrect on 0th timestep (without incrementing n.t).\n");
-		}else{
-			printf("  | TEST PASSED: LSTM output layer output was as expected on 0th timestep (without incrementing n.t).\n");
-		}
-		dispose_array(tmp);
-
-		if(!assert_equal(n.output, l3_t1, n.output_dimension)){
-			printf("X | TEST FAILED: LSTM network output was incorrect on 0th timestep (without incrementing n.t).\n");
-		}else{
-			printf("  | TEST PASSED: LSTM network output was as expected on 0th timestep (without incrementing n.t).\n");
-		}
-
-		printf("\n");
-		lstm_forward(&n, x2);
-
-		tmp = retrieve_array(n.layers[0].output[0], n.layers[0].size);
-		if(!assert_equal(tmp, l1_t2, n.layers[0].size)){
-			printf("X | TEST FAILED: First hidden LSTM layer output was incorrect on 1st timestep (without incrementing n.t).\n");
-		}else{
-			printf("  | TEST PASSED: First hidden LSTM layer output was as expected on 1st timestep (without incrementing n.t).\n");
-		}
-		dispose_array(tmp);
-
-		tmp = retrieve_array(n.layers[1].output[0], n.layers[1].size);
-		if(!assert_equal(tmp, l2_t2, n.layers[0].size)){
-			printf("X | TEST FAILED: Second hidden LSTM layer output was incorrect on 1st timestep (without incrementing n.t).\n");
-		}else{
-			printf("  | TEST PASSED: Second hidden LSTM layer output was as expected on 1st timestep (without incrementing n.t).\n");
-		}
-		dispose_array(tmp);
-
-		tmp = retrieve_array(n.output_layer.output, n.output_dimension);
-		if(!assert_equal(tmp, l3_t2, n.output_dimension)){
-			printf("X | TEST FAILED: LSTM output layer output was incorrect on 1st timestep (without incrementing n.t).\n");
-		}else{
-			printf("  | TEST PASSED: LSTM output layer output was as expected on 1st timestep (without incrementing n.t).\n");
-		}
-		dispose_array(tmp);
-
-		if(!assert_equal(n.output, l3_t2, n.output_dimension)){
-			printf("X | TEST FAILED: LSTM network output was incorrect on 1st timestep (without incrementing n.t).\n");
-		}else{
-			printf("  | TEST PASSED: LSTM network output was as expected on 1st timestep (without incrementing n.t).\n");
-		}
-
-		printf("\n");
-		lstm_forward(&n, x3);
-
-		tmp = retrieve_array(n.layers[0].output[0], n.layers[0].size);
-		if(!assert_equal(tmp, l1_t3, n.layers[0].size)){
-			printf("X | TEST FAILED: First hidden LSTM layer output was incorrect on 2nd timestep (without incrementing n.t).\n");
-		}else{
-			printf("  | TEST PASSED: First hidden LSTM layer output was as expected on 2nd timestep (without incrementing n.t).\n");
-		}
-		dispose_array(tmp);
-
-		tmp = retrieve_array(n.layers[1].output[0], n.layers[1].size);
-		if(!assert_equal(tmp, l2_t3, n.layers[0].size)){
-			printf("X | TEST FAILED: Second hidden LSTM layer output was incorrect on 2nd timestep (without incrementing n.t).\n");
-		}else{
-			printf("  | TEST PASSED: Second hidden LSTM layer output was as expected on 2nd timestep (without incrementing n.t).\n");
-		}
-		dispose_array(tmp);
-
-		tmp = retrieve_array(n.output_layer.output, n.output_dimension);
-		if(!assert_equal(tmp, l3_t3, n.output_dimension)){
-			printf("X | TEST FAILED: LSTM output layer output was incorrect on 2nd timestep (without incrementing n.t).\n");
-		}else{
-			printf("  | TEST PASSED: LSTM output layer output was as expected on 2nd timestep (without incrementing n.t).\n");
-		}
-		dispose_array(tmp);
-
-		if(!assert_equal(n.output, l3_t3, n.output_dimension)){
-			printf("X | TEST FAILED: LSTM network output was incorrect on 2nd timestep (without incrementing n.t).\n");
-		}else{
-			printf("  | TEST PASSED: LSTM network output was as expected on 2nd timestep (without incrementing n.t).\n");
-		}
-
-		sleep(1);
-		printf("\ntesting forward + backward pass in conjunction...\n");
-		sleep(1);
-		wipe(&n);
-
 		printf("\n");
 		lstm_forward(&n, x1);
+		float c1 = lstm_cost(&n, y1) - 3.361277;
+		//float c0 = lstm_cost(&n, y1) - 3.361277;
+		//printf("successuflly got cost %f\n", c0);
 
 		tmp = retrieve_array(n.layers[0].output[0], n.layers[0].size);
 		if(!assert_equal(tmp, l1_t1, n.layers[0].size)){
@@ -245,10 +261,7 @@ int main(){
 		}else{
 			printf("  | TEST PASSED: LSTM network output was as expected on 0th timestep (while incrementing n.t).\n");
 		}
-		dispose_array(tmp);
-
 		printf("\n");
-		float c1 = lstm_cost(&n, y1) - 3.361277;
 		if(c1 < 0) c1*=-1;
 		if(c1 > 0.0001){
 			printf("X | TEST FAILED: Cost scalar was not calculated correctly for 0th timestep.\n");

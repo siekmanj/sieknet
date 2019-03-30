@@ -490,22 +490,15 @@ void dealloc_mlp(MLP *n){
 #ifndef SIEKNET_USE_GPU
 	for(int i = 0; i < n->depth; i++){
 		MLP_layer *l = &n->layers[i];
-		printf("freeing layer %d input gradient\n", i);
 		free(l->input_gradient);
-		printf("freeing layer %d output\n", i);
 		free(l->output);
-		printf("freeing layer %d z\n", i);
 		free(l->z);
 	}
-	printf("freeing params\n");
 	free(n->params);
-	printf("freeing param grad\n");
 	free(n->param_grad);
-	printf("freeing cost grad\n");
 	free(n->cost_gradient);
 #else
 	for(int i = 0; i < n->depth; i++){
-		printf("freeing clmem objects of layer %d\n", i);
 		MLP_layer *l = &n->layers[i];
 		check_error(clReleaseMemObject(l->input_gradient), "freeing clmem");
 		check_error(clReleaseMemObject(l->z), "freeing clmem");
@@ -519,7 +512,6 @@ void dealloc_mlp(MLP *n){
 
 #endif
 	free(n->layers);
-	printf("done deallocing!\n");
 }
 
 MLP mlp_from_arr(size_t arr[], size_t size){
