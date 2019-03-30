@@ -24,6 +24,7 @@ static cl_command_queue SIEKNET_QUEUE2 = NULL;
 static cl_command_queue SIEKNET_QUEUE3 = NULL;
 static cl_device_id SIEKNET_DEVICE = NULL;
 static cl_mem SIEKNET_SMSUM = NULL;
+static cl_mem SIEKNET_COSTSCL = NULL;
 
 /*
  * This function checks 'err' for OpenCL error codes,
@@ -277,11 +278,12 @@ void initialize_opencl(){
 		int err;
 		SIEKNET_CONTEXT = create_opencl_context();
 		SIEKNET_DEVICE  = create_opencl_device();
-		SIEKNET_QUEUE0   = create_opencl_queue(SIEKNET_CONTEXT);
-		SIEKNET_QUEUE1   = create_opencl_queue(SIEKNET_CONTEXT);
-		SIEKNET_QUEUE2   = create_opencl_queue(SIEKNET_CONTEXT);
-		SIEKNET_QUEUE3   = create_opencl_queue(SIEKNET_CONTEXT);
+		SIEKNET_QUEUE0  = create_opencl_queue(SIEKNET_CONTEXT);
+		SIEKNET_QUEUE1  = create_opencl_queue(SIEKNET_CONTEXT);
+		SIEKNET_QUEUE2  = create_opencl_queue(SIEKNET_CONTEXT);
+		SIEKNET_QUEUE3  = create_opencl_queue(SIEKNET_CONTEXT);
 		SIEKNET_SMSUM   = clCreateBuffer(SIEKNET_CONTEXT, CL_MEM_READ_WRITE, sizeof(float), NULL, &err);
+		SIEKNET_COSTSCL = clCreateBuffer(SIEKNET_CONTEXT, CL_MEM_READ_WRITE, sizeof(float), NULL, &err);
 		check_error(err, "failed to create softmax-sum placeholder");
 	}
 	SIEKNET_IS_GPU_INITIALIZED = 1;
@@ -308,6 +310,9 @@ cl_command_queue get_opencl_queue3(){
 }
 cl_mem get_softmax_sum(){
 	return SIEKNET_SMSUM;
+}
+cl_mem get_cost_scalar(){
+	return SIEKNET_COSTSCL;
 }
 
 /* 

@@ -14,7 +14,7 @@
 
 #define agnostic_lstm_forward_kernel(input_nonl, input_gate, forget_gate, output_gate, cell_state, cell_lstate, layer_output, i) \
 	cell_state[i] = input_nonl[i] * input_gate[i] + forget_gate[i] * cell_lstate[i]; \
-	layer_output[i] = HYPERTAN(cell_state[i]) * output_gate[i]; \
+	layer_output[i] = HYPERTAN(cell_state[i]) * output_gate[i];                      \
 	if(cell_state[i] > SIEKNET_MAX_STATE) cell_state[i] = SIEKNET_MAX_STATE;         \
 	if(cell_state[i] < -SIEKNET_MAX_STATE) cell_state[i] = -SIEKNET_MAX_STATE;       \
 	no_op()
@@ -24,7 +24,7 @@
 #define agnostic_lstm_input_gradient_kernel(input_nonl_grad, input_gate_grad, forget_gate_grad, output_gate_grad, params, input_gradient, size, input_dimension, layer_param_offset, skipdist, i) \
 	input_gradient[i] = 0.0f;                                        \
 	for(int j = 0; j < size; j++){                                   \
-		const int params_per_gate = input_dimension+1;                 \ 
+		const int params_per_gate = input_dimension+1;                 \
 		const int w_idx = layer_param_offset + (skipdist * j) + i;     \
 		input_gradient[i] += input_nonl_grad[j]  * params[w_idx + 0 * params_per_gate + 1]; \
 		input_gradient[i] += input_gate_grad[j]  * params[w_idx + 1 * params_per_gate + 1]; \

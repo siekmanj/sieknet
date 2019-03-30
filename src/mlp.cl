@@ -16,7 +16,7 @@ __kernel void mlp_forward_kernel(__constant float *x,
 	}
 	z[i] = sum + params[w_idx]; //wx + b
 	*/
-	agnostic_mlp_forward_kernel(x, z, params, layer_param_idx, skiplength, i);
+	agnostic_mlp_forward_kernel(x, z, params, dim, layer_param_idx, skiplength, i);
 }
 
 __kernel void mlp_input_gradient_kernel(__constant float *grads,
@@ -63,7 +63,7 @@ __kernel void mlp_parameter_gradient_kernel(__constant float *grads,
 		param_grad[w_idx+j+1] += x * d * g; //weight grads
 	}
 	*/
-	agnostic_mlp_parameter_gradient_kernel(grads, output, input, param_grad, nonlinearity_type, layer_aram_idx, size, dim, i);
+	agnostic_mlp_parameter_gradient_kernel(grads, output, input, param_grad, nonlinearity_type, layer_param_idx, size, dim, i);
 }
 
 /*<<KERNEL END>>*/

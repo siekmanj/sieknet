@@ -8,7 +8,8 @@
 #include <time.h>
 
 #include <conf.h>
-#include <nonlinear.h>
+#include <logistic.h>
+#include <mlp.kernel>
 
 #ifdef SIEKNET_USE_GPU
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
@@ -16,17 +17,6 @@
 #endif
 
 #define create_mlp(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
-
-/*
-#ifndef SIEKNET_USE_GPU
-typedef struct neuron{
-	float *weight_grad;
-	float *bias_grad;
-	float *weights;
-	float *bias;
-} Neuron;
-#endif
-*/
 
 typedef struct mlp_layer{
 #ifndef SIEKNET_USE_GPU
@@ -60,17 +50,22 @@ typedef struct mlp{
 
 	float learning_rate;
 	float *output;
+
 #ifndef SIEKNET_USE_GPU
 	float *params;
 	float *param_grad;
+
+	float *cost_gradient;
 #else
 	cl_mem params;
 	cl_mem param_grad;
 	cl_mem network_input;
-	cl_mem network_grad;
+	cl_mem output_label;
+
+	cl_mem cost_gradient;
 #endif
-	float *cost_gradient;
-	float (*cost_fn)(float *y, const float *l, float *dest, size_t);
+	//float (*cost_fn)(float *y, const float *l, float *dest, size_t);
+	Costfn cost_fn;
 } MLP;
 
 MLP mlp_from_arr(size_t arr[], size_t size);
@@ -96,11 +91,11 @@ void dealloc_mlp(MLP *);
 void xavier_init(float *, size_t, size_t);
 void zero_2d_arr(float **, size_t, size_t);
 
-//These are activation functions
 #ifdef SIEKNET_USE_GPU
-cl_kernel logistic_kernel, softmax_sum_kernel, softmax_kernel;
+float gpu_cost(cl_mem, cl_mem, cl_mem, size_t, Costfn);
+//cl_kernel softmax_sum_kernel, softmax_kernel, zero_init_kernel;
 void mlp_kernel_setup();
 #endif
+float cpu_cost(float *, float *, float *, size_t, Costfn);
 float inner_product(const float *, const float *, size_t);
-float cross_entropy_cost(float *, const float *, float *, size_t);
 #endif
