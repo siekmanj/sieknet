@@ -90,6 +90,7 @@ typedef struct lstm{
 	cl_mem *network_input;
 
 	cl_mem mlp_cost_gradient;
+	cl_mem output_label;
 #endif
 
 	int stateful;
@@ -106,7 +107,8 @@ typedef struct lstm{
 	LSTM_layer *layers;
 
 	MLP_layer output_layer;
-	float (*cost_fn)(float *y, const float *l, float *dest, size_t);
+	//float (*cost_fn)(float *y, const float *l, float *dest, size_t);
+	Costfn cost_fn;
 	
 } LSTM;
 

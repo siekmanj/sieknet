@@ -9,8 +9,6 @@
  */
 
 /*<<KERNEL START>>*/
-void no_op(){}
-
 #define agnostic_mlp_forward_kernel(x, z, params, dim, layer_param_idx, skiplength, i) \
 	z[i] = 0.0f;                                          \
 	const int w_idx = layer_param_idx + (skiplength * i); \

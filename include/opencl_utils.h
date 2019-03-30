@@ -18,6 +18,7 @@ cl_command_queue get_opencl_queue2();
 cl_command_queue get_opencl_queue3();
 cl_device_id get_opencl_device();
 cl_mem get_softmax_sum();
+cl_mem get_cost_scalar();
 
 void initialize_opencl();
 

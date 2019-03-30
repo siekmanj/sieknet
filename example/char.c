@@ -18,15 +18,15 @@
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 50;
+size_t HIDDEN_LAYER_SIZE = 512;
 size_t NUM_EPOCHS				 = 10;
 size_t SEQ_LEN					 = 75;
 size_t ASCII_RANGE			 = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 size_t SAMPLE_EVERY			 = 100;
 size_t SAMPLE_CHARS			 = 1000;
 
-float LEARNING_RATE			 = 0.0025;
-float MOMENTUM					 = 0.99;
+float LEARNING_RATE			 = 0.0001;
+float MOMENTUM					 = 0.95;
 
 /*
  * This file is for training an LSTM character-by-character on any text (ascii) file provided.
@@ -130,6 +130,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 		float avg_cost = 0;
 		float avg_seq_cost = 0;
 		float seq_time = 0;
+		float avg_seq_time = 0;
 
 		wipe(n);
 
@@ -140,7 +141,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			clock_gettime(CLOCK_REALTIME, &start);
 
 			float completion = ((float)ctr/datafilelen);
-			float time_left = (1-completion) * ((datafilelen / n->seq_len) * seq_time);
+			float time_left = (1-completion) * (datafilelen / n->seq_len) * ((avg_seq_time / (sequence_counter % training_iterations + 1)));
 			int hrs_left = (int)(time_left / (60*60));
 			int min_left = ((int)(time_left - (hrs_left * 60 * 60))) / 60;
 			//printf("%5.4fs, appr. %2dh %2dm left.\n", seq_time, hrs_left, min_left);
@@ -197,6 +198,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 				}
 				printf("\n***\nResuming training...\n");
 				avg_seq_cost = 0;
+				avg_seq_time = 0;
 				wipe(n);
 			}
 			free(seq);
@@ -204,6 +206,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			clock_gettime(CLOCK_REALTIME, &end);
 			struct timespec elapsed = diff(start, end);
 			seq_time = (double)elapsed.tv_sec + ((double)elapsed.tv_nsec) / 1000000000;
+			avg_seq_time += seq_time;
 		}
 		while(seq && n->seq_len > 0);
 		fclose(fp);

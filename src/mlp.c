@@ -8,7 +8,6 @@
 #include <string.h>
 
 #include <logistic.kernel>
-#include <mlp.kernel>
 #include <mlp.h>
 
 #ifdef SIEKNET_USE_GPU
@@ -22,15 +21,17 @@
 #ifdef SIEKNET_USE_GPU
 static cl_kernel mlp_forward_kernel;
 static cl_kernel mlp_input_gradient_kernel, mlp_parameter_gradient_kernel;
-static cl_kernel zero_init_kernel;
+static cl_kernel softmax_sum_kernel, softmax_kernel;
+static cl_kernel cost_kernel, cost_gradient_kernel;
+static cl_kernel logistic_kernel, zero_init_kernel;
 
 static int ARE_KERNELS_INITIALIZED = 0;
 void mlp_kernel_setup(){
-	char *kernels[] = {"include/nonlinear.h", "src/mlp.cl", "src/logistic.cl"};
+	char *kernels[] = {"include/logistic.h", "include/mlp.kernel", "include/logistic.kernel", "src/mlp.cl", "src/logistic.cl"};
 
 	int err = 0;
 
-	char *src = get_kernel_source(kernels, 3);
+	char *src = get_kernel_source(kernels, 5);
 	cl_program prog = build_program(src);
 	free(src);
 
@@ -55,12 +56,19 @@ void mlp_kernel_setup(){
 	softmax_kernel = clCreateKernel(prog, "softmax_kernel", &err);
 	check_error(err, "couldn't make softmax kernel");
 
+	cost_kernel = clCreateKernel(prog, "cost_kernel", &err);
+	check_error(err, "couldn't make scalar cost kernel");
+
+	cost_gradient_kernel = clCreateKernel(prog, "cost_gradient_kernel", &err);
+	check_error(err, "couldn't make cost gradient kernel");
+
 	ARE_KERNELS_INITIALIZED = 1;
 }
 #endif
 
 /*
  * Calculates the inner product of two vectors.
+ * DEPRECATED 
  */
 float inner_product(const float *x, const float *y, size_t length){
 	float sum = 0;
@@ -83,59 +91,71 @@ void xavier_init(float *params, size_t input_dim, size_t layer_size){
 
 /*
  * Does zero-init on a vector
+ * DEPRECATED
  */
 void zero_init(float *x, size_t dim){
 	for(int i = 0; i < dim; i++)
 		x[i] = 0.0;
 }
-
-
-/*
- * Calculates the gradients wrt cost function given a label vector y.
- */
-float quadratic_cost(float *o, const float *y, float *dest, size_t dim){
-	float sum = 0;
+#ifndef SIEKNET_USE_GPU
+float cpu_cost(float *o, float *y, float *dest, size_t dim, Costfn c){
+	float sum;
+	agnostic_cost_kernel(o, y, &sum, dim, c);
 	for(int i = 0; i < dim; i++){
-		dest[i] = (y[i] - o[i]);
-		sum += 0.5*(y[i]-o[i]) * (y[i]-o[i]);
+		agnostic_cost_gradient_kernel(o, y, dest, c, i);
 	}
+	//PRINTLIST(dest, dim);
 	return sum;
 }
+#else
+float gpu_cost(cl_mem o, cl_mem y, cl_mem dest, size_t dim, Costfn c){
+	const size_t one = 1;
+	const int neurons = (int)dim;
+	//cl_mem sum = get_cost_scalar();
+	cl_mem sum = get_softmax_sum(); //retrieve global softmax sum placeholder
+	check_error(clSetKernelArg(cost_kernel, 0, sizeof(cl_mem), &o), "setting CEC kernel arg 0");
+	check_error(clSetKernelArg(cost_kernel, 1, sizeof(cl_mem), &y), "setting CEC kernel arg 1");
+	check_error(clSetKernelArg(cost_kernel, 2, sizeof(cl_mem), &sum), "setting CEC kernel arg 2");
+	check_error(clSetKernelArg(cost_kernel, 3, sizeof(int), &neurons), "setting CEC kernel arg 3");
+	check_error(clSetKernelArg(cost_kernel, 4, sizeof(Costfn), &c), "setting CEC kernel arg 4");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), cost_kernel, 1, NULL, &one, NULL, 0, NULL, NULL), "couldn't enqueue cost scalar kernel");
+	//check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), softmax_sum_kernel, 1, NULL, &one, NULL, 0, NULL, NULL), "couldn't do softmax sum");
 
-float cross_entropy_cost(float *o, const float *y, float *dest, size_t dim){
-	float sum = 0;
-	for(int i = 0; i < dim; i++){
-		if(o[i] > 0.9999) o[i] = 0.9999;
-		if(o[i] < 0.0001) o[i] = 0.0001;
-		float grad = (y[i]/o[i]) - ((1-y[i])/(1-o[i]));
-		if(isnan(grad)){
-			printf("ERROR: cross_entropy_cost(): got a nan from y: %f, o: %f\n", y[i], o[i]);
-			exit(1);
-		}
-		/*
-#ifdef DEBUG
-		if(grad > MAX_GRAD){
-			printf("WARNING: cross_entropy_cost(): cost gradient massive (%5.3f). Is there an issue with the label (%5.3f)?\n", grad, y[i]);
-			grad = MAX_GRAD;
-		}
-		if(grad < -MAX_GRAD){
-			printf("WARNING: cross_entropy_cost(): cost gradient massive (%5.3f). Is there an issue with the label (%5.3f)?\n", grad, y[i]);
-			grad = -MAX_GRAD;
-		}
+	check_error(clSetKernelArg(cost_gradient_kernel, 0, sizeof(cl_mem), &o), "setting CEC kernel arg 0");
+	check_error(clSetKernelArg(cost_gradient_kernel, 1, sizeof(cl_mem), &y), "setting CEC kernel arg 1");
+	check_error(clSetKernelArg(cost_gradient_kernel, 2, sizeof(cl_mem), &dest), "setting CEC kernel arg 2");
+	check_error(clSetKernelArg(cost_gradient_kernel, 3, sizeof(Costfn), &c), "setting cost grad kernel arg 3");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), cost_gradient_kernel, 1, NULL, &dim, NULL, 0, NULL, NULL), "couldn't enqueue cost scalar kernel");
+
+	float ret;
+	check_error(clEnqueueReadBuffer(get_opencl_queue0(), sum, 1, 0, sizeof(float), &ret, 0, NULL, NULL), "error reading cost from gpu");
+	check_error(clFinish(get_opencl_queue0()), "waiting for cost kernels to finish\n");
+	return ret;
+
+}
 #endif
-		*/
-		dest[i] = grad;
-		sum += -(y[i] * log(o[i]) + (1-y[i]) * log(1-o[i]));
-	}
-	return sum;
+
+#ifndef SIEKNET_USE_GPU
+float cpu_mlp_cost(MLP *n, float *y){
+	float *o = n->layers[n->depth-1].output;
+	float *dest = n->cost_gradient;
+	return cpu_cost(o, y, dest, n->output_dimension, n->cost_fn);
 }
-
-
-
+#else
+float gpu_mlp_cost(MLP *n, float *y){
+	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->output_label, 1, 0, sizeof(float) * n->output_dimension, y, 0, NULL, NULL), "enqueuing label");
+	cl_mem o = n->layers[n->depth-1].output;
+	cl_mem dest = n->cost_gradient;
+	return gpu_cost(o, n->output_label, dest, n->output_dimension, n->cost_fn);
+}
+#endif
 
 float mlp_cost(MLP *n, float *y){
-	//PRINTLIST(n->output, n->output_dimension);
-	return n->cost_fn(n->output, y, n->cost_gradient, n->output_dimension);
+#ifndef SIEKNET_USE_GPU
+	return cpu_mlp_cost(n, y);
+#else
+	return gpu_mlp_cost(n, y);
+#endif
 }
 
 /* 
@@ -219,9 +239,10 @@ MLP cpu_mlp_from_arr(size_t arr[], size_t size){
 
 	n.param_grad = ALLOCATE(float, num_params);
 
-	n.cost_gradient = (float*)malloc(n.output_dimension * sizeof(float));
+	//n.cost_gradient = (float*)malloc(n.output_dimension * sizeof(float));
+	n.cost_gradient = ALLOCATE(float, n.output_dimension);
 	n.layers = ALLOCATE(MLP_layer, (size-1));
-	n.cost_fn = cross_entropy_cost;
+	n.cost_fn = cross_entropy;
 
 	int param_idx = 0;
 	for(int i = 1; i < size; i++){
@@ -281,12 +302,15 @@ MLP gpu_mlp_from_arr(size_t arr[], size_t size){
 	n.network_input = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.input_dimension, NULL, &err);
 	check_error(err, "creating temp input buffer");
 
-	n.network_grad = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.output_dimension, NULL, &err);
-	check_error(err, "creating network grad buffer on line ");
+	//n.cost_gradient = ALLOCATE(float, n.output_dimension);
+	n.cost_gradient = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.output_dimension, NULL, &err);
+	check_error(err, "creating network grad buffer");
+
+	n.output_label = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.output_dimension, NULL, &err);
+	check_error(err, "creating output label buffer");
 
 	n.output = ALLOCATE(float, n.output_dimension);
-	n.cost_gradient = ALLOCATE(float, n.output_dimension);
-	n.cost_fn = cross_entropy_cost;
+	n.cost_fn = cross_entropy;
 
 	return n;
 }
@@ -343,6 +367,7 @@ void gpu_mlp_layer_forward(MLP_layer *l, cl_mem input, cl_mem params){
 		check_error(clSetKernelArg(softmax_kernel, 2, sizeof(cl_mem), &smsum), "setting softmax arg 2");
 		check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), softmax_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't do softmax sum");
 	}
+	check_error(clFinish(get_opencl_queue0()), "waiting for logistic kernels to finish");
 }
 #endif
 
@@ -374,7 +399,7 @@ void gpu_mlp_forward(MLP *n, float *x){
 		input = l->output;
 	}
 	
-	clEnqueueReadBuffer(get_opencl_queue0(), input, 1, 0, sizeof(float) * n->output_dimension, n->output, 0, NULL, NULL);
+	check_error(clEnqueueReadBuffer(get_opencl_queue0(), input, 1, 0, sizeof(float) * n->output_dimension, n->output, 0, NULL, NULL), "reading network output");
 	check_error(clFinish(get_opencl_queue0()), "couldn't wait for queue0 to end");
 
 	n->guess = 0;
@@ -399,6 +424,7 @@ void cpu_mlp_layer_backward(MLP_layer *l, float *grads, float *params, float *pa
 }
 #else
 void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem param_grad){
+	//printf("setting mlp backward kernel args\n");
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 0, sizeof(cl_mem), &grad), "setting input grad kernel arg 0");
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 1, sizeof(cl_mem), &l->output), "setting input grad kernel arg 1");
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 2, sizeof(cl_mem), &params), "setting input grad kernel arg 2");
@@ -407,8 +433,10 @@ void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem par
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 5, sizeof(int), &l->param_offset), "setting input grad kernel arg 4");
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 6, sizeof(int), &l->size), "setting input grad kernel arg 5");
 	check_error(clSetKernelArg(mlp_input_gradient_kernel, 7, sizeof(int), &l->input_dimension), "setting input grad kernel arg 6");
+	//printf("enqueueing input grad kernel\n");
 	check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), mlp_input_gradient_kernel, 1, NULL, &l->input_dimension, NULL, 0, NULL, NULL), "couldn't enqueue input grad kernel");
-
+	
+	//printf("setting mlp param grad kernel args\n");
 	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 0, sizeof(cl_mem), &grad), "setting param grad kernel arg 0");
 	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 1, sizeof(cl_mem), &l->output), "setting param grad kernel arg 1");
 	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 2, sizeof(cl_mem), &l->input), "setting param grad kernel arg 2");
@@ -417,9 +445,12 @@ void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem par
 	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 5, sizeof(int), &l->param_offset), "setting param grad kernel arg 5");
 	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 6, sizeof(int), &l->size), "setting param grad kernel arg 6");
 	check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 7, sizeof(int), &l->input_dimension), "setting param grad kernel arg 7");
+	//printf("enqueueing param grad kerenl\n");
 	check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), mlp_parameter_gradient_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue param grad kernel");
-
+	
+	//printf("calling clfinsihg\n");
 	check_error(clFinish(get_opencl_queue0()), "waiting for queue 0 to finish executing (forward pass)");
+	//printf("done!\n");
 }
 #endif
 
@@ -440,9 +471,9 @@ void cpu_mlp_backward(MLP *n){
 }
 #else
 void gpu_mlp_backward(MLP *n){
-	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->network_grad, 1, 0, sizeof(float) * n->output_dimension, n->cost_gradient, 0, NULL, NULL), "enqueuing network grads");
+	//check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->network_grad, 1, 0, sizeof(float) * n->output_dimension, n->cost_gradient, 0, NULL, NULL), "enqueuing network grads");
 
-	cl_mem grads = n->network_grad;
+	cl_mem grads = n->cost_gradient;
 	int l_idx = n->depth;
 	while(l_idx --> 0){ //l_idx goes to 0
 		MLP_layer *l = &n->layers[l_idx];
@@ -456,17 +487,39 @@ void gpu_mlp_backward(MLP *n){
  * Deallocates a network's memory from the heap
  */
 void dealloc_mlp(MLP *n){
-	/*
+#ifndef SIEKNET_USE_GPU
 	for(int i = 0; i < n->depth; i++){
 		MLP_layer *l = &n->layers[i];
-		free(l->output);
+		printf("freeing layer %d input gradient\n", i);
 		free(l->input_gradient);
-		free(l->neurons);
+		printf("freeing layer %d output\n", i);
+		free(l->output);
+		printf("freeing layer %d z\n", i);
+		free(l->z);
 	}
+	printf("freeing params\n");
 	free(n->params);
+	printf("freeing param grad\n");
+	free(n->param_grad);
+	printf("freeing cost grad\n");
 	free(n->cost_gradient);
+#else
+	for(int i = 0; i < n->depth; i++){
+		printf("freeing clmem objects of layer %d\n", i);
+		MLP_layer *l = &n->layers[i];
+		check_error(clReleaseMemObject(l->input_gradient), "freeing clmem");
+		check_error(clReleaseMemObject(l->z), "freeing clmem");
+		check_error(clReleaseMemObject(l->output), "freeing clmem");
+	}
+	check_error(clReleaseMemObject(n->params), "freeing clmem");
+	check_error(clReleaseMemObject(n->param_grad), "freeing clmem");
+	check_error(clReleaseMemObject(n->network_input), "freeing clmem");
+	check_error(clReleaseMemObject(n->output_label), "freeing clmem");
+	check_error(clReleaseMemObject(n->cost_gradient), "freeing clmem");
+
+#endif
 	free(n->layers);
-	*/
+	printf("done deallocing!\n");
 }
 
 MLP mlp_from_arr(size_t arr[], size_t size){
@@ -592,6 +645,9 @@ MLP load_mlp(const char *filename){
 	int err = 0;
 	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n.params, 1, 0, sizeof(float)*n.num_params, tmp, 0, NULL, NULL), "could not enqueue layer params");
 	check_error(err, "could not write params into gpu");
+	free(tmp);
+		//printf("n.layers[2].input_dimension: %d\n", n.layers[2].input_dimension);
+		//printf("tf: %d\n", assert_equal(tmp, g2, n.layers[2].input_dimension));
 #endif
 	return n;
 }

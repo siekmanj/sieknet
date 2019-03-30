@@ -6,12 +6,18 @@
  */
 
 #include "lstm.h"
-#include "nonlinear.h"
+#include "logistic.h"
 #include <math.h>
 #include <string.h>
 
 #ifdef SIEKNET_USE_GPU
 #include "opencl_utils.h"
+cl_kernel make_onehot_kernel;
+cl_kernel rnn_forward_kernel, rnn_backward_kernel;
+cl_kernel lstm_forward_kernel;
+cl_kernel lstm_input_gradient_kernel, lstm_parameter_gradient_kernel;
+cl_kernel lstm_input_nonl_gradient_kernel, lstm_forget_gate_gradient_kernel, lstm_output_gate_gradient_kernel, lstm_dstate_kernel;
+cl_kernel logistic_kernel, zero_init_kernel;
 #endif
 
 #define ARR_FROM_SIEKNET_USE_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue0(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_SIEKNET_USE_GPU)");
@@ -60,23 +66,79 @@ void cpu_zero_2d_arr(float **arr, size_t sequence_length, size_t input_dimension
 		}
 	}
 }
+
+#ifndef SIEKNET_USE_GPU
+float cpu_lstm_cost(LSTM *n, float *y){
+	MLP_layer *mlp = &n->output_layer;
+	float *o = mlp->output;
+	float c = cpu_cost(o, y, n->mlp_cost_gradient, n->output_dimension, n->cost_fn);
+	
+	cpu_mlp_layer_backward(mlp, n->mlp_cost_gradient, n->params, n->param_grad);
+	float *grads = mlp->input_gradient;
+
+	/* copy gradient serially from mlp output layer to lstm network gradient. */
+	for(int i = 0; i < mlp->input_dimension; i++)
+		n->network_gradient[n->t][i] = grads[i];
+
+	return c;
+}
+#else
+float gpu_lstm_cost(LSTM *n, float *y){
+	MLP_layer *mlp = &n->output_layer;
+	cl_mem o = mlp->output;
+	/*
+	printf("copying y to gpu (enqueuing label)\n");
+	printf("queue: %p\n", get_opencl_queue0());
+	printf("label: %p\n", n->output_label);
+	printf("cb   : %lu\n", sizeof(float)*n->output_dimension);
+	printf("y    : %p\n", y);
+	PRINTLIST(y, n->output_dimension);
+	*/
+#ifdef SIEKNET_ONEHOT_SPEEDUP
+	int m = argmax(y, n->output_dimension);
+	check_error(clSetKernelArg(make_onehot_kernel, 0, sizeof(cl_mem), &n->output_label), "couldn't set onehot arg 0");
+	check_error(clSetKernelArg(make_onehot_kernel, 1, sizeof(int), &m), "couldn't set onehot arg 1");
+	check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), make_onehot_kernel, 1, NULL, &n->output_dimension, NULL, 0, NULL, NULL), "couldn't do onehot kernel");
+#else
+	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->output_label, 1, 0, sizeof(float) * n->output_dimension, y, 0, NULL, NULL), "enqueuing label");
+#endif
+
+	//printf("running gpu cost fn\n");
+	float c = gpu_cost(o, n->output_label, n->mlp_cost_gradient, n->output_dimension, n->cost_fn);
+	
+	//printf("running mlp backward\n");
+	gpu_mlp_layer_backward(mlp, n->mlp_cost_gradient, n->params, n->param_grad);
+
+	//printf("copying grad to net grad\n");
+	check_error(clEnqueueCopyBuffer(get_opencl_queue0(), mlp->input_gradient, n->network_gradient[n->t], 0, 0, sizeof(float) * mlp->input_dimension, 0, NULL, NULL), "copying mlp grads to lstm network grads");
+	
+	//printf("done\n");
+	return c;
+
+}
+#endif
 /*
  * Calculates the cost gradient for an lstm given a label vector y.
  * y is expected to be of size n.output_dimension. 
  */
 float lstm_cost(LSTM *n, float *y){
+#ifndef SIEKNET_USE_GPU
+	float c = cpu_lstm_cost(n, y);
+#else
+	float c = gpu_lstm_cost(n, y);
+#endif
+	n->t++;
+	return c;
+}
+/*
 	MLP_layer *mlp = &n->output_layer;
 	//float tmp[n->output_dimension];
 	float c = n->cost_fn(n->output, y, n->mlp_cost_gradient, n->output_dimension);
 
 #ifndef SIEKNET_USE_GPU
-	/* On the CPU, will run backward pass serially on softmax output layer, * 
-	 * and copy resulting gradient into lstm's network_gradient[t] array.   */
 	cpu_mlp_layer_backward(mlp, n->mlp_cost_gradient, n->params, n->param_grad);
 	float *grads = mlp->input_gradient;
 #else
-	/* On the SIEKNET_USE_GPU, will run backward pass in parallel, then use clEnqueueCopyBuffer *
-	 * to copy resulting gradient into network_gradient[t].                         */
 
 	//THIS MAY NOT WORK - TEST ON SIEKNET_USE_GPU
 	printf("WARNING: NEED TO IMPLEMENT SIEKNET_USE_GPU-SIDE COST CALC HERE!!!\n");
@@ -92,19 +154,16 @@ float lstm_cost(LSTM *n, float *y){
 		exit(1);
 	}
 #ifndef SIEKNET_USE_GPU
-	/* CPU: copy gradient serially from mlp output layer to lstm network gradient. */
 	for(int i = 0; i < mlp->input_dimension; i++)
 		n->network_gradient[t][i] = grads[i];
 #else
-	/* SIEKNET_USE_GPU: copy gradient in parallel from mlp output layer to lstm network gradient */
 	check_error(clEnqueueCopyBuffer(get_opencl_queue0(), grads, n->network_gradient[t], 0, 0, sizeof(float) * mlp->input_dimension, 0, NULL, NULL), "copying mlp grads to lstm network grads");
 #endif
 
-	/* increment network's timestep counter */
 	n->t++;
-	/* return the scalar cost from n->cost_fn. */
 	return c;
 }
+*/
 
 
 #ifndef SIEKNET_USE_GPU
@@ -235,7 +294,7 @@ LSTM cpu_lstm_from_arr(size_t *arr, size_t len){
 	n.input_dimension = arr[0];
 	n.output_dimension = arr[len-1];
 	n.depth = len-2;
-	n.cost_fn = cross_entropy_cost;
+	n.cost_fn = cross_entropy;
 
 	if(len < 3){
 		printf("ERROR: lstm_from_arr(): must have at least input dim, hidden layer size, and output dim (3 layers), but only %lu provided.\n", len);
@@ -480,22 +539,16 @@ void cpu_lstm_backward(LSTM *n){
 /******** BEGIN SIEKNET_USE_GPU-ONLY FUNCTIONS ********/
 
 
-cl_kernel make_onehot_kernel;
-cl_kernel rnn_forward_kernel, rnn_backward_kernel;
-cl_kernel lstm_forward_kernel;
-cl_kernel lstm_input_gradient_kernel, lstm_parameter_gradient_kernel;
-cl_kernel lstm_input_nonl_gradient_kernel, lstm_forget_gate_gradient_kernel, lstm_output_gate_gradient_kernel, lstm_dstate_kernel;
-cl_kernel logistic_kernel, zero_init_kernel;
 
 static int ARE_KERNELS_INITIALIZED = 0;
 void lstm_kernel_setup(){
 	mlp_kernel_setup();
 
-	char *kernels[] = {"include/conf.h", "include/nonlinear.h", "src/lstm.kernel", "src/lstm.cl", "src/rnn.cl", "src/logistic.cl"};
+	char *kernels[] = {"include/conf.h", "include/logistic.h", "include/logistic.kernel", "src/logistic.cl", "include/lstm.kernel", "src/lstm.cl", "src/rnn.cl"};
 
 	int err = 0;
 
-	char *src = get_kernel_source(kernels, 6);
+	char *src = get_kernel_source(kernels, 7);
 	cl_program prog = build_program(src);
 	free(src);
 
@@ -646,8 +699,11 @@ LSTM_layer gpu_create_LSTM_layer(size_t input_dim, size_t size, cl_mem params, i
 		check_error(err, "allocating internal lstm memory");
 	}
 	l.loutput = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err); 
+	check_error(err, "allocating internal lstm memory");
 	l.lstate = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err); 
 	check_error(err, "allocating internal lstm memory");
+	gpu_zero_2d_arr(&l.loutput, 1, l.size);
+	gpu_zero_2d_arr(&l.lstate, 1, l.size);
 
 	return l;
 }
@@ -664,7 +720,7 @@ LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
 	n.input_dimension = arr[0];
 	n.output_dimension = arr[len-1];
 	n.depth = len-2;
-	n.cost_fn = cross_entropy_cost;
+	n.cost_fn = cross_entropy;
 
 	if(len < 3){
 		printf("ERROR: lstm_from_arr(): must have at least input dim, hidden layer size, and output dim (3 layers), but only %lu provided.\n", len);
@@ -685,9 +741,12 @@ LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
 	n.param_grad = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.num_params, NULL, &err);
 	check_error(err, "creating param grad");
 
-	n.network_gradient = ALLOCATE(cl_mem, MAX_UNROLL_LENGTH);
-	n.network_input    = ALLOCATE(cl_mem, MAX_UNROLL_LENGTH);
-	n.mlp_cost_gradient= clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * arr[len-1], NULL, &err);
+	n.network_gradient  = ALLOCATE(cl_mem, MAX_UNROLL_LENGTH);
+	n.network_input     = ALLOCATE(cl_mem, MAX_UNROLL_LENGTH);
+	n.mlp_cost_gradient = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.output_dimension, NULL, &err);
+	check_error(err, "allocating gpu mem for cost grad");
+	n.output_label      = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.output_dimension, NULL, &err);
+	check_error(err, "allocating gpu mem for output label");
 
 	for(int t = 0; t < MAX_UNROLL_LENGTH; t++){
 		n.network_gradient[t] = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * arr[len-2], NULL, &err);
@@ -806,7 +865,7 @@ static void gpu_lstm_layer_forward(LSTM_layer *l, cl_mem x, cl_mem params, size_
 
 	check_error(clEnqueueCopyBuffer(get_opencl_queue0(), l->output[t], l->loutput, 0, 0, l->size * sizeof(float), 0, NULL, NULL), "copying output to loutput");
 	check_error(clEnqueueCopyBuffer(get_opencl_queue0(), l->cell_state[t], l->lstate, 0, 0, l->size * sizeof(float), 0, NULL, NULL), "copying cell state to lcell_state");
-	//check_error(clFinish(get_opencl_queue0()), "waiting for queue 0 to finish executing (forward pass)");
+	check_error(clFinish(get_opencl_queue0()), "waiting for queue 0 to finish executing (forward pass)");
 }
 
 static void gpu_lstm_forward(LSTM *n, float *x){
@@ -817,7 +876,6 @@ static void gpu_lstm_forward(LSTM *n, float *x){
 	check_error(clSetKernelArg(make_onehot_kernel, 0, sizeof(cl_mem), &n->network_input[t]), "couldn't set onehot arg 0");
 	check_error(clSetKernelArg(make_onehot_kernel, 1, sizeof(int), &m), "couldn't set onehot arg 1");
 	check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), make_onehot_kernel, 1, NULL, &n->input_dimension, NULL, 0, NULL, NULL), "couldn't do onehot kernel");
-
 #else
 	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->network_input[t], 1, 0, sizeof(float) * n->input_dimension, x, 0, NULL, NULL), "copying input");
 #endif
@@ -841,6 +899,9 @@ static void gpu_lstm_forward(LSTM *n, float *x){
 	else
 		n->guess = argmax(n->output, n->output_dimension);
 
+	//printf("about to run clfinish!\n");
+	//check_error(clFinish(get_opencl_queue0()), "debug clfinish\n");
+	//printf("ran clfinish!\n");
 }
 
 void simulate_ogate(float *gradient,

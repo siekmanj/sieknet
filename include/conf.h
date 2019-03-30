@@ -7,16 +7,17 @@
 #define SIEKNET_MAX_STATE         10.0f //the max value for any cell state in an lstm
 #define SIEKNET_MAX_UNROLL_LENGTH   600 //the max number of timesteps that can be backpropagated through (n.seq_len must be less)
 
-#define SIEKNET_STOP_ON_NAN //stop execution if any nan's are found
-#define SIEKNET_DEBUG       //print debug information during execution
 
-#define SIEKNET_ONEHOT_SPEEDUP //send only a single int across the PCI-E slot to GPU when using one-hot vectors.
+//#define SIEKNET_ONEHOT_SPEEDUP //send only a single int across the PCI-E slot to GPU when using one-hot vectors.
 
 #define SIEKNET_USE_PLATFORM 0 //use first available opencl platform
 #define SIEKNET_USE_DEVICE   0 //use first available GPU
 
 /* this is a list of compile-time options which you can
  * copy and paste above to enable
+
+#define SIEKNET_DEBUG       //print debug information during execution
+#define SIEKNET_STOP_ON_NAN //stop execution if any nan's are found
 
 
  *

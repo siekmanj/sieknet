@@ -14,7 +14,7 @@ INCLUDE=-Iinclude
 LIBS=-lm 
 GPULIBS=$(LIBS) -lOpenCL
 
-CFLAGS=-O3 -Wall -Wno-unused-function
+CFLAGS=-O0 -Wall -Wno-unused-function
 GPUFLAGS=$(CFLAGS) -DSIEKNET_USE_GPU
 
 LSTM_SRC=$(SRC_DIR)/lstm.c
@@ -52,10 +52,15 @@ sequence:
 sequence_gpu:
 	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(LSTM_SRC) $(CL_SRC) example/sequence.c -o $(BIN)/$@ $(GPULIBS)
 
-test:
-	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
-test_gpu:
-	$(CC) $(GPUFLAGS) $(INCLUDE) $(SRC_DIR)/*.c example/test.c -o $(BIN)/$@ $(GPULIBS)
+test_lstm:
+	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) example/test_lstm.c -o $(BIN)/$@ $(LIBS)
+test_lstm_gpu:
+	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) $(CL_SRC) example/test_lstm.c -o $(BIN)/$@ $(GPULIBS)
+
+test_mlp:
+	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) example/test_mlp.c -o $(BIN)/$@ $(LIBS)
+test_mlp_gpu:
+	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(CL_SRC) example/test_mlp.c -o $(BIN)/$@ $(GPULIBS)
 
 $(shell mkdir -p $(DIRS))
 
