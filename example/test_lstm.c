@@ -248,7 +248,7 @@ int main(){
 		dispose_array(tmp);
 
 		printf("\n");
-		float c1 = 1.0;//lstm_cost(&n, y1) - 3.361277;
+		float c1 = lstm_cost(&n, y1) - 3.361277;
 		if(c1 < 0) c1*=-1;
 		if(c1 > 0.0001){
 			printf("X | TEST FAILED: Cost scalar was not calculated correctly for 0th timestep.\n");

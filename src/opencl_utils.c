@@ -174,6 +174,7 @@ static cl_context create_opencl_context(){
 	str = (char*)malloc(sizeof(char)*size);
 	check_error(clGetPlatformInfo(platforms[SIEKNET_USE_PLATFORM], CL_PLATFORM_VERSION, size, str, NULL), "couldn't retrieve platform vendor");
 	printf("OPENCL_SETUP: \tPlatform version: '%s'\n", str);
+	free(str);
 
 #endif
 	return context;
