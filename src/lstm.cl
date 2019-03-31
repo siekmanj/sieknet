@@ -138,15 +138,15 @@ __kernel void lstm_parameter_gradient_kernel(__constant float *input_nonl_grad,
 			param_grad[fw_idx] += future_forget_gate_grad[i] * output[j - recurrent_offset];
 			param_grad[ow_idx] += future_output_gate_grad[i] * output[j - recurrent_offset];
 		}
-#ifdef MAX_GRAD
-		if(param_grad[aw_idx] >  MAX_GRAD) param_grad[aw_idx] =  MAX_GRAD;
-		if(param_grad[aw_idx] < -MAX_GRAD) param_grad[aw_idx] = -MAX_GRAD;
-		if(param_grad[iw_idx] >  MAX_GRAD) param_grad[iw_idx] =  MAX_GRAD;
-		if(param_grad[iw_idx] < -MAX_GRAD) param_grad[iw_idx] = -MAX_GRAD;
-		if(param_grad[fw_idx] >  MAX_GRAD) param_grad[fw_idx] =  MAX_GRAD;
-		if(param_grad[fw_idx] < -MAX_GRAD) param_grad[fw_idx] = -MAX_GRAD;
-		if(param_grad[ow_idx] >  MAX_GRAD) param_grad[ow_idx] =  MAX_GRAD;
-		if(param_grad[ow_idx] < -MAX_GRAD) param_grad[ow_idx] = -MAX_GRAD;
+#ifdef SIEKNET_MAX_GRAD
+		if(param_grad[aw_idx] >  SIEKNET_MAX_GRAD) param_grad[aw_idx] =  SIEKNET_MAX_GRAD;
+		if(param_grad[aw_idx] < -SIEKNET_MAX_GRAD) param_grad[aw_idx] = -SIEKNET_MAX_GRAD;
+		if(param_grad[iw_idx] >  SIEKNET_MAX_GRAD) param_grad[iw_idx] =  SIEKNET_MAX_GRAD;
+		if(param_grad[iw_idx] < -SIEKNET_MAX_GRAD) param_grad[iw_idx] = -SIEKNET_MAX_GRAD;
+		if(param_grad[fw_idx] >  SIEKNET_MAX_GRAD) param_grad[fw_idx] =  SIEKNET_MAX_GRAD;
+		if(param_grad[fw_idx] < -SIEKNET_MAX_GRAD) param_grad[fw_idx] = -SIEKNET_MAX_GRAD;
+		if(param_grad[ow_idx] >  SIEKNET_MAX_GRAD) param_grad[ow_idx] =  SIEKNET_MAX_GRAD;
+		if(param_grad[ow_idx] < -SIEKNET_MAX_GRAD) param_grad[ow_idx] = -SIEKNET_MAX_GRAD;
 #endif
 	}
 	const int ab_idx = w_idx + 0 * params_per_gate;
@@ -158,15 +158,15 @@ __kernel void lstm_parameter_gradient_kernel(__constant float *input_nonl_grad,
 	param_grad[ib_idx] += input_gate_grad[i];
 	param_grad[fb_idx] += forget_gate_grad[i];
 	param_grad[ob_idx] += output_gate_grad[i];
-#ifdef MAX_GRAD
-	if(param_grad[ab_idx] >  MAX_GRAD) param_grad[ab_idx] =  MAX_GRAD;
-	if(param_grad[ab_idx] < -MAX_GRAD) param_grad[ab_idx] = -MAX_GRAD;
-	if(param_grad[ab_idx] >  MAX_GRAD) param_grad[ab_idx] =  MAX_GRAD;
-	if(param_grad[ab_idx] < -MAX_GRAD) param_grad[ab_idx] = -MAX_GRAD;
-	if(param_grad[ab_idx] >  MAX_GRAD) param_grad[ab_idx] =  MAX_GRAD;
-	if(param_grad[ab_idx] < -MAX_GRAD) param_grad[ab_idx] = -MAX_GRAD;
-	if(param_grad[ab_idx] >  MAX_GRAD) param_grad[ab_idx] =  MAX_GRAD;
-	if(param_grad[ab_idx] < -MAX_GRAD) param_grad[ab_idx] = -MAX_GRAD;
+#ifdef SIEKNET_MAX_GRAD
+	if(param_grad[ab_idx] >  SIEKNET_MAX_GRAD) param_grad[ab_idx] =  SIEKNET_MAX_GRAD;
+	if(param_grad[ab_idx] < -SIEKNET_MAX_GRAD) param_grad[ab_idx] = -SIEKNET_MAX_GRAD;
+	if(param_grad[ab_idx] >  SIEKNET_MAX_GRAD) param_grad[ab_idx] =  SIEKNET_MAX_GRAD;
+	if(param_grad[ab_idx] < -SIEKNET_MAX_GRAD) param_grad[ab_idx] = -SIEKNET_MAX_GRAD;
+	if(param_grad[ab_idx] >  SIEKNET_MAX_GRAD) param_grad[ab_idx] =  SIEKNET_MAX_GRAD;
+	if(param_grad[ab_idx] < -SIEKNET_MAX_GRAD) param_grad[ab_idx] = -SIEKNET_MAX_GRAD;
+	if(param_grad[ab_idx] >  SIEKNET_MAX_GRAD) param_grad[ab_idx] =  SIEKNET_MAX_GRAD;
+	if(param_grad[ab_idx] < -SIEKNET_MAX_GRAD) param_grad[ab_idx] = -SIEKNET_MAX_GRAD;
 #endif
 }
 

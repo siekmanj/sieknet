@@ -31,6 +31,7 @@ int data[] = {
 int main(void){
 	//srand(time(NULL));
 	srand(1);
+	setbuf(stdout, NULL);
 	LSTM n = create_lstm(10, 4, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
 	//LSTM n = load_lstm("./model/test.lstm");
 	Momentum o = create_optimizer(Momentum, n);
@@ -77,7 +78,7 @@ int main(void){
 		}
 
 	  if(cost/count < cost_threshold){
-			printf("\nCost threshold %1.2f reached in %d iterations\n", cost_threshold, count);
+			printf("\nCost threshold %1.2f reached in %d iterations\n", cost_threshold, epoch);
       printf("Running sequence:\n");
       wipe(&n);
       printf("1, ");
