@@ -20,7 +20,7 @@ cl_kernel lstm_input_nonl_gradient_kernel, lstm_forget_gate_gradient_kernel, lst
 cl_kernel logistic_kernel, zero_init_kernel;
 #endif
 
-#define ARR_FROM_SIEKNET_USE_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue0(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_SIEKNET_USE_GPU)");
+#define ARR_FROM_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue0(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_SIEKNET_USE_GPU)");
 
 #define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
 #define ALLOCATE(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
@@ -59,6 +59,7 @@ int argmax(float *args, size_t len){
 /*
  * Handy function for zeroing out a 2d array
  */
+#ifndef SIEKNET_USE_GPU
 void cpu_zero_2d_arr(float **arr, size_t sequence_length, size_t input_dimension){
 	for(long i = 0; i < sequence_length; i++){
 		for(long j = 0; j < input_dimension; j++){
@@ -66,6 +67,58 @@ void cpu_zero_2d_arr(float **arr, size_t sequence_length, size_t input_dimension
 		}
 	}
 }
+#else
+void gpu_zero_2d_arr(cl_mem *arr, size_t num, size_t len){
+	for(int i = 0; i < num; i++){
+		check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), &arr[i]), "couldn't set zero kernel arg");
+		check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), zero_init_kernel, 1, NULL, &len, NULL, 0, NULL, NULL), "couldn't use zero kernel");
+	}
+}
+#endif
+
+
+/*
+ * Used to reset the hidden state of the lstm
+ */ 
+#ifndef SIEKNET_USE_GPU
+static void cpu_wipe(LSTM *n){
+	for(int i = 0; i < n->depth; i++){
+		LSTM_layer *l = &n->layers[i];
+		for(long t = 0; t < MAX_UNROLL_LENGTH; t++){
+			for(long j = 0; j < l->size; j++){
+				l->cells[j].state[t] = 0;
+				l->cells[j].dstate[t] = 0;
+				l->cells[j].lstate = 0;
+				l->cells[j].loutput = 0;
+			}
+		}
+		cpu_zero_2d_arr(l->output, MAX_UNROLL_LENGTH, l->size);
+		cpu_zero_2d_arr(l->input_gradient, MAX_UNROLL_LENGTH, l->input_dimension);
+	}
+	cpu_zero_2d_arr(n->network_gradient, MAX_UNROLL_LENGTH, n->layers[n->depth-1].size);
+	n->t = 0;
+}	
+#else
+void gpu_wipe(LSTM *n){
+	gpu_zero_2d_arr(n->network_gradient, MAX_UNROLL_LENGTH, n->input_dimension);
+	gpu_zero_2d_arr(n->network_input,    MAX_UNROLL_LENGTH, n->input_dimension);
+
+	for(int i = 0; i < n->depth; i++){
+		LSTM_layer *l = &n->layers[i];
+		check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), &l->loutput), "couldn't set zero kernel arg 0");
+		check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), zero_init_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't use zero kernel");
+		check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), &l->lstate), "couldn't set zero kernel arg 0");
+		check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), zero_init_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't use zero kernel");
+
+		gpu_zero_2d_arr(l->output,             MAX_UNROLL_LENGTH, l->size);
+		gpu_zero_2d_arr(l->cell_state,         MAX_UNROLL_LENGTH, l->size);
+		gpu_zero_2d_arr(l->input_nonl_output,  MAX_UNROLL_LENGTH, l->size);
+		gpu_zero_2d_arr(l->input_gate_output,  MAX_UNROLL_LENGTH, l->size);
+		gpu_zero_2d_arr(l->forget_gate_output, MAX_UNROLL_LENGTH, l->size);
+		gpu_zero_2d_arr(l->output_gate_output, MAX_UNROLL_LENGTH, l->size);
+	}
+}
+#endif
 
 #ifndef SIEKNET_USE_GPU
 float cpu_lstm_cost(LSTM *n, float *y){
@@ -86,14 +139,6 @@ float cpu_lstm_cost(LSTM *n, float *y){
 float gpu_lstm_cost(LSTM *n, float *y){
 	MLP_layer *mlp = &n->output_layer;
 	cl_mem o = mlp->output;
-	/*
-	printf("copying y to gpu (enqueuing label)\n");
-	printf("queue: %p\n", get_opencl_queue0());
-	printf("label: %p\n", n->output_label);
-	printf("cb   : %lu\n", sizeof(float)*n->output_dimension);
-	printf("y    : %p\n", y);
-	PRINTLIST(y, n->output_dimension);
-	*/
 #ifdef SIEKNET_ONEHOT_SPEEDUP
 	int m = argmax(y, n->output_dimension);
 	check_error(clSetKernelArg(make_onehot_kernel, 0, sizeof(cl_mem), &n->output_label), "couldn't set onehot arg 0");
@@ -103,67 +148,16 @@ float gpu_lstm_cost(LSTM *n, float *y){
 	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->output_label, 1, 0, sizeof(float) * n->output_dimension, y, 0, NULL, NULL), "enqueuing label");
 #endif
 
-	//printf("running gpu cost fn\n");
 	float c = gpu_cost(o, n->output_label, n->mlp_cost_gradient, n->output_dimension, n->cost_fn);
 	
-	//printf("running mlp backward\n");
 	gpu_mlp_layer_backward(mlp, n->mlp_cost_gradient, n->params, n->param_grad);
 
-	//printf("copying grad to net grad\n");
 	check_error(clEnqueueCopyBuffer(get_opencl_queue0(), mlp->input_gradient, n->network_gradient[n->t], 0, 0, sizeof(float) * mlp->input_dimension, 0, NULL, NULL), "copying mlp grads to lstm network grads");
 	
-	//printf("done\n");
 	return c;
 
 }
 #endif
-/*
- * Calculates the cost gradient for an lstm given a label vector y.
- * y is expected to be of size n.output_dimension. 
- */
-float lstm_cost(LSTM *n, float *y){
-#ifndef SIEKNET_USE_GPU
-	float c = cpu_lstm_cost(n, y);
-#else
-	float c = gpu_lstm_cost(n, y);
-#endif
-	n->t++;
-	return c;
-}
-/*
-	MLP_layer *mlp = &n->output_layer;
-	//float tmp[n->output_dimension];
-	float c = n->cost_fn(n->output, y, n->mlp_cost_gradient, n->output_dimension);
-
-#ifndef SIEKNET_USE_GPU
-	cpu_mlp_layer_backward(mlp, n->mlp_cost_gradient, n->params, n->param_grad);
-	float *grads = mlp->input_gradient;
-#else
-
-	//THIS MAY NOT WORK - TEST ON SIEKNET_USE_GPU
-	printf("WARNING: NEED TO IMPLEMENT SIEKNET_USE_GPU-SIDE COST CALC HERE!!!\n");
-
-	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->mlp_cost_gradient, 0, 0, sizeof(float) * n->output_dimension, tmp, 0, NULL, NULL), "enqueuing cost gradient");
-	gpu_mlp_layer_backward(mlp, n->mlp_cost_gradient, n->params, n->param_grad);
-	cl_mem grads = mlp->input_gradient;
-#endif
-	
-	size_t t = n->t;
-	if(mlp->input_dimension != n->layers[n->depth-1].size){
-		printf("ERROR: cost_wrapper(): Size mismatch between mlp output layer and final lstm layer (%lu vs %lu)\n", mlp->input_dimension, n->layers[n->depth-1].size);
-		exit(1);
-	}
-#ifndef SIEKNET_USE_GPU
-	for(int i = 0; i < mlp->input_dimension; i++)
-		n->network_gradient[t][i] = grads[i];
-#else
-	check_error(clEnqueueCopyBuffer(get_opencl_queue0(), grads, n->network_gradient[t], 0, 0, sizeof(float) * mlp->input_dimension, 0, NULL, NULL), "copying mlp grads to lstm network grads");
-#endif
-
-	n->t++;
-	return c;
-}
-*/
 
 
 #ifndef SIEKNET_USE_GPU
@@ -186,27 +180,6 @@ static Gate createGate(float *weights, float *bias, float *weight_grad, float *b
 
 	return g;
 }
-
-/*
- * Used to reset the hidden state of the lstm
- */ 
-static void cpu_wipe(LSTM *n){
-	for(int i = 0; i < n->depth; i++){
-		LSTM_layer *l = &n->layers[i];
-		for(long t = 0; t < MAX_UNROLL_LENGTH; t++){
-			for(long j = 0; j < l->size; j++){
-				l->cells[j].state[t] = 0;
-				l->cells[j].dstate[t] = 0;
-				l->cells[j].lstate = 0;
-				l->cells[j].loutput = 0;
-			}
-		}
-		cpu_zero_2d_arr(l->output, MAX_UNROLL_LENGTH, l->size);
-		cpu_zero_2d_arr(l->input_gradient, MAX_UNROLL_LENGTH, l->input_dimension);
-	}
-	cpu_zero_2d_arr(n->network_gradient, MAX_UNROLL_LENGTH, n->layers[n->depth-1].size);
-	n->t = 0;
-}	
 
 /*
  * Used to initialize & allocate memory for a layer of LSTM cells
@@ -430,6 +403,8 @@ void cpu_lstm_forward(LSTM *n, float *x){
 void cpu_lstm_layer_backward(LSTM_layer *l, float **grads, size_t MAX_TIME){
 	int recurrent_offset = l->input_dimension - l->size;
 	for(long t = MAX_TIME; t >= 0; t--){
+		for(long j = 0; j < l->input_dimension; j++)
+			l->input_gradient[t][j] = 0.0f;
 		for(long j = 0; j < l->size; j++){
 			Cell *c = &l->cells[j];
 			Gate *a = &c->input_nonl;
@@ -465,17 +440,27 @@ void cpu_lstm_layer_backward(LSTM_layer *l, float **grads, size_t MAX_TIME){
 				l->input_gradient[t][k] += o->gradient[t] * o->weights[k];
 			}
 			for(long k = 0; k < recurrent_offset; k++){
+				//printf("made weight %d of neuron %d by adding %f * %f = %f\n", k, j, a->gradient[t], l->input[t][k], a->weight_grad[k]);
 				a->weight_grad[k] += a->gradient[t] * l->input[t][k];
 				i->weight_grad[k] += i->gradient[t] * l->input[t][k];
 				f->weight_grad[k] += f->gradient[t] * l->input[t][k];
 				o->weight_grad[k] += o->gradient[t] * l->input[t][k];
+				//getchar();
 			}
 			if(t < MAX_TIME){
 				for(long k = recurrent_offset; k < l->input_dimension; k++){
+//#define STUPID
+#ifdef STUPID
 					a->weight_grad[k] += a->gradient[t+1] * l->output[t][j];
 					i->weight_grad[k] += i->gradient[t+1] * l->output[t][j];
 					f->weight_grad[k] += f->gradient[t+1] * l->output[t][j];
 					o->weight_grad[k] += o->gradient[t+1] * l->output[t][j];
+#else
+					a->weight_grad[k] += a->gradient[t+1] * l->output[t][k - recurrent_offset];
+					i->weight_grad[k] += i->gradient[t+1] * l->output[t][k - recurrent_offset];
+					f->weight_grad[k] += f->gradient[t+1] * l->output[t][k - recurrent_offset];
+					o->weight_grad[k] += o->gradient[t+1] * l->output[t][k - recurrent_offset];
+#endif
 #ifdef STOP_ON_NAN
 					if(isnan(a->weights[k])){
 						printf("ERROR: layer_backward(): nan'ed a weight grad, from %6.5f * %6.5f\n", a->gradient[t+1], l->output[t][j]);
@@ -513,7 +498,7 @@ void cpu_lstm_layer_backward(LSTM_layer *l, float **grads, size_t MAX_TIME){
 }
 
 /*
- * Performs parameter update for all LSTM layers
+ * Performs parameter gradient calculation for all LSTM layers
  */
 void cpu_lstm_backward(LSTM *n){
 	if(n->t >= n->seq_len){
@@ -522,11 +507,13 @@ void cpu_lstm_backward(LSTM *n){
 			cpu_lstm_layer_backward(&n->layers[i], grads, n->t-1);
 			grads = n->layers[i].input_gradient;
 		}
+		/*
 		for(int i = 0; i < n->depth; i++){
 			LSTM_layer *l = &n->layers[i];
 			cpu_zero_2d_arr(l->output, MAX_UNROLL_LENGTH, l->size);
 			cpu_zero_2d_arr(l->input_gradient, MAX_UNROLL_LENGTH, l->input_dimension);
 		}
+		*/
 		if(!n->stateful) wipe(n);
 		n->t = 0;
 	}
@@ -589,32 +576,6 @@ void lstm_kernel_setup(){
 	
 }
 
-void gpu_zero_2d_arr(cl_mem *arr, size_t num, size_t len){
-	for(int i = 0; i < num; i++){
-		check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), &arr[i]), "couldn't set zero kernel arg");
-		check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), zero_init_kernel, 1, NULL, &len, NULL, 0, NULL, NULL), "couldn't use zero kernel");
-	}
-}
-
-void gpu_wipe(LSTM *n){
-	gpu_zero_2d_arr(n->network_gradient, MAX_UNROLL_LENGTH, n->input_dimension);
-	gpu_zero_2d_arr(n->network_input,    MAX_UNROLL_LENGTH, n->input_dimension);
-
-	for(int i = 0; i < n->depth; i++){
-		LSTM_layer *l = &n->layers[i];
-		check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), &l->loutput), "couldn't set zero kernel arg 0");
-		check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), zero_init_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't use zero kernel");
-		check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), &l->lstate), "couldn't set zero kernel arg 0");
-		check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), zero_init_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't use zero kernel");
-
-		gpu_zero_2d_arr(l->output,             MAX_UNROLL_LENGTH, l->size);
-		gpu_zero_2d_arr(l->cell_state,         MAX_UNROLL_LENGTH, l->size);
-		gpu_zero_2d_arr(l->input_nonl_output,  MAX_UNROLL_LENGTH, l->size);
-		gpu_zero_2d_arr(l->input_gate_output,  MAX_UNROLL_LENGTH, l->size);
-		gpu_zero_2d_arr(l->forget_gate_output, MAX_UNROLL_LENGTH, l->size);
-		gpu_zero_2d_arr(l->output_gate_output, MAX_UNROLL_LENGTH, l->size);
-	}
-}
 
 LSTM_layer gpu_create_LSTM_layer(size_t input_dim, size_t size, cl_mem params, int param_offset){
 	LSTM_layer l;
@@ -890,6 +851,7 @@ static void gpu_lstm_forward(LSTM *n, float *x){
 
 	gpu_mlp_layer_forward(&n->output_layer, input, n->params);
 
+#ifndef SIEKNET_GPU_NO_OUTPUT
 	check_error(clEnqueueReadBuffer(get_opencl_queue0(), n->output_layer.output, 1, 0, sizeof(float) * n->output_layer.size, n->output, 0, NULL, NULL), "error reading output from gpu");
 
 	check_error(clFinish(get_opencl_queue0()), "waiting for kernels to finish executing (forward pass)");
@@ -898,12 +860,87 @@ static void gpu_lstm_forward(LSTM *n, float *x){
 		n->guess = sample_softmax(n->output, n->output_dimension);
 	else
 		n->guess = argmax(n->output, n->output_dimension);
+#endif
 
 	//printf("about to run clfinish!\n");
 	//check_error(clFinish(get_opencl_queue0()), "debug clfinish\n");
 	//printf("ran clfinish!\n");
 }
 
+/*
+void simulate_parameter_grad(float *input_nonl_grad,
+														 float *input_gate_grad,
+														 float *forget_gate_grad,
+														 float *output_gate_grad,
+														 float *future_input_nonl_grad,
+														 float *future_input_gate_grad,
+														 float *future_forget_gate_grad,
+														 float *future_output_gate_grad,
+														 float *param_grad,
+														 float *input,
+														 float *output,
+														 const int use_future_grads,
+														 const int size,
+														 const int input_dimension,
+														 const int layer_param_offset,
+														 const int skipdist){
+	for(int i = 0; i < size; i++){
+		const int recurrent_offset = input_dimension - size;
+		const int params_per_gate = input_dimension+1; 
+		const int w_idx = layer_param_offset + (skipdist * i); //cell param offset
+		for(int j = 0; j < input_dimension; j++){
+			const int aw_idx = w_idx + 0 * params_per_gate + 1 + j;
+			const int iw_idx = w_idx + 1 * params_per_gate + 1 + j;
+			const int fw_idx = w_idx + 2 * params_per_gate + 1 + j;
+			const int ow_idx = w_idx + 3 * params_per_gate + 1 + j;
+			
+			if(j < recurrent_offset){
+				param_grad[aw_idx] += input_nonl_grad[i]  * input[j];
+				param_grad[iw_idx] += input_gate_grad[i]  * input[j];
+				param_grad[fw_idx] += forget_gate_grad[i] * input[j];
+				param_grad[ow_idx] += output_gate_grad[i] * input[j];
+				//printf("made weight %d of neuron %d by adding %f * %f: %f\n", j, i, input_nonl_grad[i], input[j], param_grad[aw_idx]);
+
+			}else if(use_future_grads){
+				param_grad[aw_idx] += future_input_nonl_grad[i]  * output[j - recurrent_offset];
+				param_grad[iw_idx] += future_input_gate_grad[i]  * output[j - recurrent_offset];
+				param_grad[fw_idx] += future_forget_gate_grad[i] * output[j - recurrent_offset];
+				param_grad[ow_idx] += future_output_gate_grad[i] * output[j - recurrent_offset];
+				//printf("made recurrent weight %d of neuron %d by adding %f * %f = %f\n", j, i, future_input_nonl_grad[i], output[j - recurrent_offset], param_grad[aw_idx]);
+			}
+			//getchar();
+#ifdef SIEKNET_MAX_GRAD
+			if(param_grad[aw_idx] >  SIEKNET_MAX_GRAD) param_grad[aw_idx] =  SIEKNET_MAX_GRAD;
+			if(param_grad[aw_idx] < -SIEKNET_MAX_GRAD) param_grad[aw_idx] = -SIEKNET_MAX_GRAD;
+			if(param_grad[iw_idx] >  SIEKNET_MAX_GRAD) param_grad[iw_idx] =  SIEKNET_MAX_GRAD;
+			if(param_grad[iw_idx] < -SIEKNET_MAX_GRAD) param_grad[iw_idx] = -SIEKNET_MAX_GRAD;
+			if(param_grad[fw_idx] >  SIEKNET_MAX_GRAD) param_grad[fw_idx] =  SIEKNET_MAX_GRAD;
+			if(param_grad[fw_idx] < -SIEKNET_MAX_GRAD) param_grad[fw_idx] = -SIEKNET_MAX_GRAD;
+			if(param_grad[ow_idx] >  SIEKNET_MAX_GRAD) param_grad[ow_idx] =  SIEKNET_MAX_GRAD;
+			if(param_grad[ow_idx] < -SIEKNET_MAX_GRAD) param_grad[ow_idx] = -SIEKNET_MAX_GRAD;
+#endif
+		}
+		const int ab_idx = w_idx + 0 * params_per_gate;
+		const int ib_idx = w_idx + 1 * params_per_gate;
+		const int fb_idx = w_idx + 2 * params_per_gate;
+		const int ob_idx = w_idx + 3 * params_per_gate;
+
+		param_grad[ab_idx] += input_nonl_grad[i];
+		param_grad[ib_idx] += input_gate_grad[i];
+		param_grad[fb_idx] += forget_gate_grad[i];
+		param_grad[ob_idx] += output_gate_grad[i];
+#ifdef SIEKNET_MAX_GRAD
+		if(param_grad[ab_idx] >  SIEKNET_MAX_GRAD) param_grad[ab_idx] =  SIEKNET_MAX_GRAD;
+		if(param_grad[ab_idx] < -SIEKNET_MAX_GRAD) param_grad[ab_idx] = -SIEKNET_MAX_GRAD;
+		if(param_grad[ab_idx] >  SIEKNET_MAX_GRAD) param_grad[ab_idx] =  SIEKNET_MAX_GRAD;
+		if(param_grad[ab_idx] < -SIEKNET_MAX_GRAD) param_grad[ab_idx] = -SIEKNET_MAX_GRAD;
+		if(param_grad[ab_idx] >  SIEKNET_MAX_GRAD) param_grad[ab_idx] =  SIEKNET_MAX_GRAD;
+		if(param_grad[ab_idx] < -SIEKNET_MAX_GRAD) param_grad[ab_idx] = -SIEKNET_MAX_GRAD;
+		if(param_grad[ab_idx] >  SIEKNET_MAX_GRAD) param_grad[ab_idx] =  SIEKNET_MAX_GRAD;
+		if(param_grad[ab_idx] < -SIEKNET_MAX_GRAD) param_grad[ab_idx] = -SIEKNET_MAX_GRAD;
+#endif
+	}
+}
 void simulate_ogate(float *gradient,
 									 float *state,
 									 float *output_gate_out,
@@ -923,7 +960,8 @@ void simulate_ogate(float *gradient,
 		output_gate_gradient[i] = cell_grad * HYPERTAN(state[i]) * differentiate(output_gate_out[i], gate_fn);
 	}
 }
-static void gpu_lstm_layer_backward(LSTM_layer *l, cl_mem *grad, cl_mem params, cl_mem param_grad, size_t MAX_TIME){
+*/
+static void gpu_lstm_layer_backward(LSTM_layer *l, cl_mem *grad, cl_mem params, cl_mem param_grad, size_t MAX_TIME, size_t num_p){
 	
 	int recurrent_offset = l->input_dimension - l->size;
 	
@@ -1024,10 +1062,10 @@ static void gpu_lstm_layer_backward(LSTM_layer *l, cl_mem *grad, cl_mem params, 
 			check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 6, sizeof(cl_mem), &l->forget_gate_gradient[t+1]), "lstm input grad arg 6");
 			check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 7, sizeof(cl_mem), &l->output_gate_gradient[t+1]), "lstm input grad arg 7");
 		}else{
-			check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 4, sizeof(cl_mem), &l->input_nonl_gradient[t]), "lstm input grad arg 4");
-			check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 5, sizeof(cl_mem), &l->input_gate_gradient[t]), "lstm input grad arg 5");
-			check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 6, sizeof(cl_mem), &l->forget_gate_gradient[t]), "lstm input grad arg 6");
-			check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 7, sizeof(cl_mem), &l->output_gate_gradient[t]), "lstm input grad arg 7");
+			check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 4, sizeof(cl_mem), NULL), "lstm input grad arg 4");
+			check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 5, sizeof(cl_mem), NULL), "lstm input grad arg 5");
+			check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 6, sizeof(cl_mem), NULL), "lstm input grad arg 6");
+			check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 7, sizeof(cl_mem), NULL), "lstm input grad arg 7");
 		}
 		check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 8,  sizeof(cl_mem), &param_grad), "lstm input grad arg 8");
 		check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 9,  sizeof(cl_mem), &l->input[t]), "lstm input grad arg 9");
@@ -1038,6 +1076,7 @@ static void gpu_lstm_layer_backward(LSTM_layer *l, cl_mem *grad, cl_mem params, 
 		check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 14, sizeof(int), &l->param_offset), "lstm input grad arg 14");
 		check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 15, sizeof(int), &params_per_cell), "lstm input grad arg 15");
 		check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), lstm_parameter_gradient_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't use parameter gradient kernel");
+		
 	}
 }
 
@@ -1046,7 +1085,7 @@ static void gpu_lstm_backward(LSTM *n){
 		cl_mem *grads = n->network_gradient;
 		for(int i = n->depth-1; i >= 0; i--){
 			LSTM_layer *l = &n->layers[i];
-			gpu_lstm_layer_backward(l, grads, n->params, n->param_grad, n->t-1);
+			gpu_lstm_layer_backward(l, grads, n->params, n->param_grad, n->t-1, n->num_params);
 			grads = n->layers[i].input_gradient;
 		}
 		/*
@@ -1055,10 +1094,10 @@ static void gpu_lstm_backward(LSTM *n){
 			gpu_zero_2d_arr(n->layers[i].output, MAX_UNROLL_LENGTH, n->layers[i].size);
 		}
 		*/
-		check_error(clFinish(get_opencl_queue0()), "waiting for kernels to finish executing (backward pass)");
 		if(!n->stateful)
 			gpu_wipe(n);
 		n->t = 0;
+		check_error(clFinish(get_opencl_queue0()), "waiting for kernels to finish executing (backward pass)");
 	}
 }
 
@@ -1072,12 +1111,34 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 #endif
 }
 
+void wipe(LSTM *n){
+#ifdef SIEKNET_USE_GPU
+	gpu_wipe(n);
+#else
+	cpu_wipe(n);
+#endif
+}
+
 void lstm_forward(LSTM *n, float *x){
 #ifdef SIEKNET_USE_GPU
 	gpu_lstm_forward(n, x);
 #else
 	cpu_lstm_forward(n, x);
 #endif
+}
+
+/*
+ * Calculates the cost gradient for an lstm given a label vector y.
+ * y is expected to be of size n.output_dimension. 
+ */
+float lstm_cost(LSTM *n, float *y){
+#ifndef SIEKNET_USE_GPU
+	float c = cpu_lstm_cost(n, y);
+#else
+	float c = gpu_lstm_cost(n, y);
+#endif
+	n->t++;
+	return c;
 }
 
 void lstm_backward(LSTM *n){
@@ -1088,13 +1149,6 @@ void lstm_backward(LSTM *n){
 #endif
 }
 
-void wipe(LSTM *n){
-#ifdef SIEKNET_USE_GPU
-	gpu_wipe(n);
-#else
-	cpu_wipe(n);
-#endif
-}
 
 void dealloc_lstm(LSTM *n){
 	/*

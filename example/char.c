@@ -12,9 +12,7 @@
 
 #define CREATEONEHOT(name, size, index) float name[size]; memset(name, '\0', size*sizeof(float)); name[index] = 1.0;
 
-#define USE_MOMENTUM 1
-
-#define CHAR_OUTPUT 0
+#define USE_MOMENTUM 
 
 typedef uint8_t bool;
 
@@ -25,8 +23,8 @@ size_t ASCII_RANGE			 = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$
 size_t SAMPLE_EVERY			 = 100;
 size_t SAMPLE_CHARS			 = 1000;
 
-float LEARNING_RATE			 = 0.0001;
-float MOMENTUM					 = 0.95;
+float LEARNING_RATE			 = 0.005;
+float MOMENTUM					 = 0.99;
 
 /*
  * This file is for training an LSTM character-by-character on any text (ascii) file provided.
@@ -89,6 +87,8 @@ void sample(LSTM *n, size_t chars, char seed){
 int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float learning_rate){
 	/* Begin training */
 
+	//SGD o = create_optimizer(SGD, *n);
+	//o.learning_rate = learning_rate;
 	Momentum o = create_optimizer(Momentum, *n);
 	o.alpha = learning_rate;
 	o.beta = MOMENTUM;
@@ -118,6 +118,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 		n->seq_len	= SEQ_LEN;
 		n->stateful = 1;
 		o.alpha = learning_schedule[i];
+		//o.learning_rate = learning_schedule[i];
 
 		FILE *fp = fopen(datafile, "rb");
 		fseek(fp, 0, SEEK_SET);
@@ -158,6 +159,7 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 						avg_seq_cost / (sequence_counter % training_iterations + 1), 
 						avg_cost/sequence_counter, 
 						last_epoch_cost,
+						//o.learning_rate
 						o.alpha
 					 );
 			float seq_cost = 0;
@@ -171,7 +173,9 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 				float c = lstm_cost(n, y);
 				lstm_backward(n);
 
-				if(!n->t) o.step(o);
+				if(!n->t){
+					o.step(o);
+				}
 
 				seq_cost += c;
 				ctr++;
