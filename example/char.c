@@ -23,7 +23,7 @@ size_t ASCII_RANGE			 = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$
 size_t SAMPLE_EVERY			 = 100;
 size_t SAMPLE_CHARS			 = 1000;
 
-float LEARNING_RATE			 = 0.005;
+float LEARNING_RATE			 = 0.0001;
 float MOMENTUM					 = 0.99;
 
 /*
@@ -142,26 +142,27 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			clock_gettime(CLOCK_REALTIME, &start);
 
 			float completion = ((float)ctr/datafilelen);
-			float time_left = (1-completion) * (datafilelen / n->seq_len) * ((avg_seq_time / (sequence_counter % training_iterations + 1)));
-			int hrs_left = (int)(time_left / (60*60));
-			int min_left = ((int)(time_left - (hrs_left * 60 * 60))) / 60;
-			//printf("%5.4fs, appr. %2dh %2dm left.\n", seq_time, hrs_left, min_left);
-			printf("seqlen %3lu | (%3lu)/(%3lu) | (%5.4f s, appr. %2dh %2dmin left) | epoch %2d %4.2f%% | last %3lu seqs: %4.3f | epoch cost: %5.4f | previous epoch: %5.4f | lr: %7.6f\r",
-						n->seq_len, 
-						sequence_counter % training_iterations + 1 , 
-						training_iterations,
-						seq_time,
-						hrs_left,
-						min_left,
-						i,
-						100 * completion, 
-						sequence_counter % training_iterations + 1, 
-						avg_seq_cost / (sequence_counter % training_iterations + 1), 
-						avg_cost/sequence_counter, 
-						last_epoch_cost,
-						//o.learning_rate
-						o.alpha
-					 );
+			if(sequence_counter % training_iterations){
+				float time_left = (1-completion) * (datafilelen / n->seq_len) * ((avg_seq_time / ((sequence_counter % training_iterations))));
+				int hrs_left = (int)(time_left / (60*60));
+				int min_left = ((int)(time_left - (hrs_left * 60 * 60))) / 60;
+				printf("seqlen %3lu | (%3lu)/(%3lu) | (%5.4f s, appr. %2dh %2dmin left) | epoch %2d %4.2f%% | last %3lu seqs: %4.3f | epoch cost: %5.4f | previous epoch: %5.4f | lr: %7.6f\r",
+							n->seq_len, 
+							sequence_counter % training_iterations, 
+							training_iterations,
+							seq_time,
+							hrs_left,
+							min_left,
+							i,
+							100 * completion, 
+							sequence_counter % training_iterations, 
+							avg_seq_cost / (sequence_counter % training_iterations), 
+							avg_cost/sequence_counter, 
+							last_epoch_cost,
+							//o.learning_rate
+							o.alpha
+						 );
+			}
 			float seq_cost = 0;
 			for(int j = 0; j < n->seq_len; j++){
 				char label = seq[j];
@@ -186,6 +187,10 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			avg_cost += seq_cost / n->seq_len;
 			sequence_counter++;
 
+			clock_gettime(CLOCK_REALTIME, &end);
+			struct timespec elapsed = diff(start, end);
+			seq_time = (double)elapsed.tv_sec + ((double)elapsed.tv_nsec) / 1000000000;
+			avg_seq_time += seq_time;
 			if(!(sequence_counter % (training_iterations))){
 				printf("\n");
 				wipe(n);
@@ -207,10 +212,6 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 			}
 			free(seq);
 			seq = get_sequence(fp, &n->seq_len);
-			clock_gettime(CLOCK_REALTIME, &end);
-			struct timespec elapsed = diff(start, end);
-			seq_time = (double)elapsed.tv_sec + ((double)elapsed.tv_nsec) / 1000000000;
-			avg_seq_time += seq_time;
 		}
 		while(seq && n->seq_len > 0);
 		fclose(fp);
