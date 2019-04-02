@@ -1,4 +1,9 @@
 /*<<KERNEL START>>*/
+#ifdef SIEKNET_AMDGPU_READONLY_SPEEDUP
+#define __gpu_ro __constant
+#else
+#define __gpu_ro const __global
+#endif
 
 __kernel void mlp_forward_kernel(__global float *x, 
                                  __global float *z, 
