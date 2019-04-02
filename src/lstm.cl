@@ -1,10 +1,17 @@
 /*<<KERNEL START>>*/
-__kernel void lstm_forward_kernel(const __global float *input_nonl, 
-                                  const __global float *input_gate, 
-                                  const __global float *forget_gate, 
-                                  const __global float *output_gate, 
+
+#ifdef SIEKNET_AMDGPU_READONLY_SPEEDUP
+#define __gpu_ro __constant
+#else
+#define __gpu_ro const __global
+#endif
+
+__kernel void lstm_forward_kernel(__gpu_ro float *input_nonl, 
+                                  __gpu_ro float *input_gate, 
+                                  __gpu_ro float *forget_gate, 
+                                  __gpu_ro float *output_gate, 
                                   __global float *cell_state,
-                                  const __global float *cell_lstate,
+                                  __gpu_ro float *cell_lstate,
                                   __global float *layer_output){
   const int i = get_global_id(0);
   agnostic_lstm_forward_kernel(input_nonl, input_gate, forget_gate, output_gate, cell_state, cell_lstate, layer_output, i);
@@ -12,11 +19,11 @@ __kernel void lstm_forward_kernel(const __global float *input_nonl,
 }
 
 __kernel void lstm_dstate_kernel(__global float *gradient,
-                                 const __global float *state,
-                                 const __global float *output_gate_out,
-                                 const __global float *future_dstate,
-                                 const __global float *future_forget_gate_out,
-                                 const __global float *future_input_gradient,
+                                 __gpu_ro float *state,
+                                 __gpu_ro float *output_gate_out,
+                                 __gpu_ro float *future_dstate,
+                                 __gpu_ro float *future_forget_gate_out,
+                                 __gpu_ro float *future_input_gradient,
                                  __global float *dstate,
                                  const int recurrent_offset,
                                  const int use_future_grads){
@@ -34,18 +41,18 @@ __kernel void lstm_dstate_kernel(__global float *gradient,
   dstate[i] = cell_grad * output_gate_out[i] * D_HYPERTAN(HYPERTAN(state[i])) + next_dstate * next_forget;
 }
 
-__kernel void lstm_input_nonl_gradient_kernel(const __global float *dstate,
-                                              const __global float *input_gate_out,
-                                              const __global float *input_nonl_out,
+__kernel void lstm_input_nonl_gradient_kernel(__gpu_ro float *dstate,
+                                              __gpu_ro float *input_gate_out,
+                                              __gpu_ro float *input_nonl_out,
                                               __global float *input_nonl_gradient,
                                               const Nonlinearity gate_fn){
   const int i = get_global_id(0);
   input_nonl_gradient[i] = dstate[i] * input_gate_out[i] * differentiate(input_nonl_out[i], gate_fn);
 }
 
-__kernel void lstm_forget_gate_gradient_kernel(const __global float *dstate,
-                                               const __global float *last_state,
-                                               const __global float *forget_gate_out,
+__kernel void lstm_forget_gate_gradient_kernel(__gpu_ro float *dstate,
+                                               __gpu_ro float *last_state,
+                                               __gpu_ro float *forget_gate_out,
                                                __global float *forget_gate_gradient,
                                                const Nonlinearity gate_fn,
                                                const int use_past_outputs){
@@ -56,10 +63,10 @@ __kernel void lstm_forget_gate_gradient_kernel(const __global float *dstate,
     forget_gate_gradient[i] = 0.0f;
 }
 
-__kernel void lstm_output_gate_gradient_kernel(const __global float *gradient,
-                                               const __global float *state,
-                                               const __global float *output_gate_out,
-                                               const __global float *future_input_gradient,
+__kernel void lstm_output_gate_gradient_kernel(__gpu_ro float *gradient,
+                                               __gpu_ro float *state,
+                                               __gpu_ro float *output_gate_out,
+                                               __gpu_ro float *future_input_gradient,
                                                __global float *output_gate_gradient,
                                                const Nonlinearity gate_fn,
                                                const int recurrent_offset,
@@ -74,11 +81,11 @@ __kernel void lstm_output_gate_gradient_kernel(const __global float *gradient,
   output_gate_gradient[i] = cell_grad * HYPERTAN(state[i]) * differentiate(output_gate_out[i], gate_fn);
 }
 
-__kernel void lstm_input_gradient_kernel(const __global float *input_nonl_grad,
-                                         const __global float *input_gate_grad,
-                                         const __global float *forget_gate_grad,
-                                         const __global float *output_gate_grad,
-                                         const __global float *params,
+__kernel void lstm_input_gradient_kernel(__gpu_ro float *input_nonl_grad,
+                                         __gpu_ro float *input_gate_grad,
+                                         __gpu_ro float *forget_gate_grad,
+                                         __gpu_ro float *output_gate_grad,
+                                         __gpu_ro float *params,
                                          __global float *input_gradient,
                                          const int size,
                                          const int input_dimension,
@@ -100,17 +107,17 @@ __kernel void lstm_input_gradient_kernel(const __global float *input_nonl_grad,
   */
 }
 
-__kernel void lstm_parameter_gradient_kernel(const __global float *input_nonl_grad,
-                                             const __global float *input_gate_grad,
-                                             const __global float *forget_gate_grad,
-                                             const __global float *output_gate_grad,
-                                             const __global float *future_input_nonl_grad,
-                                             const __global float *future_input_gate_grad,
-                                             const __global float *future_forget_gate_grad,
-                                             const __global float *future_output_gate_grad,
+__kernel void lstm_parameter_gradient_kernel(__gpu_ro float *input_nonl_grad,
+                                             __gpu_ro float *input_gate_grad,
+                                             __gpu_ro float *forget_gate_grad,
+                                             __gpu_ro float *output_gate_grad,
+                                             __gpu_ro float *future_input_nonl_grad,
+                                             __gpu_ro float *future_input_gate_grad,
+                                             __gpu_ro float *future_forget_gate_grad,
+                                             __gpu_ro float *future_output_gate_grad,
                                              __global float *param_grad,
-                                             const __global float *input,
-                                             const __global float *output,
+                                             __gpu_ro float *input,
+                                             __gpu_ro float *output,
                                              const int use_future_grads,
                                              const int size,
                                              const int input_dimension,
