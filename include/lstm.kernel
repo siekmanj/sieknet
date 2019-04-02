@@ -13,10 +13,13 @@
 /*<<KERNEL START>>*/
 
 #define agnostic_lstm_forward_kernel(input_nonl, input_gate, forget_gate, output_gate, cell_state, cell_lstate, layer_output, i) \
-	cell_state[i] = input_nonl[i] * input_gate[i] + forget_gate[i] * cell_lstate[i]; \
-	layer_output[i] = HYPERTAN(cell_state[i]) * output_gate[i];                      \
-	if(cell_state[i] > SIEKNET_MAX_STATE) cell_state[i] = SIEKNET_MAX_STATE;         \
-	if(cell_state[i] < -SIEKNET_MAX_STATE) cell_state[i] = -SIEKNET_MAX_STATE;       \
+	if(cell_lstate[i] > SIEKNET_MAX_STATE)                                                \
+		cell_state[i] = input_nonl[i] * input_gate[i] + forget_gate[i] * SIEKNET_MAX_STATE; \
+	else if(cell_lstate[i] < -SIEKNET_MAX_STATE)                                          \
+		cell_state[i] = input_nonl[i] * input_gate[i] - forget_gate[i] * SIEKNET_MAX_STATE; \
+	else                                                                                  \
+		cell_state[i] = input_nonl[i] * input_gate[i] + forget_gate[i] * cell_lstate[i];    \
+	layer_output[i] = HYPERTAN(cell_state[i]) * output_gate[i];                           \
 	no_op()
 
 

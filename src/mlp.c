@@ -111,15 +111,14 @@ float cpu_cost(float *o, float *y, float *dest, size_t dim, Costfn c){
 float gpu_cost(cl_mem o, cl_mem y, cl_mem dest, size_t dim, Costfn c){
 	const size_t one = 1;
 	const int neurons = (int)dim;
-	//cl_mem sum = get_cost_scalar();
-	cl_mem sum = get_softmax_sum(); //retrieve global softmax sum placeholder
+	cl_mem sum = get_cost_scalar();
+	//cl_mem sum = get_softmax_sum(); //retrieve global softmax sum placeholder
 	check_error(clSetKernelArg(cost_kernel, 0, sizeof(cl_mem), &o), "setting CEC kernel arg 0");
 	check_error(clSetKernelArg(cost_kernel, 1, sizeof(cl_mem), &y), "setting CEC kernel arg 1");
 	check_error(clSetKernelArg(cost_kernel, 2, sizeof(cl_mem), &sum), "setting CEC kernel arg 2");
 	check_error(clSetKernelArg(cost_kernel, 3, sizeof(int), &neurons), "setting CEC kernel arg 3");
 	check_error(clSetKernelArg(cost_kernel, 4, sizeof(Costfn), &c), "setting CEC kernel arg 4");
 	check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), cost_kernel, 1, NULL, &one, NULL, 0, NULL, NULL), "couldn't enqueue cost scalar kernel");
-	//check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), softmax_sum_kernel, 1, NULL, &one, NULL, 0, NULL, NULL), "couldn't do softmax sum");
 
 	check_error(clSetKernelArg(cost_gradient_kernel, 0, sizeof(cl_mem), &o), "setting CEC kernel arg 0");
 	check_error(clSetKernelArg(cost_gradient_kernel, 1, sizeof(cl_mem), &y), "setting CEC kernel arg 1");

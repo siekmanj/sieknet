@@ -8,7 +8,8 @@
 #include "lstm.h"
 #include "optimizer.h"
 
-#define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
+#define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%10.9f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
+#define ARR_FROM_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue0(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_SIEKNET_USE_GPU)");
 
 /*
  * This is a simple demonstration of something a generic neural network would find difficult.
@@ -72,7 +73,7 @@ int main(void){
 
 			count++;	
 		
-			if(!(epoch % 10)){
+			if(!(epoch % 10) && !i){
 				printf("iter %d: label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", epoch, label, data[i], guess, c, cost/count, guess == label);
 			}
 		}

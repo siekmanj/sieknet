@@ -362,10 +362,6 @@ void cpu_lstm_layer_forward(LSTM_layer *l, float *input, size_t t){
 			printf("                      : made %6.5f from %6.5f * %6.5f + %6.5f * %6.5f\n", c->state[t], a->output[t], i->output[t], f->output[t], c->lstate);
 			exit(1);
 		}
-		if(c->state[t] > 8000 || c->state[t] < -8000){
-			printf("WARNING: lstm_layer_forward(): c[%ld]->state[%lu] (%6.5f) is unusually large and may lead to exploding gradients!\n", j, t, c->state[t]);
-			printf("                      : made %6.5f from %6.5f * %6.5f + %6.5f * %6.5f\n", c->state[t], a->output[t], i->output[t], f->output[t], c->lstate);
-		}
 #endif
 		c->lstate = c->state[t]; //Set the last timestep's cell state to the current one for the next timestep
 		c->loutput = l->output[t][j];
@@ -446,6 +442,16 @@ void cpu_lstm_layer_backward(LSTM_layer *l, float **grads, size_t MAX_TIME){
 				f->weight_grad[k] += f->gradient[t] * l->input[t][k];
 				o->weight_grad[k] += o->gradient[t] * l->input[t][k];
 				//getchar();
+#ifdef SIEKNET_MAX_GRAD
+				if(a->weight_grad[k] > SIEKNET_MAX_GRAD)       a->weight_grad[k] = SIEKNET_MAX_GRAD;
+				else if(a->weight_grad[k] < -SIEKNET_MAX_GRAD) a->weight_grad[k] = -SIEKNET_MAX_GRAD;
+				if(i->weight_grad[k] > SIEKNET_MAX_GRAD)       i->weight_grad[k] = SIEKNET_MAX_GRAD;
+				else if(i->weight_grad[k] < -SIEKNET_MAX_GRAD) i->weight_grad[k] = -SIEKNET_MAX_GRAD;
+				if(f->weight_grad[k] > SIEKNET_MAX_GRAD)       f->weight_grad[k] = SIEKNET_MAX_GRAD;
+				else if(f->weight_grad[k] < -SIEKNET_MAX_GRAD) f->weight_grad[k] = -SIEKNET_MAX_GRAD;
+				if(o->weight_grad[k] > SIEKNET_MAX_GRAD)       o->weight_grad[k] = SIEKNET_MAX_GRAD;
+				else if(o->weight_grad[k] < -SIEKNET_MAX_GRAD) o->weight_grad[k] = -SIEKNET_MAX_GRAD;
+#endif
 			}
 			if(t < MAX_TIME){
 				for(long k = recurrent_offset; k < l->input_dimension; k++){
