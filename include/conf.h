@@ -4,8 +4,8 @@
 /*<<KERNEL START>>*/
 
 #define SIEKNET_DEBUG       //print debug information during execution
-#define SIEKNET_MAX_GRAD           0.25f //the max gradient of any parameter across all network types
-#define SIEKNET_MAX_STATE         50.00f //the max value for any cell state in an lstm
+#define SIEKNET_MAX_GRAD           0.1f //the max gradient of any parameter across all network types
+#define SIEKNET_MAX_STATE         15.00f //the max value for any cell state in an lstm
 #define SIEKNET_MAX_UNROLL_LENGTH    100 //the max number of timesteps that can be backpropagated through (n.seq_len must be less)
 
 
