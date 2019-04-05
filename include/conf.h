@@ -31,7 +31,7 @@
  * through time. The seq_len attribute of the network must be strictly less
  * than SIEKNET_MAX_UNROLL_LENGTH.
  */
-#define SIEKNET_MAX_UNROLL_LENGTH    100
+#define SIEKNET_MAX_UNROLL_LENGTH    200
 
 /*
  * Buffers that are not written to are passed in as __constant, significantly 

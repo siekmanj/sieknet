@@ -18,12 +18,12 @@ typedef uint8_t bool;
 
 size_t HIDDEN_LAYER_SIZE = 512;
 size_t NUM_EPOCHS				 = 10;
-size_t SEQ_LEN					 = 75;
+size_t SEQ_LEN					 = 150;
 size_t ASCII_RANGE			 = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 size_t SAMPLE_EVERY			 = 100;
 size_t SAMPLE_CHARS			 = 1000;
 
-float LEARNING_RATE			 = 0.0001;
+float LEARNING_RATE			 = 0.000075;
 float MOMENTUM					 = 0.99;
 
 /*
@@ -232,8 +232,8 @@ int main(int argc, char** argv){
 	printf("																					 \n");
 	printf("ascii-nn recurrent neural network interface.\n");
 
-	//srand(time(NULL));
-	srand(1);
+	srand(time(NULL));
+	//srand(1);
 	setbuf(stdout, NULL);
 
 	bool newlstm;
