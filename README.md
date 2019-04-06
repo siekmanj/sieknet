@@ -1,5 +1,5 @@
 # sieknet
-## A dependency-free neural network library written in C
+## A dependency-free recurrent neural network library written in C
 This is a recurrent neural network and deep learning library written in C which implements various machine learning algorithms. I have mostly focused on recurrent and memory-based networks while writing this, because these interest me the most. 
 
 It has no mandatory dependencies and is written completely from scratch - all you need to compile and run this code is `gcc` or any C compiler.
