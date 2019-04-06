@@ -7,7 +7,6 @@
 #include <math.h>
 #include <string.h>
 
-#include <logistic.kernel>
 #include <mlp.h>
 
 #ifdef SIEKNET_USE_GPU
@@ -27,11 +26,11 @@ static cl_kernel logistic_kernel, zero_init_kernel;
 
 static int ARE_KERNELS_INITIALIZED = 0;
 void mlp_kernel_setup(){
-	char *kernels[] = {"include/logistic.h", "include/mlp.kernel", "include/logistic.kernel", "src/mlp.cl", "src/logistic.cl"};
+	char *kernels[] = {"include/logistic.h", "include/mlp.h", "src/mlp.cl", "src/logistic.cl"};
 
 	int err = 0;
 
-	char *src = get_kernel_source(kernels, 5);
+	char *src = get_kernel_source(kernels, 4);
 	cl_program prog = build_program(src);
 	free(src);
 
@@ -89,22 +88,15 @@ void xavier_init(float *params, size_t input_dim, size_t layer_size){
 	}
 }
 
-/*
- * Does zero-init on a vector
- * DEPRECATED
- */
-void zero_init(float *x, size_t dim){
-	for(int i = 0; i < dim; i++)
-		x[i] = 0.0;
-}
+
 #ifndef SIEKNET_USE_GPU
 float cpu_cost(float *o, float *y, float *dest, size_t dim, Costfn c){
 	float sum;
 	agnostic_cost_kernel(o, y, &sum, dim, c);
-	for(int i = 0; i < dim; i++){
-		agnostic_cost_gradient_kernel(o, y, dest, c, i);
-	}
-	//PRINTLIST(dest, dim);
+
+	for(int i = 0; i < dim; i++)
+    dest[i] = cost_gradient(o[i], y[i], c);
+	
 	return sum;
 }
 #else
@@ -326,7 +318,8 @@ void cpu_mlp_layer_forward(MLP_layer *l, float *input, float *params){
 	}
 	if(l->logistic != softmax){
 		for(int i = 0; i < l->size; i++){
-			agnostic_logistic_kernel(l->z, l->output, l->logistic, i);
+      l->output[i] = activate(l->z[i], l->logistic);
+			//agnostic_logistic_kernel(l->z, l->output, l->logistic, i);
 		}
 	}else{
 		float smsum;

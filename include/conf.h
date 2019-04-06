@@ -6,7 +6,7 @@
 /*
  * Print debug information during execution.
  */
-//#define SIEKNET_DEBUG
+#define SIEKNET_DEBUG
 
 /*
  * In noisy datasets, it can be necessary to clip gradients to avoid destructive parameter
@@ -78,7 +78,6 @@
  * to work on GPU.
  */
 //#define SIEKNET_STOP_ON_NAN //stop execution if any nan's are found
-
 
 /*<<KERNEL END>>*/
 #define throw_err(s) printf("%s\n", s); exit(1);
