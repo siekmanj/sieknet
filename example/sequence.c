@@ -8,6 +8,8 @@
 #include "lstm.h"
 #include "optimizer.h"
 
+#define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%10.9f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
+#define ARR_FROM_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue0(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_SIEKNET_USE_GPU)");
 
 /*
  * This is a simple demonstration of something a generic neural network would find difficult.
@@ -28,21 +30,17 @@ int data[] = {
 };
 
 int main(void){
-	srand(time(NULL));
-	LSTM n = create_lstm(10, 45, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
-	//n.learning_rate = 0.01;
-  //Momentum o = create_optimizer(Momentum, n);
-  //o.alpha = 0.0001;
-  //o.beta = 0.99;
-	//SGD o = create_optimizer(SGD, n);
- 	//o.learning_rate = 0.05;
+	//srand(time(NULL));
+	srand(1);
+	setbuf(stdout, NULL);
+	LSTM n = create_lstm(10, 4, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
+	//LSTM n = load_lstm("./model/test.lstm");
 	Momentum o = create_optimizer(Momentum, n);
-	o.alpha = 0.001;
-	//SGD o1 = init_SGD(n.params, n.param_grad, n.num_params - n.output_layer.num_params);
-	//SGD o2 = init_SGD(n.output_layer.params, n.output_layer.param_grad, n.output_layer.num_params);
+ 	o.alpha = 0.005;
+	o.beta = 0.95;
 
 	float cost = 0;
-	float cost_threshold = 0.4;
+	float cost_threshold = 0.5;
 	int count = 0;
 
 	for(int epoch = 0; epoch < 100000; epoch++){ //Train for 1000 epochs.
@@ -65,24 +63,23 @@ int main(void){
 			float c = lstm_cost(&n, expected);
 			lstm_backward(&n);
 
-			//printf("t: %lu, mlp paramgrad: %f, lstm paramgrad: %f\n", n.t, n.output_layer.param_grad[0], n.param_grad[10]);
-			//o2.step(o2);
-      //if(!n.t && i) o1.step(o1);
-			if(!n.t) o.step(o);
+			if(!n.t){
+				o.step(o);
+			}
 
 			cost += c;
 
-			int guess = n.output_layer.guess;
+			int guess = n.guess;
 
 			count++;	
 		
-			//if(!(epoch % 1000) && label != data[i]){
-				printf("label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", label, data[i], guess, c, cost/count, guess == label);
-			//}
+			if(!(epoch % 10) && !i){
+				printf("iter %d: label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", epoch, label, data[i], guess, c, cost/count, guess == label);
+			}
 		}
 
 	  if(cost/count < cost_threshold){
-			printf("\nCost threshold %1.2f reached in %d iterations\n", cost_threshold, count);
+			printf("\nCost threshold %1.2f reached in %d iterations\n", cost_threshold, epoch);
       printf("Running sequence:\n");
       wipe(&n);
       printf("1, ");
@@ -97,6 +94,7 @@ int main(void){
         input = n.guess;
       }
 			printf("\n");
+			save_lstm(&n, "./model/test.lstm");
 			exit(0);
 		}
 	}

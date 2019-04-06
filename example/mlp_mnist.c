@@ -18,18 +18,17 @@
 
 char *modelfile = "../model/mnist.mlp";
 
-char *trainset_images = "../data/mnist/train-images.idx3-ubyte";
-char *testset_images = "../data/mnist/t10k-images.idx3-ubyte";
+char *trainset_images = "data/mnist/train-images.idx3-ubyte";
+char *testset_images = "data/mnist/t10k-images.idx3-ubyte";
 
-char *trainset_labels = "../data/mnist/train-labels.idx1-ubyte";
-char *testset_labels = "../data/mnist/t10k-labels.idx1-ubyte";
+char *trainset_labels = "data/mnist/train-labels.idx1-ubyte";
+char *testset_labels = "data/mnist/t10k-labels.idx1-ubyte";
 
 int main(void) {
 	srand(time(NULL));
 
 	//MLP n = loadMLPFromFile("../model/mnist.mlp");
-	MLP n = create_mlp(784, 250, 10);
-	//SGD o = init_sgd(n.params, n.param_grad, n.num_params);
+	MLP n = create_mlp(784, 250, 250, 10);
 	Momentum o = create_optimizer(Momentum, n);
 	o.alpha = 0.001;
 	o.beta = 0.99;

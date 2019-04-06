@@ -1,6 +1,8 @@
 # sieknet
 ## A dependency-free neural network library written in C
-This is a neural network and deep learning library written in C which implements various machine learning algorithms. It has no dependencies and is written completely from scratch - all you need to compile and run this code is `gcc` or any C compiler.
+This is a neural network and deep learning library written in C which implements various machine learning algorithms. It has no mandatory dependencies and is written completely from scratch - all you need to compile and run this code is `gcc` or any C compiler.
+
+As of April 2019, Sieknet has support for GPUs via OpenCL 1.1 (as this was the most recent version my graphics card supports). If you don't need to use the GPU, you don't need to worry about installing OpenCL - it is an optional dependency. If you would like to use the GPU, you need to #define SIEKNET_USE_GPU. You can put this in include/conf.h, or declare it with the -D flag (check the Makefile for an example).
 
 Features include:
  - [x] basic multiplayer perceptron (MLP)
@@ -8,6 +10,7 @@ Features include:
  - [x] stochastic gradient descent
  - [x] stochastic gradient descent with momentum
  - [x] backpropagation through time (BPTT)
+ - [x] GPU support (via OpenCL)
  
 Plans for the near future include:
  - [ ] nesterov's accelerated gradient optimizer
@@ -98,12 +101,11 @@ You can have as many hidden layers as you'd like, just as with an MLP.
 ```C
 LSTM n = create_lstm(10, 50, 25, 3, 350, 10); //Ditto, but with four hidden lstm layers of size 50, 25, 3, and 350.
 ```
-You can't change the logistic functions used by the lstm hidden layers, and you probably don't want to either (Hochreiter knew what he was doing). You can, however, change the logistic function used by the output layer, since it's just an MLP.
+You can't change the logistic functions used by the lstm hidden layers, and you probably don't want to either (Schmidhuber & Hochreiter knew what they were doing). You can, however, change the logistic function used by the output layer.
 ```C
 LSTM n = create_lstm(10, 20, 10);
-n.output_layer.layers[0].logistic = relu; 
+n.output_layer.logistic = relu; 
 ```
-The syntax looks a little bit gross, however. This is because the LSTM implementation uses an MLP network as its output layer. I might at some point change the implementation to use only a single MLP layer - but this would require rewriting significant chunks of the cost function code.
 
 Using the forward/backward pass functions:
 ```C
@@ -128,7 +130,7 @@ for(int i = 0; i < 6; i++){
 ```
 Note that your `n.seq_len` determines when the backward pass is run. In the above example, the gradient calculation (`lstm_backward()`) is evaluated every third timestep.
 
-You will need to decide how long to make your seq_len. If you use a sequence length longer than a few hundred, you may run into the exploding gradient problem. If your sequence data is particularly long, you can use the `n.stateful` flag to stop recurrent inputs and cell states from being zeroed out after a parameter update.
+You will need to decide how long to make your seq_len. If you use a sequence length longer than a few hundred, you may run into the exploding gradient problem. If your sequence data is particularly long, you can use the `n.stateful` flag to stop recurrent inputs and cell states from being zeroed out after a parameter update. If you absolutely need to use a large sequence length, you can change SIEKNET_MAX_UNROLL_LENGTH to pre-allocate more memory.
 ```C
 n.stateful = 1; //recurrent inputs and cell states won't be reset after a parameter update.
 n.seq_len = 30; //run parameter update (backpropagation through time) every 30 timesteps
