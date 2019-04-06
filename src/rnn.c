@@ -1,3 +1,4 @@
+#if 0
 /* Author: Jonah Siekmann
  * 
  * This is an attempt at writing a recurrent neural network (RNN).
@@ -179,3 +180,4 @@ RNN loadRNNFromFile(const char *filename){
   fclose(fp);
   return n;
 }
+#endif

@@ -49,7 +49,7 @@ int openImageSet(ImageSet *imgset, size_t size, char* imgFilename, char* labelFi
 	uint8_t *labelBuff = malloc(sizeof(uint8_t)*size);
 
 	size_t i = fread(imgBuff, sizeof(uint8_t), size, imageFile);
-	size_t l = fread(labelBuff, sizeof(uint8_t), size, labelFile);
+	//size_t l = fread(labelBuff, sizeof(uint8_t), size, labelFile);
 	if(i != size) return 0;
 
 	imgset->magic_num = extractInt32(imgBuff, 0);
