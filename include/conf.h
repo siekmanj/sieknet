@@ -79,7 +79,6 @@
  */
 //#define SIEKNET_STOP_ON_NAN //stop execution if any nan's are found
 
-
 /*<<KERNEL END>>*/
 #define throw_err(s) printf("%s\n", s); exit(1);
 

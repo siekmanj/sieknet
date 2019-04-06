@@ -23,7 +23,7 @@ size_t ASCII_RANGE			 = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$
 size_t SAMPLE_EVERY			 = 100;
 size_t SAMPLE_CHARS			 = 1000;
 
-float LEARNING_RATE			 = 0.000075;
+float LEARNING_RATE			 = 0.0001;
 float MOMENTUM					 = 0.99;
 
 /*
@@ -221,14 +221,13 @@ int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float lea
 
 int main(int argc, char** argv){
 
-	printf("made it to %d\n", __LINE__);
 	if(argc < 4){ printf("%d args needed. Usage: ./char [new/load] [path_to_modelfile] [path_to_datafile]\n", 3); exit(1);}
 
 	printf("   _____ ____________ __ _   ______________\n");
-	printf("  / ___//  _/ ____/ //_// | / / ____/_  __/\n");
+	printf("  / ___//  _/ ____/ //_// | / / ____/_	__/\n");
 	printf("  \\__ \\ / // __/ / ,<  /  |/ / __/   / /   \n");
 	printf(" ___/ // // /___/ /| |/ /|  / /___  / /    \n");
-	printf("/____/___/_____/_/ |_/_/ |_/_____/ /_/     \n");
+	printf("/____/___/_____/_/ |_/_/ |_/_____/ /_/	   \n");
 	printf("																					 \n");
 	printf("ascii-nn recurrent neural network interface.\n");
 
