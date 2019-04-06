@@ -18,68 +18,68 @@
  */
 
 int data[] = {
-	1,
-	2, 2,
-	3, 3, 3,
-	4, 4, 4, 4,
-	5, 5, 5, 5, 5,
-	6, 6, 6, 6, 6, 6,
-	7, 7, 7, 7, 7, 7, 7,
-	8, 8, 8, 8, 8, 8, 8, 8,
-	9, 9, 9, 9, 9, 9, 9, 9, 9,
+  1,
+  2, 2,
+  3, 3, 3,
+  4, 4, 4, 4,
+  5, 5, 5, 5, 5,
+  6, 6, 6, 6, 6, 6,
+  7, 7, 7, 7, 7, 7, 7,
+  8, 8, 8, 8, 8, 8, 8, 8,
+  9, 9, 9, 9, 9, 9, 9, 9, 9,
 };
 
 int main(void){
-	//srand(time(NULL));
-	srand(1);
-	setbuf(stdout, NULL);
-	LSTM n = create_lstm(10, 4, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
-	//LSTM n = load_lstm("./model/test.lstm");
-	Momentum o = create_optimizer(Momentum, n);
- 	o.alpha = 0.005;
-	o.beta = 0.95;
+  //srand(time(NULL));
+  srand(1);
+  setbuf(stdout, NULL);
+  LSTM n = create_lstm(10, 4, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
+  //LSTM n = load_lstm("./model/test.lstm");
+  Momentum o = create_optimizer(Momentum, n);
+  o.alpha = 0.005;
+  o.beta = 0.95;
 
-	float cost = 0;
-	float cost_threshold = 0.5;
-	int count = 0;
+  float cost = 0;
+  float cost_threshold = 0.5;
+  int count = 0;
 
-	for(int epoch = 0; epoch < 100000; epoch++){ //Train for 1000 epochs.
-		size_t len = sizeof(data)/sizeof(data[0]);
+  for(int epoch = 0; epoch < 100000; epoch++){ //Train for 1000 epochs.
+    size_t len = sizeof(data)/sizeof(data[0]);
     n.seq_len = len;
-		wipe(&n);
-		for(int i = 0; i < len; i++){ //Run through the entirety of the training data.
+    wipe(&n);
+    for(int i = 0; i < len; i++){ //Run through the entirety of the training data.
 
-			//Make a one-hot vector and use it to set the activations of the input layer
-			float one_hot[10];
-			memset(one_hot, '\0', 10*sizeof(float));
-			one_hot[data[i]] = 1.0;
+      //Make a one-hot vector and use it to set the activations of the input layer
+      float one_hot[10];
+      memset(one_hot, '\0', 10*sizeof(float));
+      one_hot[data[i]] = 1.0;
 
-			int label = data[(i+1) % len]; //Use the next character in the sequence as the label	
-			float expected[10];
-			memset(expected, '\0', 10*sizeof(float));
-			expected[label] = 1.0;
-			
-			lstm_forward(&n, one_hot);
-			float c = lstm_cost(&n, expected);
-			lstm_backward(&n);
+      int label = data[(i+1) % len]; //Use the next character in the sequence as the label	
+      float expected[10];
+      memset(expected, '\0', 10*sizeof(float));
+      expected[label] = 1.0;
 
-			if(!n.t){
-				o.step(o);
-			}
+      lstm_forward(&n, one_hot);
+      float c = lstm_cost(&n, expected);
+      lstm_backward(&n);
 
-			cost += c;
+      if(!n.t){
+        o.step(o);
+      }
 
-			int guess = n.guess;
+      cost += c;
 
-			count++;	
-		
-			if(!(epoch % 10) && !i){
-				printf("iter %d: label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", epoch, label, data[i], guess, c, cost/count, guess == label);
-			}
-		}
+      int guess = n.guess;
 
-	  if(cost/count < cost_threshold){
-			printf("\nCost threshold %1.2f reached in %d iterations\n", cost_threshold, epoch);
+      count++;	
+
+      if(!(epoch % 10) && !i){
+        printf("iter %d: label: %d, input: %d, output: %d, cost: %5.2f, avgcost: %5.2f, correct: %d\n", epoch, label, data[i], guess, c, cost/count, guess == label);
+      }
+    }
+
+    if(cost/count < cost_threshold){
+      printf("\nCost threshold %1.2f reached in %d iterations\n", cost_threshold, epoch);
       printf("Running sequence:\n");
       wipe(&n);
       printf("1, ");
@@ -93,9 +93,9 @@ int main(void){
         printf("%d, ", n.guess);
         input = n.guess;
       }
-			printf("\n");
-			save_lstm(&n, "./model/test.lstm");
-			exit(0);
-		}
-	}
+      printf("\n");
+      save_lstm(&n, "./model/test.lstm");
+      exit(0);
+    }
+  }
 }

@@ -2,7 +2,7 @@
 
 __kernel void logistic_kernel(__mem_rw float *x, __mem_rw float *y, Nonlinearity n){
   const int i = get_global_id(0);
-	y[i] = activate(x[i], n);
+  y[i] = activate(x[i], n);
 }
 
 __kernel void softmax_sum_kernel(__mem_rw float *z, __mem_rw float *sum, int dim){
