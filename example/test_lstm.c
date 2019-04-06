@@ -3,6 +3,7 @@
 #include <string.h>
 #include <time.h>
 #include <lstm.h>
+#include <unistd.h>
 
 #ifdef SIEKNET_USE_GPU
 #include <opencl_utils.h>

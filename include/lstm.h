@@ -5,10 +5,6 @@
 #include <stdio.h>
 #include <mlp.h>
 
-#ifndef MAX_UNROLL_LENGTH
-#define MAX_UNROLL_LENGTH 400
-#endif
-
 #define create_lstm(...) lstm_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
 typedef struct lstm_layer{

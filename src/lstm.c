@@ -144,13 +144,13 @@ static void cpu_wipe(LSTM *n){
     cpu_zero_2d_arr(&l->loutput, 1, l->size);
     cpu_zero_2d_arr(&l->lstate, 1, l->size);
 	}
-	cpu_zero_2d_arr(n->network_gradient, MAX_UNROLL_LENGTH, n->layers[n->depth-1].size);
+	cpu_zero_2d_arr(n->network_gradient, SIEKNET_MAX_UNROLL_LENGTH, n->layers[n->depth-1].size);
 	n->t = 0;
 }	
 #else
 void gpu_wipe(LSTM *n){
-	gpu_zero_2d_arr(n->network_gradient, MAX_UNROLL_LENGTH, n->input_dimension);
-	//gpu_zero_2d_arr(n->network_input,    MAX_UNROLL_LENGTH, n->input_dimension);
+	gpu_zero_2d_arr(n->network_gradient, SIEKNET_MAX_UNROLL_LENGTH, n->input_dimension);
+	//gpu_zero_2d_arr(n->network_input,    SIEKNET_MAX_UNROLL_LENGTH, n->input_dimension);
 
 	for(int i = 0; i < n->depth; i++){
 		LSTM_layer *l = &n->layers[i];
@@ -219,34 +219,34 @@ LSTM_layer cpu_create_LSTM_layer(size_t input_dim, size_t size, float *params, i
     neuron_offset += l.input_dimension+1;
 	}
 
-  l.input_nonl_z  = alloc_2d_array(MAX_UNROLL_LENGTH, l.size);
-  l.input_gate_z  = alloc_2d_array(MAX_UNROLL_LENGTH, l.size);
-  l.forget_gate_z = alloc_2d_array(MAX_UNROLL_LENGTH, l.size);
-  l.output_gate_z = alloc_2d_array(MAX_UNROLL_LENGTH, l.size);
+  l.input_nonl_z  = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
+  l.input_gate_z  = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
+  l.forget_gate_z = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
+  l.output_gate_z = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
 
-  l.input_nonl_output  = alloc_2d_array(MAX_UNROLL_LENGTH, l.size);
-  l.input_gate_output  = alloc_2d_array(MAX_UNROLL_LENGTH, l.size);
-  l.forget_gate_output = alloc_2d_array(MAX_UNROLL_LENGTH, l.size);
-  l.output_gate_output = alloc_2d_array(MAX_UNROLL_LENGTH, l.size);
+  l.input_nonl_output  = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
+  l.input_gate_output  = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
+  l.forget_gate_output = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
+  l.output_gate_output = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
 
-  l.input_nonl_gradient  = alloc_2d_array(MAX_UNROLL_LENGTH, l.size);
-  l.input_gate_gradient  = alloc_2d_array(MAX_UNROLL_LENGTH, l.size);
-  l.forget_gate_gradient = alloc_2d_array(MAX_UNROLL_LENGTH, l.size);
-  l.output_gate_gradient = alloc_2d_array(MAX_UNROLL_LENGTH, l.size);
+  l.input_nonl_gradient  = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
+  l.input_gate_gradient  = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
+  l.forget_gate_gradient = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
+  l.output_gate_gradient = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
 
-	l.input_gradient = alloc_2d_array(MAX_UNROLL_LENGTH, l.input_dimension);
-  l.cell_gradient = alloc_2d_array(MAX_UNROLL_LENGTH, l.size);
+	l.input_gradient = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.input_dimension);
+  l.cell_gradient = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
 
-  l.cell_state = alloc_2d_array(MAX_UNROLL_LENGTH, l.size);
-  l.cell_dstate = alloc_2d_array(MAX_UNROLL_LENGTH, l.size);
+  l.cell_state = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
+  l.cell_dstate = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
 
-	l.input = ALLOC(float*, MAX_UNROLL_LENGTH);
-	l.output = alloc_2d_array(MAX_UNROLL_LENGTH, l.size);
+	l.input = ALLOC(float*, SIEKNET_MAX_UNROLL_LENGTH);
+	l.output = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
 
   l.loutput = ALLOC(float, l.size);
   l.lstate  = ALLOC(float, l.size);
 
-	cpu_zero_2d_arr(l.input_gradient, MAX_UNROLL_LENGTH, l.input_dimension);
+	cpu_zero_2d_arr(l.input_gradient, SIEKNET_MAX_UNROLL_LENGTH, l.input_dimension);
 
 	return l;
 }
@@ -265,31 +265,31 @@ LSTM_layer gpu_create_LSTM_layer(size_t input_dim, size_t size, cl_mem params, i
 	}
 	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), params, 1, param_offset * sizeof(float), sizeof(float)*l.size*(l.input_dimension+1)*4, tmp, 0, NULL, NULL), "could not enqueue layer params");
 
-	l.input_nonl_z  = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
-	l.input_gate_z  = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
-	l.forget_gate_z = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
-	l.output_gate_z = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
+	l.input_nonl_z  = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+	l.input_gate_z  = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+	l.forget_gate_z = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+	l.output_gate_z = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
 
-	l.input_nonl_output  = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
-	l.input_gate_output  = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
-	l.forget_gate_output = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
-	l.output_gate_output = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
+	l.input_nonl_output  = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+	l.input_gate_output  = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+	l.forget_gate_output = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+	l.output_gate_output = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
 
-	l.input_nonl_gradient  = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
-	l.input_gate_gradient  = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
-	l.forget_gate_gradient = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
-	l.output_gate_gradient = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
+	l.input_nonl_gradient  = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+	l.input_gate_gradient  = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+	l.forget_gate_gradient = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+	l.output_gate_gradient = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
 
-	l.cell_state     = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
-	l.cell_dstate    = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
-	l.cell_gradient  = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
-	l.input_gradient = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
+	l.cell_state     = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+	l.cell_dstate    = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+	l.cell_gradient  = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+	l.input_gradient = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
 
-	l.input  = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
-	l.output = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
+	l.input  = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+	l.output = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
 
 	int err;
-	for(int t = 0; t < MAX_UNROLL_LENGTH; t++){
+	for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
 		l.input_nonl_z[t]  = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err); 
 		check_error(err, "allocating internal lstm memory");
 		l.input_gate_z[t]  = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err); 
@@ -381,14 +381,14 @@ LSTM cpu_lstm_from_arr(size_t *arr, size_t len){
 	}	
 
 	//Allocate the 2d array to store the gradients calculated by the mlp output layer
-	n.network_gradient = alloc_2d_array(MAX_UNROLL_LENGTH, arr[len-2]);
+	n.network_gradient = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, arr[len-2]);
 	
-	n.network_input = alloc_2d_array(MAX_UNROLL_LENGTH, arr[0]);
+	n.network_input = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, arr[0]);
 
 	n.mlp_cost_gradient = ALLOC(float, n.output_dimension);
 
-	cpu_zero_2d_arr(n.network_gradient, MAX_UNROLL_LENGTH, arr[len-2]);
-	cpu_zero_2d_arr(n.network_input, MAX_UNROLL_LENGTH, arr[0]);
+	cpu_zero_2d_arr(n.network_gradient, SIEKNET_MAX_UNROLL_LENGTH, arr[len-2]);
+	cpu_zero_2d_arr(n.network_input, SIEKNET_MAX_UNROLL_LENGTH, arr[0]);
 
 	n.output_layer = cpu_create_MLP_layer(arr[len-2], arr[len-1], n.params, param_idx, softmax);
 
@@ -429,22 +429,22 @@ LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
 	n.param_grad = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.num_params, NULL, &err);
 	check_error(err, "creating param grad");
 
-	n.network_gradient  = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
-	n.network_input     = ALLOC(cl_mem, MAX_UNROLL_LENGTH);
+	n.network_gradient  = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+	n.network_input     = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
 	n.mlp_cost_gradient = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.output_dimension, NULL, &err);
 	check_error(err, "allocating gpu mem for cost grad");
 	n.output_label      = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.output_dimension, NULL, &err);
 	check_error(err, "allocating gpu mem for output label");
 
-	for(int t = 0; t < MAX_UNROLL_LENGTH; t++){
+	for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
 		n.network_gradient[t] = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * arr[len-2], NULL, &err);
 		check_error(err, "couldn't make internal lstm memory (network gradient)");
 		n.network_input[t] = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * arr[0], NULL, &err);
 		check_error(err, "couldn't make internal lstm memory (network input)");
 	}
 
-	gpu_zero_2d_arr(n.network_gradient, MAX_UNROLL_LENGTH, arr[len-2]);
-	gpu_zero_2d_arr(n.network_input, MAX_UNROLL_LENGTH, arr[0]);
+	gpu_zero_2d_arr(n.network_gradient, SIEKNET_MAX_UNROLL_LENGTH, arr[len-2]);
+	gpu_zero_2d_arr(n.network_input, SIEKNET_MAX_UNROLL_LENGTH, arr[0]);
 	gpu_zero_2d_arr(&n.param_grad, 1, n.num_params);
 	
 	int param_idx = 0;
@@ -1026,7 +1026,7 @@ void dealloc_lstm(LSTM *n){
 			free(c->dstate);
 			free(c->gradient);
 		}
-		for(int t = 0; t < MAX_UNROLL_LENGTH; t++){
+		for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
 			free(l->input_gradient[t]);
 			free(l->output[t]);
 		}
@@ -1034,7 +1034,7 @@ void dealloc_lstm(LSTM *n){
 		free(l->output);
 		free(l->cells);
 	}
-	for(int t = 0; t < MAX_UNROLL_LENGTH; t++){
+	for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
 		free(n->network_gradient[t]);
 		free(n->network_input[t]);
 	}
