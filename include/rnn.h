@@ -4,46 +4,41 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
-#include "MLP.h"
 
-// some magic to allow arbitrary numbers of parameters
-#define create_rnn(...) rnn_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
+#define __mem_rw
+#define __mem_ro const
 
-typedef struct rnn_layer{
-	Neuron *neurons;
-	float *z;
-	float *lout;
-	float **gradient
-	float **output;
-	float **input;
-	size_t size;
-	size_t input_dimension;
-	void (*logistic)(const float *, float *, size_t);
+/*<<KERNEL START>>*/
 
-} RNN_layer;
+#if !defined(__mem_rw)
+#define __mem_rw __mem_rw
+#endif
 
-typedef struct rnn{
-	RNN_layer *layers;
-	size_t depth;
-	size_t num_params;
-	size_t input_dimension;
-	size_t output_dimension;
-	size_t guess;
+#if defined(SIEKNET_AMDGPU_READONLY_SPEEDUP) && !defined(__mem_ro)
+#define __mem_ro __constant
+#endif
 
-	float learning_rate;
-	float *params;
-	float *output;
+#if !defined(SIEKNET_AMDGPU_READONLY_SPEEDUP) && !defined(__mem_ro)
+#define __mem_ro const __global
+#endif
 
-	float **cost_gradient;
-	float (*cost_fn)(float *y, const float *l, float *dest, size_t);
-} RNN;
+static void agnostic_rnn_forward_kernel(__mem_ro float *x, 
+                                        __mem_ro float *r, 
+                                        __mem_rw float *z, 
+                                        __mem_ro float *params, 
+                                        const int dim,
+                                        const int size,
+                                        const int layer_param_idx,
+                                        const int skiplength,
+                                        const int i){
+  z[i] = 0.0f;                                             
+  const int w_idx = layer_param_idx + (skiplength * i);    
+  for(int j = 0; j < dim-size; j++)                  
+    z[i] += x[j] * params[w_idx + j + 1];              
+  for(int j = 0; j < size; j++)                      
+    z[i] += r[j] * params[w_idx + (dim-size) + j + 1]; 
+  z[i] += params[w_idx];                                  
+}
 
-RNN rnn_from_arr(size_t arr[], size_t size);
-RNN load_rnn(const char *filename);
-void save_rnn(RNN *, const char *filename);
-
-void rnn_forward(RNN *, float *);
-float rnn_cost(RNN *, float *);
-void rnn_backward(RNN *);
-
+/*<<KERNEL END>>*/
 #endif

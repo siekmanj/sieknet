@@ -348,6 +348,7 @@ char *get_kernel_source(char **filenames, size_t numfiles){
 		do{
 			/* if we get to the end of the file without seeing a kernel start marker, exit */
 			if(!fgets(current_line, 5000, fp)){
+        printf("In file '%s':\n", filenames[i]);
 				throw_err("unable to read kernel file, missing kernel start marker.\n");
 			}
 		}
@@ -356,6 +357,7 @@ char *get_kernel_source(char **filenames, size_t numfiles){
 		do{
 			/* if we get to the end of a kernel file without seeing the kernel end marker, exit */
 			if(!fgets(current_line, 5000, fp)){
+        printf("In file '%s':\n", filenames[i]);
 				throw_err("unable to read kernel file, missing kernel end marker.\n");
 			}
 
