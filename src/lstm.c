@@ -19,15 +19,16 @@ cl_kernel lstm_forward_kernel;
 cl_kernel lstm_input_gradient_kernel, lstm_parameter_gradient_kernel;
 cl_kernel lstm_input_nonl_gradient_kernel, lstm_forget_gate_gradient_kernel, lstm_output_gate_gradient_kernel, lstm_dstate_kernel;
 cl_kernel logistic_kernel, zero_init_kernel;
+
 static int ARE_KERNELS_INITIALIZED = 0;
 void lstm_kernel_setup(){
 	mlp_kernel_setup();
 
-	char *kernels[] = {"include/conf.h", "include/logistic.h", "include/rnn.h", "include/logistic.kernel", "src/logistic.cl", "include/lstm.h", "src/lstm.cl", "src/rnn.cl"};
+	char *kernels[] = {"include/conf.h", "include/logistic.h", "include/rnn.h", "include/lstm.h", "src/logistic.cl", "src/rnn.cl", "src/lstm.cl"};
 
 	int err = 0;
 
-	char *src = get_kernel_source(kernels, 8);
+	char *src = get_kernel_source(kernels, 7);
 	cl_program prog = build_program(src);
 	free(src);
 
@@ -142,8 +143,6 @@ static void cpu_wipe(LSTM *n){
 		LSTM_layer *l = &n->layers[i];
     cpu_zero_2d_arr(&l->loutput, 1, l->size);
     cpu_zero_2d_arr(&l->lstate, 1, l->size);
-		cpu_zero_2d_arr(l->output, MAX_UNROLL_LENGTH, l->size);
-		cpu_zero_2d_arr(l->input_gradient, MAX_UNROLL_LENGTH, l->input_dimension);
 	}
 	cpu_zero_2d_arr(n->network_gradient, MAX_UNROLL_LENGTH, n->layers[n->depth-1].size);
 	n->t = 0;
@@ -151,7 +150,7 @@ static void cpu_wipe(LSTM *n){
 #else
 void gpu_wipe(LSTM *n){
 	gpu_zero_2d_arr(n->network_gradient, MAX_UNROLL_LENGTH, n->input_dimension);
-	gpu_zero_2d_arr(n->network_input,    MAX_UNROLL_LENGTH, n->input_dimension);
+	//gpu_zero_2d_arr(n->network_input,    MAX_UNROLL_LENGTH, n->input_dimension);
 
 	for(int i = 0; i < n->depth; i++){
 		LSTM_layer *l = &n->layers[i];
@@ -159,13 +158,6 @@ void gpu_wipe(LSTM *n){
 		check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), zero_init_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't use zero kernel");
 		check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), &l->lstate), "couldn't set zero kernel arg 0");
 		check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), zero_init_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't use zero kernel");
-
-		//gpu_zero_2d_arr(l->output,             MAX_UNROLL_LENGTH, l->size);
-		//gpu_zero_2d_arr(l->cell_state,         MAX_UNROLL_LENGTH, l->size);
-		//gpu_zero_2d_arr(l->input_nonl_output,  MAX_UNROLL_LENGTH, l->size);
-		//gpu_zero_2d_arr(l->input_gate_output,  MAX_UNROLL_LENGTH, l->size);
-		//gpu_zero_2d_arr(l->forget_gate_output, MAX_UNROLL_LENGTH, l->size);
-		//gpu_zero_2d_arr(l->output_gate_output, MAX_UNROLL_LENGTH, l->size);
 	}
 }
 #endif
@@ -477,24 +469,28 @@ LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
 void cpu_lstm_layer_forward(LSTM_layer *l, float *input, float *params, size_t t, size_t nump){
 	l->input[t] = input; /* save pointer to input for backward pass */
 
+  Nonlinearity gate_fn = sigmoid;
+  Nonlinearity nonl_fn = hypertan;
+
+  int params_per_gate  = (l->input_dimension+1);
+  int input_nonl_base  = l->param_offset + 0 * params_per_gate;
+  int input_gate_base  = l->param_offset + 1 * params_per_gate;
+  int forget_gate_base = l->param_offset + 2 * params_per_gate;
+  int output_gate_base = l->param_offset + 3 * params_per_gate;
+  int skipdist         =                   4 * params_per_gate;
+
 	/* do output calculations for every cell in this layer */
 	for(int i = 0; i < l->size; i++){
-    int params_per_gate  = (l->input_dimension+1);
-    int input_nonl_base  = l->param_offset + 0 * params_per_gate;
-    int input_gate_base  = l->param_offset + 1 * params_per_gate;
-    int forget_gate_base = l->param_offset + 2 * params_per_gate;
-    int output_gate_base = l->param_offset + 3 * params_per_gate;
-    int skipdist         =                   4 * params_per_gate;
 
     agnostic_rnn_forward_kernel(input, l->loutput, l->input_nonl_z[t],  params, l->input_dimension, l->size, input_nonl_base, skipdist, i);
     agnostic_rnn_forward_kernel(input, l->loutput, l->input_gate_z[t],  params, l->input_dimension, l->size, input_gate_base, skipdist, i);
     agnostic_rnn_forward_kernel(input, l->loutput, l->forget_gate_z[t], params, l->input_dimension, l->size, forget_gate_base, skipdist, i);
     agnostic_rnn_forward_kernel(input, l->loutput, l->output_gate_z[t], params, l->input_dimension, l->size, output_gate_base, skipdist, i);
 
-    l->input_nonl_output[t][i]  = activate(l->input_nonl_z[t][i], hypertan);
-    l->input_gate_output[t][i]  = activate(l->input_gate_z[t][i], sigmoid);
-    l->forget_gate_output[t][i] = activate(l->forget_gate_z[t][i], sigmoid);
-    l->output_gate_output[t][i] = activate(l->output_gate_z[t][i], sigmoid);
+    l->input_nonl_output[t][i]  = activate(l->input_nonl_z[t][i], nonl_fn);
+    l->input_gate_output[t][i]  = activate(l->input_gate_z[t][i], gate_fn);
+    l->forget_gate_output[t][i] = activate(l->forget_gate_z[t][i], gate_fn);
+    l->output_gate_output[t][i] = activate(l->output_gate_z[t][i], gate_fn);
 
     agnostic_lstm_forward_kernel(l->input_nonl_output[t], 
                                  l->input_gate_output[t], 
@@ -610,22 +606,14 @@ void cpu_lstm_forward(LSTM *n, float *x){
 	for(int i = 0; i < n->input_dimension; i++){
 		n->network_input[t][i] = x[i];
 	}
-	//Feedforward through all LSTM layers
+	//Feedforward through all layers
 	float *input = n->network_input[t];
 	for(int i = 0; i < n->depth; i++){
 		LSTM_layer *l = &n->layers[i];
 		cpu_lstm_layer_forward(l, input, n->params, t, n->num_params);
 		input = l->output[t];
 	}
-
-	//Feedforward through final MLP layer
 	cpu_mlp_layer_forward(&n->output_layer, input, n->params);
-  /*
-  if(!(rand()%3))
-		n->guess = sample_softmax(n->output_layer.output, n->output_dimension);
-	else
-		n->guess = argmax(n->output_layer.output, n->output_dimension);
-    */
 }
 #else
 static void gpu_lstm_forward(LSTM *n, float *x){
@@ -639,7 +627,7 @@ static void gpu_lstm_forward(LSTM *n, float *x){
 	check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->network_input[t], 1, 0, sizeof(float) * n->input_dimension, x, 0, NULL, NULL), "copying input");
 #endif
 
-	//Feedforward through all LSTM layers
+	//Feedforward through all layers
 	cl_mem input = n->network_input[t];
 	for(int i = 0; i < n->depth; i++){
 		LSTM_layer *l = &n->layers[i];
@@ -659,246 +647,153 @@ static void gpu_lstm_forward(LSTM *n, float *x){
 
 
 #ifndef SIEKNET_USE_GPU
-void cpu_lstm_layer_backward(LSTM_layer *l, float **grads, size_t MAX_TIME){
-  /*
+void cpu_lstm_layer_backward(LSTM_layer *l, float **grads, float *params, float *param_grad, size_t MAX_TIME){
+
 	int recurrent_offset = l->input_dimension - l->size;
-	for(long t = MAX_TIME; t >= 0; t--){
-		for(long j = 0; j < l->input_dimension; j++)
-			l->input_gradient[t][j] = 0.0f;
-		for(long j = 0; j < l->size; j++){
-			Cell *c = &l->cells[j];
-			Gate *a = &c->input_nonl;
-			Gate *i = &c->input_gate;
-			Gate *f = &c->forget_gate;
-			Gate *o = &c->output_gate;
+	
+	Nonlinearity gate_fn = sigmoid;
+	Nonlinearity nonl_fn = hypertan;
 
-			float cell_grad;
-			float next_dstate;
-			float next_forget;
+	int params_per_cell = (l->input_dimension+1)*4;
 
-			if(t >= MAX_TIME){
-				cell_grad = grads[t][j];
-				next_dstate = 0;
-				next_forget = 0;
-			}else{
-				cell_grad = grads[t][j] + l->input_gradient[t+1][recurrent_offset + j];
-				next_dstate = c->dstate[t+1];
-				next_forget = f->output[t+1];
-			}
-			c->dstate[t] = cell_grad * o->output[t] * D_HYPERTAN(HYPERTAN(c->state[t])) + next_dstate * next_forget;
+  for(int t = MAX_TIME; t >= 0; t--){
+		int use_future_grads, use_past_outputs;
+		if(t >= MAX_TIME) use_future_grads = 0;
+		else              use_future_grads = 1;
 
-			a->gradient[t] = c->dstate[t] * i->output[t] * differentiate(a->output[t], hypertan);
-			i->gradient[t] = c->dstate[t] * a->output[t] * differentiate(i->output[t], sigmoid);
-			if(t) f->gradient[t] = c->dstate[t] * c->state[t-1] * differentiate(f->output[t], sigmoid);
-			else  f->gradient[t] = 0;
-			o->gradient[t] = cell_grad * HYPERTAN(c->state[t]) * differentiate(o->output[t], sigmoid);
+		if(!t) use_past_outputs = 0;
+		else   use_past_outputs = 1;
 
-			for(long k = 0; k < l->input_dimension; k++){
-				l->input_gradient[t][k] += a->gradient[t] * a->weights[k];
-				l->input_gradient[t][k] += i->gradient[t] * i->weights[k];
-				l->input_gradient[t][k] += f->gradient[t] * f->weights[k];
-				l->input_gradient[t][k] += o->gradient[t] * o->weights[k];
-			}
-			for(long k = 0; k < recurrent_offset; k++){
-				//printf("made weight %d of neuron %d by adding %f * %f = %f\n", k, j, a->gradient[t], l->input[t][k], a->weight_grad[k]);
-				a->weight_grad[k] += a->gradient[t] * l->input[t][k];
-				i->weight_grad[k] += i->gradient[t] * l->input[t][k];
-				f->weight_grad[k] += f->gradient[t] * l->input[t][k];
-				o->weight_grad[k] += o->gradient[t] * l->input[t][k];
-				//getchar();
-#ifdef SIEKNET_MAX_GRAD
-				if(a->weight_grad[k] > SIEKNET_MAX_GRAD)       a->weight_grad[k] = SIEKNET_MAX_GRAD;
-				else if(a->weight_grad[k] < -SIEKNET_MAX_GRAD) a->weight_grad[k] = -SIEKNET_MAX_GRAD;
-				if(i->weight_grad[k] > SIEKNET_MAX_GRAD)       i->weight_grad[k] = SIEKNET_MAX_GRAD;
-				else if(i->weight_grad[k] < -SIEKNET_MAX_GRAD) i->weight_grad[k] = -SIEKNET_MAX_GRAD;
-				if(f->weight_grad[k] > SIEKNET_MAX_GRAD)       f->weight_grad[k] = SIEKNET_MAX_GRAD;
-				else if(f->weight_grad[k] < -SIEKNET_MAX_GRAD) f->weight_grad[k] = -SIEKNET_MAX_GRAD;
-				if(o->weight_grad[k] > SIEKNET_MAX_GRAD)       o->weight_grad[k] = SIEKNET_MAX_GRAD;
-				else if(o->weight_grad[k] < -SIEKNET_MAX_GRAD) o->weight_grad[k] = -SIEKNET_MAX_GRAD;
-#endif
-			}
-			if(t < MAX_TIME){
-				for(long k = recurrent_offset; k < l->input_dimension; k++){
-//#define STUPID
-#ifdef STUPID
-					a->weight_grad[k] += a->gradient[t+1] * l->output[t][j];
-					i->weight_grad[k] += i->gradient[t+1] * l->output[t][j];
-					f->weight_grad[k] += f->gradient[t+1] * l->output[t][j];
-					o->weight_grad[k] += o->gradient[t+1] * l->output[t][j];
+    for(int i = 0; i < l->size; i++){
+      if(use_future_grads){
+        agnostic_lstm_dstate_kernel(grads[t],
+                                    l->cell_state[t],
+                                    l->output_gate_output[t],
+                                    l->cell_dstate[t+1],
+                                    l->forget_gate_output[t+1],
+                                    l->input_gradient[t+1],
+                                    l->cell_dstate[t],
+                                    recurrent_offset,
+                                    use_future_grads,
+                                    i);
+      }else{
+        agnostic_lstm_dstate_kernel(grads[t],
+                                    l->cell_state[t],
+                                    l->output_gate_output[t],
+                                    NULL,
+                                    NULL,
+                                    NULL,
+                                    l->cell_dstate[t],
+                                    recurrent_offset,
+                                    use_future_grads,
+                                    i);
+      }
+      agnostic_lstm_input_nonl_gradient_kernel(l->cell_dstate[t],
+                                          l->input_gate_output[t],
+                                          l->input_nonl_output[t],
+                                          l->input_nonl_gradient[t],
+                                          nonl_fn,
+                                          i);
+      agnostic_lstm_input_nonl_gradient_kernel(l->cell_dstate[t],
+                                          l->input_nonl_output[t],
+                                          l->input_gate_output[t],
+                                          l->input_gate_gradient[t],
+                                          gate_fn,
+                                          i);
+
+      if(use_past_outputs){
+        agnostic_lstm_forget_gate_gradient_kernel(l->cell_dstate[t],
+                                             l->cell_state[t-1],
+                                             l->forget_gate_output[t],
+                                             l->forget_gate_gradient[t],
+                                             gate_fn,
+                                             use_past_outputs,
+                                             i);
+      }else{
+        agnostic_lstm_forget_gate_gradient_kernel(l->cell_dstate[t],
+                                             NULL,
+                                             l->forget_gate_output[t],
+                                             l->forget_gate_gradient[t],
+                                             gate_fn,
+                                             use_past_outputs,
+                                             i);
+      }
+      if(use_future_grads){
+        agnostic_lstm_output_gate_gradient_kernel(grads[t],
+                                                  l->cell_state[t],
+                                                  l->output_gate_output[t],
+                                                  l->input_gradient[t+1],
+                                                  l->output_gate_gradient[t],
+                                                  gate_fn,
+                                                  recurrent_offset,
+                                                  use_future_grads,
+                                                  i);
+        agnostic_lstm_parameter_gradient_kernel(l->input_nonl_gradient[t],
+                                                l->input_gate_gradient[t],
+                                                l->forget_gate_gradient[t],
+                                                l->output_gate_gradient[t],
+                                                l->input_nonl_gradient[t+1],
+                                                l->input_gate_gradient[t+1],
+                                                l->forget_gate_gradient[t+1],
+                                                l->output_gate_gradient[t+1],
+                                                param_grad,
+                                                l->input[t],
+                                                l->output[t],
+                                                use_future_grads,
+                                                l->size,
+                                                l->input_dimension,
+                                                l->param_offset,
+                                                params_per_cell,
+                                                i);
+
+      }else{
+        agnostic_lstm_output_gate_gradient_kernel(grads[t],
+                                                  l->cell_state[t],
+                                                  l->output_gate_output[t],
+                                                  NULL,
+                                                  l->output_gate_gradient[t],
+                                                  gate_fn,
+                                                  recurrent_offset,
+                                                  use_future_grads,
+                                                  i);
+        agnostic_lstm_parameter_gradient_kernel(l->input_nonl_gradient[t],
+                                                l->input_gate_gradient[t],
+                                                l->forget_gate_gradient[t],
+                                                l->output_gate_gradient[t],
+                                                NULL,
+                                                NULL,
+                                                NULL,
+                                                NULL,
+                                                param_grad,
+                                                l->input[t],
+                                                l->output[t],
+                                                use_future_grads,
+                                                l->size,
+                                                l->input_dimension,
+                                                l->param_offset,
+                                                params_per_cell,
+                                                i);
+
+      }
+    }
+    for(int i = 0; i < l->input_dimension; i++){
+      agnostic_lstm_input_gradient_kernel(l->input_nonl_gradient[t],
+                                          l->input_gate_gradient[t],
+                                          l->forget_gate_gradient[t],
+                                          l->output_gate_gradient[t],
+                                          params,
+                                          l->input_gradient[t],
+                                          l->size,
+                                          l->input_dimension,
+                                          l->param_offset,
+                                          params_per_cell,
+                                          i);
+                                                
+    }
+  }
+}
 #else
-					a->weight_grad[k] += a->gradient[t+1] * l->output[t][k - recurrent_offset];
-					i->weight_grad[k] += i->gradient[t+1] * l->output[t][k - recurrent_offset];
-					f->weight_grad[k] += f->gradient[t+1] * l->output[t][k - recurrent_offset];
-					o->weight_grad[k] += o->gradient[t+1] * l->output[t][k - recurrent_offset];
-#endif
-#ifdef STOP_ON_NAN
-					if(isnan(a->weights[k])){
-						printf("ERROR: layer_backward(): nan'ed a weight grad, from %6.5f * %6.5f\n", a->gradient[t+1], l->output[t][j]);
-						exit(1);
-					}
-#endif
-#ifdef SIEKNET_MAX_GRAD
-					if(a->weight_grad[k] > SIEKNET_MAX_GRAD)       a->weight_grad[k] = SIEKNET_MAX_GRAD;
-					else if(a->weight_grad[k] < -SIEKNET_MAX_GRAD) a->weight_grad[k] = -SIEKNET_MAX_GRAD;
-					if(i->weight_grad[k] > SIEKNET_MAX_GRAD)       i->weight_grad[k] = SIEKNET_MAX_GRAD;
-					else if(i->weight_grad[k] < -SIEKNET_MAX_GRAD) i->weight_grad[k] = -SIEKNET_MAX_GRAD;
-					if(f->weight_grad[k] > SIEKNET_MAX_GRAD)       f->weight_grad[k] = SIEKNET_MAX_GRAD;
-					else if(f->weight_grad[k] < -SIEKNET_MAX_GRAD) f->weight_grad[k] = -SIEKNET_MAX_GRAD;
-					if(o->weight_grad[k] > SIEKNET_MAX_GRAD)       o->weight_grad[k] = SIEKNET_MAX_GRAD;
-					else if(o->weight_grad[k] < -SIEKNET_MAX_GRAD) o->weight_grad[k] = -SIEKNET_MAX_GRAD;
-#endif
-				}
-			}
-			*a->bias_grad += a->gradient[t];
-			*i->bias_grad += i->gradient[t];
-			*f->bias_grad += f->gradient[t];
-			*o->bias_grad += o->gradient[t];
-#ifdef SIEKNET_MAX_GRAD
-			if(*a->bias_grad > SIEKNET_MAX_GRAD)       *a->bias_grad = SIEKNET_MAX_GRAD;
-			else if(*a->bias_grad < -SIEKNET_MAX_GRAD) *a->bias_grad = -SIEKNET_MAX_GRAD;
-			if(*i->bias_grad > SIEKNET_MAX_GRAD)       *i->bias_grad = SIEKNET_MAX_GRAD;
-			else if(*i->bias_grad < -SIEKNET_MAX_GRAD) *i->bias_grad = -SIEKNET_MAX_GRAD;
-			if(*f->bias_grad > SIEKNET_MAX_GRAD)       *f->bias_grad = SIEKNET_MAX_GRAD;
-			else if(*f->bias_grad < -SIEKNET_MAX_GRAD) *f->bias_grad = -SIEKNET_MAX_GRAD;
-			if(*o->bias_grad > SIEKNET_MAX_GRAD)       *o->bias_grad = SIEKNET_MAX_GRAD;
-			else if(*o->bias_grad < -SIEKNET_MAX_GRAD) *o->bias_grad = -SIEKNET_MAX_GRAD;
-#endif
-		}
-	}
-  */
-}
-
-/*
- * Performs parameter gradient calculation for all LSTM layers
- */
-void cpu_lstm_backward(LSTM *n){
-	if(n->t >= n->seq_len){
-		float **grads = n->network_gradient;
-		for(int i = n->depth-1; i >= 0; i--){
-			cpu_lstm_layer_backward(&n->layers[i], grads, n->t-1);
-			grads = n->layers[i].input_gradient;
-		}
-		/*
-		for(int i = 0; i < n->depth; i++){
-			LSTM_layer *l = &n->layers[i];
-			cpu_zero_2d_arr(l->output, MAX_UNROLL_LENGTH, l->size);
-			cpu_zero_2d_arr(l->input_gradient, MAX_UNROLL_LENGTH, l->input_dimension);
-		}
-		*/
-		if(!n->stateful) wipe(n);
-		n->t = 0;
-	}
-}
-
-/********  END CPU-ONLY FUNCTIONS  ********/
-
-#else
-
-/******** BEGIN SIEKNET_USE_GPU-ONLY FUNCTIONS ********/
-
-
-
-
-
-
-
-
-
-/*
-void simulate_parameter_grad(float *input_nonl_grad,
-														 float *input_gate_grad,
-														 float *forget_gate_grad,
-														 float *output_gate_grad,
-														 float *future_input_nonl_grad,
-														 float *future_input_gate_grad,
-														 float *future_forget_gate_grad,
-														 float *future_output_gate_grad,
-														 float *param_grad,
-														 float *input,
-														 float *output,
-														 const int use_future_grads,
-														 const int size,
-														 const int input_dimension,
-														 const int layer_param_offset,
-														 const int skipdist){
-	for(int i = 0; i < size; i++){
-		const int recurrent_offset = input_dimension - size;
-		const int params_per_gate = input_dimension+1; 
-		const int w_idx = layer_param_offset + (skipdist * i); //cell param offset
-		for(int j = 0; j < input_dimension; j++){
-			const int aw_idx = w_idx + 0 * params_per_gate + 1 + j;
-			const int iw_idx = w_idx + 1 * params_per_gate + 1 + j;
-			const int fw_idx = w_idx + 2 * params_per_gate + 1 + j;
-			const int ow_idx = w_idx + 3 * params_per_gate + 1 + j;
-			
-			if(j < recurrent_offset){
-				param_grad[aw_idx] += input_nonl_grad[i]  * input[j];
-				param_grad[iw_idx] += input_gate_grad[i]  * input[j];
-				param_grad[fw_idx] += forget_gate_grad[i] * input[j];
-				param_grad[ow_idx] += output_gate_grad[i] * input[j];
-				//printf("made weight %d of neuron %d by adding %f * %f: %f\n", j, i, input_nonl_grad[i], input[j], param_grad[aw_idx]);
-
-			}else if(use_future_grads){
-				param_grad[aw_idx] += future_input_nonl_grad[i]  * output[j - recurrent_offset];
-				param_grad[iw_idx] += future_input_gate_grad[i]  * output[j - recurrent_offset];
-				param_grad[fw_idx] += future_forget_gate_grad[i] * output[j - recurrent_offset];
-				param_grad[ow_idx] += future_output_gate_grad[i] * output[j - recurrent_offset];
-				//printf("made recurrent weight %d of neuron %d by adding %f * %f = %f\n", j, i, future_input_nonl_grad[i], output[j - recurrent_offset], param_grad[aw_idx]);
-			}
-			//getchar();
-#ifdef SIEKNET_MAX_GRAD
-			if(param_grad[aw_idx] >  SIEKNET_MAX_GRAD) param_grad[aw_idx] =  SIEKNET_MAX_GRAD;
-			if(param_grad[aw_idx] < -SIEKNET_MAX_GRAD) param_grad[aw_idx] = -SIEKNET_MAX_GRAD;
-			if(param_grad[iw_idx] >  SIEKNET_MAX_GRAD) param_grad[iw_idx] =  SIEKNET_MAX_GRAD;
-			if(param_grad[iw_idx] < -SIEKNET_MAX_GRAD) param_grad[iw_idx] = -SIEKNET_MAX_GRAD;
-			if(param_grad[fw_idx] >  SIEKNET_MAX_GRAD) param_grad[fw_idx] =  SIEKNET_MAX_GRAD;
-			if(param_grad[fw_idx] < -SIEKNET_MAX_GRAD) param_grad[fw_idx] = -SIEKNET_MAX_GRAD;
-			if(param_grad[ow_idx] >  SIEKNET_MAX_GRAD) param_grad[ow_idx] =  SIEKNET_MAX_GRAD;
-			if(param_grad[ow_idx] < -SIEKNET_MAX_GRAD) param_grad[ow_idx] = -SIEKNET_MAX_GRAD;
-#endif
-		}
-		const int ab_idx = w_idx + 0 * params_per_gate;
-		const int ib_idx = w_idx + 1 * params_per_gate;
-		const int fb_idx = w_idx + 2 * params_per_gate;
-		const int ob_idx = w_idx + 3 * params_per_gate;
-
-		param_grad[ab_idx] += input_nonl_grad[i];
-		param_grad[ib_idx] += input_gate_grad[i];
-		param_grad[fb_idx] += forget_gate_grad[i];
-		param_grad[ob_idx] += output_gate_grad[i];
-#ifdef SIEKNET_MAX_GRAD
-		if(param_grad[ab_idx] >  SIEKNET_MAX_GRAD) param_grad[ab_idx] =  SIEKNET_MAX_GRAD;
-		if(param_grad[ab_idx] < -SIEKNET_MAX_GRAD) param_grad[ab_idx] = -SIEKNET_MAX_GRAD;
-		if(param_grad[ab_idx] >  SIEKNET_MAX_GRAD) param_grad[ab_idx] =  SIEKNET_MAX_GRAD;
-		if(param_grad[ab_idx] < -SIEKNET_MAX_GRAD) param_grad[ab_idx] = -SIEKNET_MAX_GRAD;
-		if(param_grad[ab_idx] >  SIEKNET_MAX_GRAD) param_grad[ab_idx] =  SIEKNET_MAX_GRAD;
-		if(param_grad[ab_idx] < -SIEKNET_MAX_GRAD) param_grad[ab_idx] = -SIEKNET_MAX_GRAD;
-		if(param_grad[ab_idx] >  SIEKNET_MAX_GRAD) param_grad[ab_idx] =  SIEKNET_MAX_GRAD;
-		if(param_grad[ab_idx] < -SIEKNET_MAX_GRAD) param_grad[ab_idx] = -SIEKNET_MAX_GRAD;
-#endif
-	}
-}
-void simulate_ogate(float *gradient,
-									 float *state,
-									 float *output_gate_out,
-									 float *future_input_gradient,
-									 float *output_gate_gradient,
-									 Nonlinearity gate_fn,
-									 int recurrent_offset,
-									 int use_future_grads,
-									 int dim){
-	for(int i = 0; i < dim; i++){
-		float cell_grad;
-		if(use_future_grads)
-			cell_grad = gradient[i] + future_input_gradient[recurrent_offset + i];
-		else
-			cell_grad = gradient[i];
-
-		output_gate_gradient[i] = cell_grad * HYPERTAN(state[i]) * differentiate(output_gate_out[i], gate_fn);
-	}
-}
-*/
-static void gpu_lstm_layer_backward(LSTM_layer *l, cl_mem *grad, cl_mem params, cl_mem param_grad, size_t MAX_TIME, size_t num_p){
+static void gpu_lstm_layer_backward(LSTM_layer *l, cl_mem *grad, cl_mem params, cl_mem param_grad, size_t MAX_TIME){
 	
 	int recurrent_offset = l->input_dimension - l->size;
 	
@@ -1017,27 +912,37 @@ static void gpu_lstm_layer_backward(LSTM_layer *l, cl_mem *grad, cl_mem params, 
 	}
 }
 
+#endif
+
+/*
+ * Performs parameter gradient calculation for all LSTM layers
+ */
+#ifndef SIEKNET_USE_GPU
+void cpu_lstm_backward(LSTM *n){
+	if(n->t >= n->seq_len){
+		float **grads = n->network_gradient;
+		for(int i = n->depth-1; i >= 0; i--){
+			cpu_lstm_layer_backward(&n->layers[i], grads, n->params, n->param_grad, n->t-1);
+			grads = n->layers[i].input_gradient;
+		}
+		if(!n->stateful) cpu_wipe(n);
+		n->t = 0;
+	}
+}
+#else
 static void gpu_lstm_backward(LSTM *n){
 	if(n->t >= n->seq_len){
 		cl_mem *grads = n->network_gradient;
 		for(int i = n->depth-1; i >= 0; i--){
 			LSTM_layer *l = &n->layers[i];
-			gpu_lstm_layer_backward(l, grads, n->params, n->param_grad, n->t-1, n->num_params);
+			gpu_lstm_layer_backward(l, grads, n->params, n->param_grad, n->t-1);
 			grads = n->layers[i].input_gradient;
 		}
-		/*
-		for(int i = n->depth-1; i >= 0; i--){
-			gpu_zero_2d_arr(n->layers[i].input_gradient, MAX_UNROLL_LENGTH, n->layers[i].input_dimension);
-			gpu_zero_2d_arr(n->layers[i].output, MAX_UNROLL_LENGTH, n->layers[i].size);
-		}
-		*/
-		if(!n->stateful)
-			gpu_wipe(n);
+		if(!n->stateful) gpu_wipe(n);
 		n->t = 0;
 		check_error(clFinish(get_opencl_queue0()), "waiting for kernels to finish executing (backward pass)");
 	}
 }
-
 #endif
 
 LSTM lstm_from_arr(size_t *arr, size_t len){
