@@ -28,6 +28,8 @@ __kernel void lstm_dstate_kernel(__global float *gradient,
                                  const int recurrent_offset,
                                  const int use_future_grads){
   const int i = get_global_id(0);
+  //agnostic_lstm_dstate_kernel(gradient, state, output_gate_out, future_dstate, future_forget_gate_out, future_input_gradient, dstate, recurrent_offset, use_future_grads, i);
+  
   float cell_grad, next_dstate, next_forget;
   if(use_future_grads){
     cell_grad = gradient[i] + future_input_gradient[recurrent_offset + i];

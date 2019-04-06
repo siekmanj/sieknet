@@ -15,6 +15,8 @@ __kernel void rnn_forward_kernel(__global float *x, // inputs
                                  const int layer_param_idx, 
                                  const int skiplength){
   const int i = get_global_id(0);
+  agnostic_rnn_forward_kernel(x, r, z, params, dim, size, layer_param_idx, skiplength, i);
+  /*
   z[i] = 0.0f;
   const int w_idx = layer_param_idx + (skiplength * i);
   float sum = 0.0f;
@@ -25,5 +27,6 @@ __kernel void rnn_forward_kernel(__global float *x, // inputs
     sum += r[j] * params[w_idx + (dim-size) + j + 1]; //recurrent weights
   }
   z[i] = sum + params[w_idx]; //wx + b
+  */
 }
 /*<<KERNEL END>>*/

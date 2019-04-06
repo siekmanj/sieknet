@@ -1,4 +1,4 @@
-/* This file is used by both the CPU and GPU versions. */
+/* This file is used by both the CPU and GPU implementations. */
 
 #include <math.h>
 #ifndef NONLINEAR_H
@@ -6,13 +6,6 @@
 
 /*<<KERNEL START>>*/
 
-#define SOFTMAX(x, y) (exp(x)/y)
-#define RELU(x)       ((0 <= x) * x)
-
-#define D_SIGMOID(x)  (x*(1-x))
-#define D_HYPERTAN(x) (1 - x*x)
-#define D_SOFTMAX(x)  (x*(1-x))
-#define D_RELU(x)     ((0 <= x) * 1)
 
 typedef enum nonlin{
 	sigmoid,
@@ -35,6 +28,15 @@ static float HYPERTAN(float x){
 	if(x < -7.0f) return -0.999998f;
 	return (exp(x) - exp(-x)) / (exp(x) + exp(-x));
 }
+
+#define RELU(x)       ((0 <= x) * x)
+
+
+#define D_SIGMOID(x)  (x*(1-x))
+#define D_HYPERTAN(x) (1 - x*x)
+#define D_SOFTMAX(x)  (x*(1-x))
+#define D_RELU(x)     ((0 <= x) * 1)
+
 
 static float CROSS_ENTROPY(float o, float y){
 	float o_n = o;
@@ -125,7 +127,34 @@ static float cost_gradient(float o, float y, Costfn c){
 	return 0.0f;
 }
 static void no_op(){}
-/*<<KERNEL END>>*/
 
+#define agnostic_softmax_kernel(z, y, sum, i) \
+	y[i] = exp(z[i]) / (*sum)
+
+#define agnostic_softmax_sum_kernel(z, sum, dim) \
+	*sum = 0.0f;                   \
+	float fmax = 0.0f;             \
+	for(int i = 0; i < dim; i++)   \
+		if(z[i] > fmax) fmax = z[i]; \
+	for(int i = 0; i < dim; i++){  \
+		*sum = *sum + exp(z[i]-fmax);      \
+		z[i] = z[i] - fmax;          \
+	}                              \
+	no_op()
+
+
+#define agnostic_cost_kernel(o, y, c, dim, type) \
+	*c = 0.0f;                      \
+	for(int i = 0; i < dim; i++){     \
+		*c = *c + cost(o[i], y[i], type); \
+	}                                 \
+	no_op()
+
+#define agnostic_cost_gradient_kernel(o, y, dest, type, i) \
+	{                                            \
+		dest[i] = cost_gradient(o[i], y[i], type); \
+	}                                            \
+	no_op()
+/*<<KERNEL END>>*/
 
 #endif
