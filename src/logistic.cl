@@ -8,7 +8,7 @@
 
 __kernel void logistic_kernel(__global float *x, __global float *y, Nonlinearity n){
   const int i = get_global_id(0);
-  agnostic_logistic_kernel(x, y, n, i);
+	y[i] = activate(x[i], n);
 }
 
 __kernel void softmax_sum_kernel(__global float *z, __global float *sum, int dim){

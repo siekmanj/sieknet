@@ -6,7 +6,7 @@
 /*
  * Print debug information during execution.
  */
-//#define SIEKNET_DEBUG
+#define SIEKNET_DEBUG
 
 /*
  * In noisy datasets, it can be necessary to clip gradients to avoid destructive parameter
