@@ -29,9 +29,9 @@ int main(void) {
 
 	//MLP n = loadMLPFromFile("../model/mnist.mlp");
 	MLP n = create_mlp(784, 250, 250, 10);
-	//SGD o = init_sgd(n.params, n.param_grad, n.num_params);
-	SGD o = create_optimizer(SGD, n);
-	o.learning_rate = 0.05;
+	Momentum o = create_optimizer(Momentum, n);
+	o.alpha = 0.001;
+	o.beta = 0.99;
 
 	//n.batch_size = 1;
 	size_t epochs = 5;
