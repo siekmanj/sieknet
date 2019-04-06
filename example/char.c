@@ -84,7 +84,7 @@ void sample(LSTM *n, size_t chars, char seed){
 	printf("\n");
 }
 
-int train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float learning_rate){
+void train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float learning_rate){
 	/* Begin training */
 
 	//SGD o = create_optimizer(SGD, *n);

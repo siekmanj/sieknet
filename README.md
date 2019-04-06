@@ -1,8 +1,12 @@
 # sieknet
 ## A dependency-free neural network library written in C
-This is a neural network and deep learning library written in C which implements various machine learning algorithms. It has no mandatory dependencies and is written completely from scratch - all you need to compile and run this code is `gcc` or any C compiler.
+This is a recurrent neural network and deep learning library written in C which implements various machine learning algorithms. I have mostly focused on recurrent and memory-based networks while writing this, because these interest me the most. 
 
-As of April 2019, Sieknet has support for GPUs via OpenCL 1.1 (as this was the most recent version my graphics card supports). If you don't need to use the GPU, you don't need to worry about installing OpenCL - it is an optional dependency. If you would like to use the GPU, you need to #define SIEKNET_USE_GPU. You can put this in include/conf.h, or declare it with the -D flag (check the Makefile for an example).
+It has no mandatory dependencies and is written completely from scratch - all you need to compile and run this code is `gcc` or any C compiler.
+
+As of April 2019, you can run sieknet on your GPU via OpenCL 1.1. If you don't need to use the GPU, you don't need to worry about installing OpenCL - it is an optional dependency. 
+
+If you would like to use the GPU, you need to #define SIEKNET_USE_GPU when compiling. You can put this in include/conf.h, or declare it with the -D flag (check the Makefile for an example).
 
 Features include:
  - [x] basic multiplayer perceptron (MLP)
