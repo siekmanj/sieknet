@@ -79,8 +79,11 @@
  */
 //#define SIEKNET_STOP_ON_NAN //stop execution if any nan's are found
 
+#define CL_USE_DEPRECATED_OPENCL_1_2_APIS
+
 /*<<KERNEL END>>*/
 #define throw_err(s) printf("%s\n", s); exit(1);
+#define ALLOC(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
 
 #endif
 

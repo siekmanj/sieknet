@@ -16,7 +16,14 @@ __kernel void rnn_forward_kernel(__mem_ro float *x, // inputs
                                  const int size,
                                  const int layer_param_idx, 
                                  const int skiplength){
-  const int i = get_global_id(0);
-  agnostic_rnn_forward_kernel(x, r, z, params, dim, size, layer_param_idx, skiplength, i);
+  agnostic_rnn_forward_kernel(x, 
+                              r, 
+                              z, 
+                              params, 
+                              dim, 
+                              size, 
+                              layer_param_idx, 
+                              skiplength, 
+                              get_global_id(0));
 }
 /*<<KERNEL END>>*/

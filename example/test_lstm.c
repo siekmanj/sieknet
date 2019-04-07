@@ -278,7 +278,7 @@ int main(){
     }
     dispose_array(tmp);
 
-    tmp = retrieve_array(n.network_gradient[0], n.layers[n.depth-1].size);
+    tmp = retrieve_array(n.recurrent_gradient[0], n.layers[n.depth-1].size);
     if(!assert_equal(tmp, rg_t1, n.layers[n.depth-1].size)){
       printf("X | TEST FAILED: LSTM recurrent layer gradient was incorrect on 0th timestep (while incrementing n.t).\n");
     }else{
@@ -336,7 +336,7 @@ int main(){
     }
     dispose_array(tmp);
 
-    tmp = retrieve_array(n.network_gradient[1], n.layers[n.depth-1].size);
+    tmp = retrieve_array(n.recurrent_gradient[1], n.layers[n.depth-1].size);
     if(!assert_equal(tmp, rg_t2, n.layers[n.depth-1].size)){
       printf("X | TEST FAILED: LSTM recurrent layer gradient was incorrect on 1st timestep (while incrementing n.t).\n");
     }else{
@@ -394,7 +394,7 @@ int main(){
     }
     dispose_array(tmp);
 
-    tmp = retrieve_array(n.network_gradient[2], n.layers[n.depth-1].size);
+    tmp = retrieve_array(n.recurrent_gradient[2], n.layers[n.depth-1].size);
     if(!assert_equal(tmp, rg_t3, n.layers[n.depth-1].size)){
       printf("X | TEST FAILED: LSTM recurrent layer gradient was incorrect on 2nd timestep (while incrementing n.t).\n");
     }else{
