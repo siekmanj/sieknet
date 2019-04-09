@@ -29,7 +29,7 @@ void mlp_kernel_setup(){
 
   int err = 0;
 
-  char *src = get_kernel_source(kernels, 4);
+  char *src = get_kernel_source(kernels, sizeof(kernels)/sizeof(kernels[0]));
   cl_program prog = build_program(src);
   free(src);
 

@@ -13,7 +13,7 @@
 #include <CL/cl.h>
 #endif
 
-#define create_mlp(...) mlp_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
+#define create_rnn(...) rnn_from_arr((size_t[]){__VA_ARGS__}, sizeof((size_t[]){__VA_ARGS__})/sizeof(size_t))
 
 typedef struct rnn_layer{
 #ifndef SIEKNET_USE_GPU 
@@ -31,8 +31,10 @@ typedef struct rnn_layer{
 
   cl_mem loutput;
 #endif
-  int param_offset;
 
+  Nonlinearity logistic;
+
+  int param_offset;
   size_t input_dimension;
   size_t size;
 } RNN_layer;
@@ -79,7 +81,6 @@ void save_rnn(RNN *n, const char *);
 
 void rnn_forward(RNN *, const float *);
 void rnn_backward(RNN *);
-
 float rnn_cost(RNN *, const float *);
 
 void rnn_wipe(RNN *);

@@ -58,6 +58,11 @@ test_lstm:
 test_lstm_gpu:
 	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) $(CL_SRC) example/test_lstm.c -o $(BIN)/$@ $(GPULIBS)
 
+test_rnn:
+	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(RNN_SRC) $(MLP_SRC) example/test_rnn.c -o $(BIN)/$@ $(LIBS)
+test_rnn_gpu:
+	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(RNN_SRC) $(MLP_SRC) $(CL_SRC) example/test_rnn.c -o $(BIN)/$@ $(GPULIBS)
+
 test_mlp:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) example/test_mlp.c -o $(BIN)/$@ $(LIBS)
 test_mlp_gpu:

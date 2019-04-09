@@ -28,7 +28,7 @@ void lstm_kernel_setup(){
 
   int err = 0;
 
-  char *src = get_kernel_source(kernels, 7);
+  char *src = get_kernel_source(kernels, sizeof(kernels)/sizeof(kernels[0]));
   cl_program prog = build_program(src);
   free(src);
 
@@ -102,44 +102,6 @@ void gpu_wipe(LSTM *n){
 }
 #endif
 
-#ifndef SIEKNET_USE_GPU
-float cpu_lstm_cost(LSTM *n, float *y){
-  MLP_layer *mlp = &n->output_layer;
-  float *o = mlp->output;
-  float c = cpu_cost(o, y, n->cost_gradient, n->output_dimension, n->cost_fn);
-
-  cpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad);
-  float *grads = mlp->input_gradient;
-
-  /* copy gradient serially from mlp output layer to lstm network gradient. */
-  for(int i = 0; i < mlp->input_dimension; i++)
-    n->recurrent_gradient[n->t][i] = grads[i];
-
-  return c;
-}
-#else
-float gpu_lstm_cost(LSTM *n, float *y){
-  MLP_layer *mlp = &n->output_layer;
-  cl_mem o = mlp->output;
-#ifdef SIEKNET_ONEHOT_SPEEDUP
-  int m = argmax(y, n->output_dimension);
-  check_error(clSetKernelArg(make_onehot_kernel, 0, sizeof(cl_mem), &n->output_label), "couldn't set onehot arg 0");
-  check_error(clSetKernelArg(make_onehot_kernel, 1, sizeof(int), &m), "couldn't set onehot arg 1");
-  check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), make_onehot_kernel, 1, NULL, &n->output_dimension, NULL, 0, NULL, NULL), "couldn't do onehot kernel");
-#else
-  check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->output_label, 1, 0, sizeof(float) * n->output_dimension, y, 0, NULL, NULL), "enqueuing label");
-#endif
-
-  float c = gpu_cost(o, n->output_label, n->cost_gradient, n->output_dimension, n->cost_fn);
-
-  gpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad);
-
-  check_error(clEnqueueCopyBuffer(get_opencl_queue0(), mlp->input_gradient, n->recurrent_gradient[n->t], 0, 0, sizeof(float) * mlp->input_dimension, 0, NULL, NULL), "copying mlp grads to lstm network grads");
-
-  return c;
-
-}
-#endif
 
 
 
@@ -203,7 +165,8 @@ LSTM_layer gpu_create_LSTM_layer(size_t input_dim, size_t size, cl_mem params, i
     xavier_init(&tmp[neuron_offset], (l.input_dimension+1), l.size);
     neuron_offset += l.input_dimension+1;
   }
-  check_error(clEnqueueWriteBuffer(get_opencl_queue0(), params, 1, param_offset * sizeof(float), sizeof(float)*l.size*(l.input_dimension+1)*4, tmp, 0, NULL, NULL), "could not enqueue layer params");
+  check_error(clEnqueueWriteBuffer(get_opencl_queue0(), params, 1, sizeof(float) * param_offset, sizeof(float)*l.size*(l.input_dimension+1)*4, tmp, 0, NULL, NULL), "could not enqueue layer params");
+  free(tmp);
 
   l.input_nonl_z  = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
   l.input_gate_z  = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
@@ -406,7 +369,7 @@ LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
  * Computes the forward pass of a single layer
  */
 #ifndef SIEKNET_USE_GPU
-void cpu_lstm_layer_forward(LSTM_layer *l, float *input, float *params, size_t t, size_t nump){
+void cpu_lstm_layer_forward(LSTM_layer *l, float *input, float *params, size_t t){
   l->input[t] = input; /* save pointer to input for backward pass */
 
   Nonlinearity gate_fn = sigmoid;
@@ -449,7 +412,7 @@ void cpu_lstm_layer_forward(LSTM_layer *l, float *input, float *params, size_t t
 }
 #else
 /* oh boy here we go */
-static void gpu_lstm_layer_forward(LSTM_layer *l, cl_mem x, cl_mem params, size_t t, size_t nump){
+static void gpu_lstm_layer_forward(LSTM_layer *l, cl_mem x, cl_mem params, size_t t){
   l->input[t] = x;
 
   Nonlinearity gate_fn = sigmoid;
@@ -550,7 +513,7 @@ void cpu_lstm_forward(LSTM *n, float *x){
   float *input = n->network_input[t];
   for(int i = 0; i < n->depth; i++){
     LSTM_layer *l = &n->layers[i];
-    cpu_lstm_layer_forward(l, input, n->params, t, n->num_params);
+    cpu_lstm_layer_forward(l, input, n->params, t);
     input = l->output[t];
   }
   cpu_mlp_layer_forward(&n->output_layer, input, n->params);
@@ -571,7 +534,7 @@ static void gpu_lstm_forward(LSTM *n, float *x){
   cl_mem input = n->network_input[t];
   for(int i = 0; i < n->depth; i++){
     LSTM_layer *l = &n->layers[i];
-    gpu_lstm_layer_forward(l, input, n->params, t, n->num_params);
+    gpu_lstm_layer_forward(l, input, n->params, t);
     input = l->output[t];
   }
   gpu_mlp_layer_forward(&n->output_layer, input, n->params);
@@ -584,7 +547,44 @@ static void gpu_lstm_forward(LSTM *n, float *x){
 }
 #endif
 
+#ifndef SIEKNET_USE_GPU
+float cpu_lstm_cost(LSTM *n, float *y){
+  MLP_layer *mlp = &n->output_layer;
+  float *o = mlp->output;
+  float c = cpu_cost(o, y, n->cost_gradient, n->output_dimension, n->cost_fn);
 
+  cpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad);
+  float *grads = mlp->input_gradient;
+
+  /* copy gradient serially from mlp output layer to lstm network gradient. */
+  for(int i = 0; i < mlp->input_dimension; i++)
+    n->recurrent_gradient[n->t][i] = grads[i];
+
+  return c;
+}
+#else
+float gpu_lstm_cost(LSTM *n, float *y){
+  MLP_layer *mlp = &n->output_layer;
+  cl_mem o = mlp->output;
+#ifdef SIEKNET_ONEHOT_SPEEDUP
+  int m = argmax(y, n->output_dimension);
+  check_error(clSetKernelArg(make_onehot_kernel, 0, sizeof(cl_mem), &n->output_label), "couldn't set onehot arg 0");
+  check_error(clSetKernelArg(make_onehot_kernel, 1, sizeof(int), &m), "couldn't set onehot arg 1");
+  check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), make_onehot_kernel, 1, NULL, &n->output_dimension, NULL, 0, NULL, NULL), "couldn't do onehot kernel");
+#else
+  check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->output_label, 1, 0, sizeof(float) * n->output_dimension, y, 0, NULL, NULL), "enqueuing label");
+#endif
+
+  float c = gpu_cost(o, n->output_label, n->cost_gradient, n->output_dimension, n->cost_fn);
+
+  gpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad);
+
+  check_error(clEnqueueCopyBuffer(get_opencl_queue0(), mlp->input_gradient, n->recurrent_gradient[n->t], 0, 0, sizeof(float) * mlp->input_dimension, 0, NULL, NULL), "copying mlp grads to lstm network grads");
+
+  return c;
+
+}
+#endif
 
 #ifndef SIEKNET_USE_GPU
 void cpu_lstm_layer_backward(LSTM_layer *l, float **grads, float *params, float *param_grad, size_t MAX_TIME){

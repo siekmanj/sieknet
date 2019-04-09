@@ -270,7 +270,7 @@ int main(){
       printf("  | TEST PASSED: Cost scalar was as expected for 0th timestep.\n");
     }
 
-    tmp = retrieve_array(n.mlp_cost_gradient, n.output_dimension);
+    tmp = retrieve_array(n.cost_gradient, n.output_dimension);
     if(!assert_equal(tmp, cg_t1, n.output_dimension)){
       printf("X | TEST FAILED: LSTM cost gradient was incorrect on 0th timestep (while incrementing n.t).\n");
     }else{
@@ -328,7 +328,7 @@ int main(){
       printf("  | TEST PASSED: Cost scalar was as expected for 1st timestep.\n");
     }
 
-    tmp = retrieve_array(n.mlp_cost_gradient, n.output_dimension);
+    tmp = retrieve_array(n.cost_gradient, n.output_dimension);
     if(!assert_equal(tmp, cg_t2, n.output_dimension)){
       printf("X | TEST FAILED: LSTM cost gradient was incorrect on 1st timestep (while incrementing n.t).\n");
     }else{
@@ -386,7 +386,7 @@ int main(){
       printf("  | TEST PASSED: Cost scalar was as expected for 2nd timestep.\n");
     }
 
-    tmp = retrieve_array(n.mlp_cost_gradient, n.output_dimension);
+    tmp = retrieve_array(n.cost_gradient, n.output_dimension);
     if(!assert_equal(tmp, cg_t3, n.output_dimension)){
       printf("X | TEST FAILED: LSTM cost gradient was incorrect on 2nd timestep (while incrementing n.t).\n");
     }else{
