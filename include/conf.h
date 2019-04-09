@@ -84,6 +84,7 @@
 /*<<KERNEL END>>*/
 #define throw_err(s) printf("%s\n", s); exit(1);
 #define ALLOC(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
+#define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
 
 #endif
 
