@@ -78,7 +78,7 @@ void lstm_kernel_setup(){
  * Used to reset the hidden state of the lstm
  */ 
 #ifndef SIEKNET_USE_GPU
-static void cpu_wipe(LSTM *n){
+static void cpu_lstm_wipe(LSTM *n){
   for(int i = 0; i < n->depth; i++){
     LSTM_layer *l = &n->layers[i];
     cpu_zero_2d_arr(&l->loutput, 1, l->size);
@@ -88,7 +88,7 @@ static void cpu_wipe(LSTM *n){
   n->t = 0;
 }	
 #else
-void gpu_wipe(LSTM *n){
+void gpu_lstm_wipe(LSTM *n){
   gpu_zero_2d_arr(n->recurrent_gradient, SIEKNET_MAX_UNROLL_LENGTH, n->input_dimension);
   //gpu_zero_2d_arr(n->network_input,    SIEKNET_MAX_UNROLL_LENGTH, n->input_dimension);
 
@@ -359,7 +359,7 @@ LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
   n.output_layer = gpu_create_MLP_layer(arr[len-2], arr[len-1], n.params, param_idx, softmax);
   n.output = ALLOC(float, n.output_dimension);
 
-  gpu_wipe(&n);
+  gpu_lstm_wipe(&n);
   return n;
 }
 
@@ -607,56 +607,56 @@ void cpu_lstm_layer_backward(LSTM_layer *l, float **grads, float *params, float 
     for(int i = 0; i < l->size; i++){
       if(use_future_grads){
         agnostic_lstm_dstate_kernel(grads[t],
-            l->cell_state[t],
-            l->output_gate_output[t],
-            l->cell_dstate[t+1],
-            l->forget_gate_output[t+1],
-            l->input_gradient[t+1],
-            l->cell_dstate[t],
-            recurrent_offset,
-            use_future_grads,
-            i);
+                                    l->cell_state[t],
+                                    l->output_gate_output[t],
+                                    l->cell_dstate[t+1],
+                                    l->forget_gate_output[t+1],
+                                    l->input_gradient[t+1],
+                                    l->cell_dstate[t],
+                                    recurrent_offset,
+                                    use_future_grads,
+                                    i);
       }else{
         agnostic_lstm_dstate_kernel(grads[t],
-            l->cell_state[t],
-            l->output_gate_output[t],
-            NULL,
-            NULL,
-            NULL,
-            l->cell_dstate[t],
-            recurrent_offset,
-            use_future_grads,
-            i);
+                                    l->cell_state[t],
+                                    l->output_gate_output[t],
+                                    NULL,
+                                    NULL,
+                                    NULL,
+                                    l->cell_dstate[t],
+                                    recurrent_offset,
+                                    use_future_grads,
+                                    i);
       }
       agnostic_lstm_input_nonl_gradient_kernel(l->cell_dstate[t],
-          l->input_gate_output[t],
-          l->input_nonl_output[t],
-          l->input_nonl_gradient[t],
-          nonl_fn,
-          i);
+                                               l->input_gate_output[t],
+                                               l->input_nonl_output[t],
+                                               l->input_nonl_gradient[t],
+                                               nonl_fn,
+                                               i);
       agnostic_lstm_input_nonl_gradient_kernel(l->cell_dstate[t],
-          l->input_nonl_output[t],
-          l->input_gate_output[t],
-          l->input_gate_gradient[t],
-          gate_fn,
-          i);
+                                               l->input_nonl_output[t],
+                                               l->input_gate_output[t],
+                                               l->input_gate_gradient[t],
+                                               gate_fn,
+                                               i);
 
       if(use_past_outputs){
         agnostic_lstm_forget_gate_gradient_kernel(l->cell_dstate[t],
-            l->cell_state[t-1],
-            l->forget_gate_output[t],
-            l->forget_gate_gradient[t],
-            gate_fn,
-            use_past_outputs,
-            i);
+                                                  l->cell_state[t-1],
+                                                  l->forget_gate_output[t],
+                                                  l->forget_gate_gradient[t],
+                                                  gate_fn,
+                                                  use_past_outputs,
+                                                  i);
       }else{
         agnostic_lstm_forget_gate_gradient_kernel(l->cell_dstate[t],
-            NULL,
-            l->forget_gate_output[t],
-            l->forget_gate_gradient[t],
-            gate_fn,
-            use_past_outputs,
-            i);
+                                                  NULL,
+                                                  l->forget_gate_output[t],
+                                                  l->forget_gate_gradient[t],
+                                                  gate_fn,
+                                                  use_past_outputs,
+                                                  i);
       }
       if(use_future_grads){
         agnostic_lstm_output_gate_gradient_kernel(grads[t],
@@ -865,7 +865,7 @@ void cpu_lstm_backward(LSTM *n){
       cpu_lstm_layer_backward(&n->layers[i], grads, n->params, n->param_grad, n->t-1);
       grads = n->layers[i].input_gradient;
     }
-    if(!n->stateful) cpu_wipe(n);
+    if(!n->stateful) cpu_lstm_wipe(n);
     n->t = 0;
   }
 }
@@ -878,7 +878,7 @@ static void gpu_lstm_backward(LSTM *n){
       gpu_lstm_layer_backward(l, grads, n->params, n->param_grad, n->t-1);
       grads = n->layers[i].input_gradient;
     }
-    if(!n->stateful) gpu_wipe(n);
+    if(!n->stateful) gpu_lstm_wipe(n);
     n->t = 0;
     check_error(clFinish(get_opencl_queue0()), "waiting for kernels to finish executing (backward pass)");
   }
@@ -893,11 +893,11 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 #endif
 }
 
-void wipe(LSTM *n){
+void lstm_wipe(LSTM *n){
 #ifdef SIEKNET_USE_GPU
-  gpu_wipe(n);
+  gpu_lstm_wipe(n);
 #else
-  cpu_wipe(n);
+  cpu_lstm_wipe(n);
 #endif
 }
 

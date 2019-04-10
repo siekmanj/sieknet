@@ -73,7 +73,7 @@ struct timespec diff(struct timespec start, struct timespec end){
 }
 
 void sample(LSTM *n, size_t chars, char seed){
-  wipe(n);
+  lstm_wipe(n);
   int input = char2int(seed);
   for(int i = 0; i < chars; i++){
     CREATEONEHOT(tmp, ASCII_RANGE, input);
@@ -133,7 +133,7 @@ void train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float le
     float seq_time = 0;
     float avg_seq_time = 0;
 
-    wipe(n);
+    lstm_wipe(n);
 
     char *seq = get_sequence(fp, &n->seq_len);
     char input_char = '\n';
@@ -193,7 +193,7 @@ void train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float le
       avg_seq_time += seq_time;
       if(!(sequence_counter % (training_iterations))){
         printf("\n");
-        wipe(n);
+        lstm_wipe(n);
         for(int i = 3; i > 0; i--){
           printf("Sampling from lstm in %d\r", i);
           sleep(1);
@@ -208,7 +208,7 @@ void train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float le
         printf("\n***\nResuming training...\n");
         avg_seq_cost = 0;
         avg_seq_time = 0;
-        wipe(n);
+        lstm_wipe(n);
       }
       free(seq);
       seq = get_sequence(fp, &n->seq_len);

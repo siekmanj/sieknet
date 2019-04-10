@@ -57,11 +57,18 @@ void rnn_kernel_setup(){
 
 #ifndef SIEKNET_USE_GPU
 void cpu_rnn_wipe(RNN *n){
-
+  for(int i = 0; i < n->depth; i++){
+    RNN_layer *l = &n->layers[i];
+    cpu_zero_2d_arr(&l->loutput, 1, SIEKNET_MAX_UNROLL_LENGTH);
+  }
 }
 #else
 void gpu_rnn_wipe(RNN *n){
-
+  for(int i = 0; i < n->depth; i++){
+    RNN_layer *l = &n->layers[i];
+    check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), &l->loutput), "couldn't set zero kernel arg 0");
+    check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), zero_init_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't use zero kernel");
+  }
 }
 #endif
 
@@ -328,8 +335,36 @@ float gpu_rnn_cost(RNN *n, const float *y){
 #endif
 
 #ifndef SIEKNET_USE_GPU
-void cpu_rnn_layer_backward(RNN *n, float *grad, float *params, float *param_grad){
+void cpu_rnn_layer_backward(RNN *n, float **grad, float *params, float *param_grad, size_t MAX_TIME){
+  int recurrent_offset = l->input_dimension - l->size;
+  int params_per_neuron = (l->input_dimension+1);
 
+  for(int t = MAX_TIME; t >= 0; t--){
+    int use_future_grads, use_past_outputs;
+    if(t >= MAX_TIME) use_future_grads = 0;
+    else              use_future_grads = 1;
+
+    if(!t) use_past_outputs = 0;
+    else   use_past_outputs = 1;
+
+    for(int i = 0; i < l->size; i++){
+      if(use_future_grads){
+        agnostic_rnn_input_gradient_kernel(grads[t],
+                                           l->output[t],
+                                           params,
+                                           l->input_gradient[t+1],
+                                           l->input_gradient[t],
+                                           l->input_dimension,
+
+
+
+
+      }
+
+    }
+
+
+  
 }
 #else
 void gpu_rnn_layer_backward(RNN *n, cl_mem grad, cl_mem params, cl_mem param_grad){
