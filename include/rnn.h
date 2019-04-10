@@ -98,7 +98,7 @@ void dealloc_rnn(RNN *);
  * GPU as well as the CPU. When compiled with OpenCL, __mem_ro and __mem_rw are defined as
  * either __constant or const __global, and __global. When compiled on the host machine,
  * mem_rw is defined as an empty macro, and __mem_ro is defined as const. This allows the same
- * code to be reused.
+ * code to be reused on the CPU.
  */
 
 
@@ -137,7 +137,20 @@ static void agnostic_rnn_forward_kernel(__mem_ro float *x,
   z[i] += params[w_idx];                                  
 }
 
-//static void agnostic_rnn_input_gradient_kernel(__mem_ro
+static void agnostic_rnn_input_gradient_kernel(__mem_ro float *gradient,
+                                               __mem_ro float *output,
+                                               __mem_ro float *params,
+                                               __mem_ro float *future_input_gradient,
+                                               __mem_rw float *input_gradient,
+                                               const int dim,
+                                               const int size,
+                                               const int layer_param_idx,
+                                               const int skiplength,
+                                               const int i){
+  input_gradient[i] = 0.0f;
+
+
+}
 
 //static void agnostic_rnn_parameter_gradient_kernel(
 

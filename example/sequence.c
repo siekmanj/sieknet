@@ -8,7 +8,6 @@
 #include "lstm.h"
 #include "optimizer.h"
 
-#define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%10.9f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
 #define ARR_FROM_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue0(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_SIEKNET_USE_GPU)");
 
 /*
@@ -46,7 +45,7 @@ int main(void){
   for(int epoch = 0; epoch < 100000; epoch++){ //Train for 1000 epochs.
     size_t len = sizeof(data)/sizeof(data[0]);
     n.seq_len = len;
-    wipe(&n);
+    lstm_wipe(&n);
     for(int i = 0; i < len; i++){ //Run through the entirety of the training data.
 
       //Make a one-hot vector and use it to set the activations of the input layer
@@ -81,7 +80,7 @@ int main(void){
     if(cost/count < cost_threshold){
       printf("\nCost threshold %1.2f reached in %d iterations\n", cost_threshold, epoch);
       printf("Running sequence:\n");
-      wipe(&n);
+      lstm_wipe(&n);
       printf("1, ");
       int input = 1;
       for(int i = 0; i < len; i++){

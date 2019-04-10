@@ -117,7 +117,7 @@ void lstm_forward(LSTM *, float *);
 void lstm_backward(LSTM *);
 float lstm_cost(LSTM *, float *);
 
-void wipe(LSTM *);
+void lstm_wipe(LSTM *);
 
 void dealloc_lstm(LSTM *);
 
