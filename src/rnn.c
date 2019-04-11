@@ -59,7 +59,9 @@ void rnn_kernel_setup(){
 void cpu_rnn_wipe(RNN *n){
   for(int i = 0; i < n->depth; i++){
     RNN_layer *l = &n->layers[i];
-    cpu_zero_2d_arr(&l->loutput, 1, SIEKNET_MAX_UNROLL_LENGTH);
+    //cpu_zero_2d_arr(&l->loutput, SIEKNET_MAX_UNROLL_LENGTH, 1);
+    for(int j = 0; j < l->size; j++)
+      l->loutput[j] = 0.0f;
   }
 }
 #else
@@ -314,7 +316,6 @@ float cpu_rnn_cost(RNN *n, const float *y){
 
   for(int i = 0; i < mlp->input_dimension; i++)
     n->recurrent_gradient[n->t][i] = grads[i];
-
   return c;
 }
 #else
@@ -335,8 +336,7 @@ float gpu_rnn_cost(RNN *n, const float *y){
 #endif
 
 #ifndef SIEKNET_USE_GPU
-void cpu_rnn_layer_backward(RNN *n, float **grad, float *params, float *param_grad, size_t MAX_TIME){
-  int recurrent_offset = l->input_dimension - l->size;
+void cpu_rnn_layer_backward(RNN_layer *l, float **grad, float *params, float *param_grad, size_t MAX_TIME){
   int params_per_neuron = (l->input_dimension+1);
 
   for(int t = MAX_TIME; t >= 0; t--){
@@ -348,36 +348,79 @@ void cpu_rnn_layer_backward(RNN *n, float **grad, float *params, float *param_gr
     else   use_past_outputs = 1;
 
     for(int i = 0; i < l->size; i++){
-      if(use_future_grads){
-        agnostic_rnn_input_gradient_kernel(grads[t],
-                                           l->output[t],
-                                           params,
-                                           l->input_gradient[t+1],
-                                           l->input_gradient[t],
-                                           l->input_dimension,
+      float *future_input_gradient, *previous_output;
 
+      if(use_future_grads)
+        future_input_gradient = l->input_gradient[t+1];
+      else
+        future_input_gradient = NULL;
 
+      if(use_past_outputs)
+        previous_output = l->output[t-1];
+      else
+        previous_output = NULL;
 
+      agnostic_rnn_input_gradient_kernel(grad[t],
+                                         l->output[t],
+                                         params,
+                                         future_input_gradient,
+                                         l->input_gradient[t],
+                                         l->logistic,
+                                         use_future_grads,
+                                         l->input_dimension,
+                                         l->size,
+                                         l->param_offset,
+                                         params_per_neuron,
+                                         i);
 
-      }
-
+      agnostic_rnn_parameter_gradient_kernel(grad[t],
+                                             l->output[t],
+                                             future_input_gradient,
+                                             previous_output,
+                                             l->input[t],
+                                             param_grad,
+                                             l->logistic,
+                                             use_future_grads,
+                                             use_past_outputs,
+                                             l->input_dimension,
+                                             l->size,
+                                             l->param_offset,
+                                             params_per_neuron,
+                                             i);
     }
-
-
-  
+  }
 }
 #else
-void gpu_rnn_layer_backward(RNN *n, cl_mem grad, cl_mem params, cl_mem param_grad){
+void gpu_rnn_layer_backward(RNN_layer *l, cl_mem grad, cl_mem params, cl_mem param_grad){
 
 }
 #endif
 
 #ifndef SIEKNET_USE_GPU
 void cpu_rnn_backward(RNN *n){
-
+  if(n->t >= n->seq_len){
+    float **grads = n->recurrent_gradient;
+    for(int i = n->depth-1; i >= 0; i--){
+      RNN_layer *l = &n->layers[i];
+      cpu_rnn_layer_backward(l, grads, n->params, n->param_grad, n->t-1);
+      grads = l->input_gradient;
+    }
+  }
+  if(!n->stateful) cpu_rnn_wipe(n);
+  n->t = 0;
 }
 #else
 void gpu_rnn_backward(RNN *n){
+  if(n->t >= n->seq_len){
+    cl_mem *grads = n->recurrent_gradient;
+    for(int i = n->depth-1; i >= 0; i--){
+      RNN_layer *l = &n->layers[i];
+      gpu_rnn_layer_backward(l, grads, n->params, n->param_grad, n->t-1);
+      grads = l->input_gradient;
+    }
+  }
+  if(!n->stateful) gpu_rnn_wipe(n);
+  n->t = 0;
 
 }
 #endif
@@ -396,6 +439,10 @@ void rnn_forward(RNN *n, const float *x){
 #else
   gpu_rnn_forward(n, x);
 #endif
+  if(!(rand()%3))
+    n->guess = sample_softmax(n->output, n->output_dimension);
+  else
+    n->guess = argmax(n->output, n->output_dimension);
 }
 
 float rnn_cost(RNN *n, const float *y){
