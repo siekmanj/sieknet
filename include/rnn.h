@@ -164,7 +164,7 @@ static void agnostic_rnn_input_gradient_kernel(__mem_ro float *gradient,
     else
       r = 0;
 
-    input_gradient[i] += g*d*w + r*d*w;
+    input_gradient[i] += (g + r) * d * w;
 
   }
 
@@ -177,7 +177,6 @@ static void agnostic_rnn_parameter_gradient_kernel(__mem_ro float *gradient,
                                                    __mem_ro float *future_input_gradient,
                                                    __mem_ro float *previous_output,
                                                    __mem_ro float *input,
-                                                   __mem_ro float *output,
                                                    __mem_rw float *param_grad,
                                                    const Nonlinearity logistic,
                                                    const int use_future_gradient,
@@ -187,16 +186,15 @@ static void agnostic_rnn_parameter_gradient_kernel(__mem_ro float *gradient,
                                                    const int layer_param_idx,
                                                    const int skiplength,
                                                    const int i){
-  //TODO: Does this work? Check gradient math
+  //TODO: Check gradient math
   const int recurrent_offset = dim - size;
-  const int params_per_neuron = dim + 1;
-  for(int j = 0; j < dim, j++){
-    const int w_idx = layer_param_offset + (skiplength * i) + j + 1;
+  for(int j = 0; j < dim; j++){
+    const int w_idx = layer_param_idx + (skiplength * i) + j + 1;
     const float g = gradient[i];
     const float d = differentiate(output[i], logistic);
     const float x = input[j];
 
-    const float l, r;
+    float l, r;
     if(use_future_gradient)
       r = future_input_gradient[recurrent_offset + i];
     else
@@ -208,14 +206,10 @@ static void agnostic_rnn_parameter_gradient_kernel(__mem_ro float *gradient,
       l = 0;
 
     if(j < recurrent_offset)
-      param_grad[w_idx] += g*d*x + r*d*x;
+      param_grad[w_idx] += (g + r) * d * x;
     else
-      param_grad[w_idx] += g*d*l + r*d*l;
-    
-    
+      param_grad[w_idx] += (g + r) * d * l;
   }
-
-
 }
 
 
