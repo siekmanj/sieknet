@@ -142,17 +142,82 @@ static void agnostic_rnn_input_gradient_kernel(__mem_ro float *gradient,
                                                __mem_ro float *params,
                                                __mem_ro float *future_input_gradient,
                                                __mem_rw float *input_gradient,
+                                               const Nonlinearity logistic,
+                                               const int use_future_gradient,
                                                const int dim,
                                                const int size,
                                                const int layer_param_idx,
                                                const int skiplength,
                                                const int i){
   input_gradient[i] = 0.0f;
+  const int recurrent_offset = dim - size;
+  for(int j = 0; j < size; j++){
+    const int w_idx = layer_param_idx + (skiplength * j) + i;
+
+    const float g = gradient[j];
+    const float d = differentiate(output[j], logistic);
+    const float w = params[w_idx + 1];
+
+    float r;
+    if(use_future_gradient)
+      r = future_input_gradient[recurrent_offset + j];
+    else
+      r = 0;
+
+    input_gradient[i] += g*d*w + r*d*w;
+
+  }
+
 
 
 }
 
-//static void agnostic_rnn_parameter_gradient_kernel(
+static void agnostic_rnn_parameter_gradient_kernel(__mem_ro float *gradient,
+                                                   __mem_ro float *output,
+                                                   __mem_ro float *future_input_gradient,
+                                                   __mem_ro float *previous_output,
+                                                   __mem_ro float *input,
+                                                   __mem_ro float *output,
+                                                   __mem_rw float *param_grad,
+                                                   const Nonlinearity logistic,
+                                                   const int use_future_gradient,
+                                                   const int use_past_output,
+                                                   const int dim,
+                                                   const int size,
+                                                   const int layer_param_idx,
+                                                   const int skiplength,
+                                                   const int i){
+  //TODO: Does this work? Check gradient math
+  const int recurrent_offset = dim - size;
+  const int params_per_neuron = dim + 1;
+  for(int j = 0; j < dim, j++){
+    const int w_idx = layer_param_offset + (skiplength * i) + j + 1;
+    const float g = gradient[i];
+    const float d = differentiate(output[i], logistic);
+    const float x = input[j];
+
+    const float l, r;
+    if(use_future_gradient)
+      r = future_input_gradient[recurrent_offset + i];
+    else
+      r = 0;
+
+    if(use_past_output)
+      l = previous_output[i];
+    else
+      l = 0;
+
+    if(j < recurrent_offset)
+      param_grad[w_idx] += g*d*x + r*d*x;
+    else
+      param_grad[w_idx] += g*d*l + r*d*l;
+    
+    
+  }
+
+
+}
+
 
 /*<<KERNEL END>>*/
 #endif
