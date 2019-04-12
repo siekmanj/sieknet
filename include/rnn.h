@@ -165,11 +165,7 @@ static void agnostic_rnn_input_gradient_kernel(__mem_ro float *gradient,
       r = 0;
 
     input_gradient[i] += (g + r) * d * w;
-
   }
-
-
-
 }
 
 static void agnostic_rnn_parameter_gradient_kernel(__mem_ro float *gradient,
@@ -188,30 +184,33 @@ static void agnostic_rnn_parameter_gradient_kernel(__mem_ro float *gradient,
                                                    const int i){
   //TODO: Check gradient math
   const int recurrent_offset = dim - size;
+  const int w_base = layer_param_idx + (skiplength * i);
+
+  const float g = gradient[i];
+  const float d = differentiate(output[i], logistic);
+
+  float l, r;
+  if(use_future_gradient)
+    r = future_input_gradient[recurrent_offset + i];
+  else
+    r = 0;
+
+
   for(int j = 0; j < dim; j++){
-    const int w_idx = layer_param_idx + (skiplength * i) + j + 1;
-    const float g = gradient[i];
-    const float d = differentiate(output[i], logistic);
+    const int w_idx = w_base + j + 1;
     const float x = input[j];
-
-    float l, r;
-    if(use_future_gradient)
-      r = future_input_gradient[recurrent_offset + i];
-    else
-      r = 0;
-
-    if(use_past_output)
-      l = previous_output[i];
-    else
-      l = 0;
 
     if(j < recurrent_offset)
       param_grad[w_idx] += (g + r) * d * x;
-    else
+    else{
+      if(use_past_output)
+        l = previous_output[j - recurrent_offset];
+      else
+        l = 0;
       param_grad[w_idx] += (g + r) * d * l;
+    }
   }
+  param_grad[w_base] += (g + r) * d;
 }
-
-
 /*<<KERNEL END>>*/
 #endif

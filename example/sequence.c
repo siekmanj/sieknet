@@ -19,6 +19,8 @@
  * For instance, 1, 2, 2, 3, 3, 3, 4, 4, 4, 4 .... and so on.
  */
 
+size_t MAX_ITERATIONS = 10000;
+
 int data[] = {
   1,
   2, 2,
@@ -45,15 +47,15 @@ int main(void){
 
   Momentum o = create_optimizer(Momentum, n);
   o.alpha = 0.005;
-  o.beta = 0.95;
+  o.beta = 0.99;
 
   float cost = 0;
   float cost_threshold = 0.5;
   int count = 0;
 
-  for(int epoch = 0; epoch < 100000; epoch++){ //Train for 1000 epochs.
+  for(int epoch = 0; epoch < MAX_ITERATIONS; epoch++){ //Train for 1000 epochs.
     size_t len = sizeof(data)/sizeof(data[0]);
-    n.seq_len = 10;
+    n.seq_len = len;
 #ifndef USE_RNN
     lstm_wipe(&n);
 #else
@@ -96,7 +98,7 @@ int main(void){
       }
     }
 
-    if(cost/count < cost_threshold){
+    if(epoch == MAX_ITERATIONS-1 || cost/count < cost_threshold){
       printf("\nCost threshold %1.2f reached in %d iterations\n", cost_threshold, epoch);
       printf("Running sequence:\n");
 #ifndef USE_RNN
