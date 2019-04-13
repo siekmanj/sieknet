@@ -13,6 +13,7 @@ static cl_kernel logistic_kernel, zero_init_kernel;
 
 static int ARE_KERNELS_INITIALIZED = 0;
 void rnn_kernel_setup(){
+  mlp_kernel_setup();
   char *kernels[] = {"include/logistic.h", "include/mlp.h", "include/rnn.h", "src/logistic.cl", "src/mlp.cl", "src/rnn.cl"};
 
   int err = 0;
@@ -48,7 +49,7 @@ void rnn_kernel_setup(){
   cost_gradient_kernel = clCreateKernel(prog, "cost_gradient_kernel", &err);
   check_error(err, "couldn't make cost gradient kernel");
 
-  make_onehot_kernel = clCreateKernel(prog, "onehot_kernel", &err);
+  make_onehot_kernel = clCreateKernel(prog, "make_onehot_kernel", &err);
   check_error(err, "couldn't make onehot kernel");
 
   ARE_KERNELS_INITIALIZED = 1;
@@ -118,6 +119,20 @@ RNN_layer gpu_create_RNN_layer(size_t input_dim, size_t size, cl_mem params, int
   l.z = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
   l.output = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
   l.input_gradient = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+
+  int err;
+  for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
+    l.z[t]  = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err); 
+    check_error(err, "allocating internal rnn memory");
+    l.output[t]  = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err); 
+    check_error(err, "allocating internal rnn memory");
+    l.input_gradient[t]  = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.input_dimension, NULL, &err); 
+    check_error(err, "allocating internal rnn memory");
+  }
+  l.loutput = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * l.size, NULL, &err); 
+  check_error(err, "allocating internal rnn memory");
+  gpu_zero_2d_arr(&l.loutput, 1, l.size);
+
   return l;
 }
 
@@ -172,6 +187,9 @@ RNN cpu_rnn_from_arr(const size_t *arr, const size_t len){
 }
 #else
 RNN gpu_rnn_from_arr(const size_t *arr, const size_t len){
+  initialize_opencl();
+  if(!ARE_KERNELS_INITIALIZED)
+    rnn_kernel_setup();
   RNN n;
   n.t = 0;
   n.stateful = 0;
@@ -392,7 +410,57 @@ void cpu_rnn_layer_backward(RNN_layer *l, float **grad, float *params, float *pa
   }
 }
 #else
-void gpu_rnn_layer_backward(RNN_layer *l, cl_mem grad, cl_mem params, cl_mem param_grad){
+void gpu_rnn_layer_backward(RNN_layer *l, cl_mem *grad, cl_mem params, cl_mem param_grad, size_t MAX_TIME){
+  int params_per_neuron = (l->input_dimension+1);
+
+  for(int t = MAX_TIME; t >= 0; t--){
+    int use_future_grads, use_past_outputs;
+    if(t >= MAX_TIME) use_future_grads = 0;
+    else              use_future_grads = 1;
+
+    if(!t) use_past_outputs = 0;
+    else   use_past_outputs = 1;
+
+    cl_mem future_input_gradient, previous_output;
+
+    if(use_future_grads)
+      future_input_gradient = l->input_gradient[t+1];
+    else
+      future_input_gradient = NULL;
+
+    if(use_past_outputs)
+      previous_output = l->output[t-1];
+    else
+      previous_output = NULL;
+
+    check_error(clSetKernelArg(rnn_input_gradient_kernel, 0,  sizeof(cl_mem), &grad[t]), "setting forward kernel arg0");
+    check_error(clSetKernelArg(rnn_input_gradient_kernel, 1,  sizeof(cl_mem), &l->output[t]), "setting forward kernel arg1");
+    check_error(clSetKernelArg(rnn_input_gradient_kernel, 2,  sizeof(cl_mem), &params), "setting forward kernel arg2");
+    check_error(clSetKernelArg(rnn_input_gradient_kernel, 3,  sizeof(cl_mem), &future_input_gradient), "setting forward kernel arg3");
+    check_error(clSetKernelArg(rnn_input_gradient_kernel, 4,  sizeof(cl_mem), &l->input_gradient[t]), "setting forward kernel arg4");
+    check_error(clSetKernelArg(rnn_input_gradient_kernel, 5,  sizeof(Nonlinearity), &l->logistic), "setting forward kernel arg5");
+    check_error(clSetKernelArg(rnn_input_gradient_kernel, 6,  sizeof(int), &use_future_grads), "setting forward kernel arg6");
+    check_error(clSetKernelArg(rnn_input_gradient_kernel, 7,  sizeof(int), &l->input_dimension), "setting forward kernel arg7");
+    check_error(clSetKernelArg(rnn_input_gradient_kernel, 8,  sizeof(int), &l->size), "setting forward kernel arg8");
+    check_error(clSetKernelArg(rnn_input_gradient_kernel, 9,  sizeof(int), &l->param_offset), "setting forward kernel arg9");
+    check_error(clSetKernelArg(rnn_input_gradient_kernel, 10, sizeof(int), &params_per_neuron), "setting forward kernel arg10");
+    check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), rnn_input_gradient_kernel, 1, NULL, &l->input_dimension, NULL, 0, NULL, NULL), "gpu_rnn_layer_backward(): couldn't enqueue input grad kernel");
+
+    check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 0,  sizeof(cl_mem), &grad[t]), "setting forward kernel arg0");
+    check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 1,  sizeof(cl_mem), &l->output[t]), "setting forward kernel arg1");
+    check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 2,  sizeof(cl_mem), &future_input_gradient), "setting forward kernel arg2");
+    check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 3,  sizeof(cl_mem), &previous_output), "setting forward kernel arg3");
+    check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 4,  sizeof(cl_mem), &l->input[t]), "setting forward kernel arg4");
+    check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 5,  sizeof(cl_mem), &param_grad), "setting forward kernel arg5");
+    check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 6,  sizeof(Nonlinearity), &l->logistic), "setting forward kernel arg6");
+    check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 7,  sizeof(int), &use_future_grads), "setting forward kernel arg7");
+    check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 8,  sizeof(int), &use_past_outputs), "setting forward kernel arg8");
+    check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 9,  sizeof(int), &l->input_dimension), "setting forward kernel arg9");
+    check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 10, sizeof(int), &l->size), "setting forward kernel arg10");
+    check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 11, sizeof(int), &l->param_offset), "setting forward kernel arg11");
+    check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 12, sizeof(int), &params_per_neuron), "setting forward kernel arg12");
+    check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), rnn_parameter_gradient_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "gpu_rnn_layer_backward(): couldn't enqueue param grad kernel");
+  }
 
 }
 #endif
@@ -421,6 +489,7 @@ void gpu_rnn_backward(RNN *n){
     }
     if(!n->stateful) gpu_rnn_wipe(n);
     n->t = 0;
+    check_error(clFinish(get_opencl_queue0()), "waiting for kernels to finish executing (backward pass)");
   }
 
 }
@@ -435,6 +504,7 @@ RNN rnn_from_arr(const size_t *arr, const size_t depth){
 }
 
 void rnn_forward(RNN *n, const float *x){
+  //printf("rnn forw\n");
 #ifndef SIEKNET_USE_GPU
   cpu_rnn_forward(n, x);
 #else
@@ -444,24 +514,29 @@ void rnn_forward(RNN *n, const float *x){
     n->guess = sample_softmax(n->output, n->output_dimension);
   else
     n->guess = argmax(n->output, n->output_dimension);
+  //printf("rnn forw done\n");
 }
 
 float rnn_cost(RNN *n, const float *y){
+  //printf("rnn cost\n");
 #ifndef SIEKNET_USE_GPU
   float c = cpu_rnn_cost(n, y);
 #else
   float c = gpu_rnn_cost(n, y);
 #endif
   n->t++;
+  //printf("rnn cost done\n");
   return c;
 }
 
 void rnn_backward(RNN *n){
+  //printf("rnn backward\n");
 #ifndef SIEKNET_USE_GPU
   cpu_rnn_backward(n);
 #else
   gpu_rnn_backward(n);
 #endif
+  //printf("rnn backward done\n");
 }
 
 void rnn_wipe(RNN *n){

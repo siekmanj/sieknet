@@ -217,9 +217,10 @@ int main(){
     //assign_array(p, n.params, n.num_params);
     
     int correct = 1;
+    float norm = 0;
     for(int i = 0; i < n.num_params; i++){
       mlp_forward(&n, x);
-      float c = mlp_cost(&n, y);
+      mlp_cost(&n, y);
       mlp_backward(&n);
 
       int p_idx = i;
@@ -240,13 +241,14 @@ int main(){
         printf("  | (difference between numerical and actual gradient: %f - %f = %f)\n", ((c1 - c2)/(2*epsilon)), p_grad, diff);
         correct = 0;
       }
+      norm += diff * diff;
 
       memset(n.param_grad, '\0', n.num_params*sizeof(float));
     }
     if(correct)
-      printf("  | TEST PASSED: Numerical gradient checking was successful.\n");
+      printf("  | TEST PASSED: Numerical gradient checking was successful (norm %f)\n", sqrt(norm));
     else
-      printf("X | TEST FAILED: Numerical gradient checking showed inconsistency - check gradient math.\n");
+      printf("X | TEST FAILED: Numerical gradient checking showed inconsistency - check gradient math (norm %f)\n", sqrt(norm));
 
     dealloc_mlp(&n);
 

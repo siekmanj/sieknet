@@ -24,42 +24,44 @@ static cl_kernel logistic_kernel, zero_init_kernel;
 
 static int ARE_KERNELS_INITIALIZED = 0;
 void mlp_kernel_setup(){
-  char *kernels[] = {"include/logistic.h", "include/mlp.h", "src/mlp.cl", "src/logistic.cl"};
+  if(!ARE_KERNELS_INITIALIZED){
+    char *kernels[] = {"include/logistic.h", "include/mlp.h", "src/mlp.cl", "src/logistic.cl"};
 
-  int err = 0;
+    int err = 0;
 
-  char *src = get_kernel_source(kernels, sizeof(kernels)/sizeof(kernels[0]));
-  cl_program prog = build_program(src);
-  free(src);
+    char *src = get_kernel_source(kernels, sizeof(kernels)/sizeof(kernels[0]));
+    cl_program prog = build_program(src);
+    free(src);
 
-  mlp_forward_kernel = clCreateKernel(prog, "mlp_forward_kernel", &err);
-  check_error(err, "couldn't make forwards kernel");
+    mlp_forward_kernel = clCreateKernel(prog, "mlp_forward_kernel", &err);
+    check_error(err, "couldn't make forwards kernel");
 
-  mlp_input_gradient_kernel = clCreateKernel(prog, "mlp_input_gradient_kernel", &err);
-  check_error(err, "couldn't make mlp input grad kernel");
+    mlp_input_gradient_kernel = clCreateKernel(prog, "mlp_input_gradient_kernel", &err);
+    check_error(err, "couldn't make mlp input grad kernel");
 
-  mlp_parameter_gradient_kernel = clCreateKernel(prog, "mlp_parameter_gradient_kernel", &err);
-  check_error(err, "couldn't make mlp param grad kernel");
+    mlp_parameter_gradient_kernel = clCreateKernel(prog, "mlp_parameter_gradient_kernel", &err);
+    check_error(err, "couldn't make mlp param grad kernel");
 
-  logistic_kernel = clCreateKernel(prog, "logistic_kernel", &err);
-  check_error(err, "couldn't make sigmoid kernel");
+    logistic_kernel = clCreateKernel(prog, "logistic_kernel", &err);
+    check_error(err, "couldn't make sigmoid kernel");
 
-  zero_init_kernel = clCreateKernel(prog, "zero_init_kernel", &err);
-  check_error(err, "couldn't make zero init kernel");
+    zero_init_kernel = clCreateKernel(prog, "zero_init_kernel", &err);
+    check_error(err, "couldn't make zero init kernel");
 
-  softmax_sum_kernel = clCreateKernel(prog, "softmax_sum_kernel", &err);
-  check_error(err, "couldn't make softmax sum kernel");
+    softmax_sum_kernel = clCreateKernel(prog, "softmax_sum_kernel", &err);
+    check_error(err, "couldn't make softmax sum kernel");
 
-  softmax_kernel = clCreateKernel(prog, "softmax_kernel", &err);
-  check_error(err, "couldn't make softmax kernel");
+    softmax_kernel = clCreateKernel(prog, "softmax_kernel", &err);
+    check_error(err, "couldn't make softmax kernel");
 
-  cost_kernel = clCreateKernel(prog, "cost_kernel", &err);
-  check_error(err, "couldn't make scalar cost kernel");
+    cost_kernel = clCreateKernel(prog, "cost_kernel", &err);
+    check_error(err, "couldn't make scalar cost kernel");
 
-  cost_gradient_kernel = clCreateKernel(prog, "cost_gradient_kernel", &err);
-  check_error(err, "couldn't make cost gradient kernel");
+    cost_gradient_kernel = clCreateKernel(prog, "cost_gradient_kernel", &err);
+    check_error(err, "couldn't make cost gradient kernel");
 
-  ARE_KERNELS_INITIALIZED = 1;
+    ARE_KERNELS_INITIALIZED = 1;
+  }
 }
 #endif
 
