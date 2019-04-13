@@ -168,7 +168,7 @@ static void agnostic_rnn_input_gradient_kernel(__mem_ro float *gradient,
     // I would expect (g + r) * d * w to be correct here, but that doesn't converge.
     // I've done quite a bit of double checking of my derivations, and if anybody
     // can tell me why this is right/wrong I would be very appreciative.
-    input_gradient[i] += g * r * d * w;
+    input_gradient[i] += (g - r) * d * w;
   }
 }
 
@@ -210,9 +210,17 @@ static void agnostic_rnn_parameter_gradient_kernel(__mem_ro float *gradient,
       else
         l = 0;
       param_grad[w_idx] += (g + r) * d * l;
+#ifdef SIEKNET_MAX_GRAD
+      if(param_grad[w_idx] >  SIEKNET_MAX_GRAD) param_grad[w_idx] =  SIEKNET_MAX_GRAD;
+      if(param_grad[w_idx] < -SIEKNET_MAX_GRAD) param_grad[w_idx] = -SIEKNET_MAX_GRAD;
+#endif
     }
   }
   param_grad[w_base] += (g + r) * d;
+#ifdef SIEKNET_MAX_GRAD
+  //if(param_grad[w_base] >  SIEKNET_MAX_GRAD) param_grad[w_base] =  SIEKNET_MAX_GRAD;
+  //if(param_grad[w_base] < -SIEKNET_MAX_GRAD) param_grad[w_base] = -SIEKNET_MAX_GRAD;
+#endif
 }
 /*<<KERNEL END>>*/
 #endif

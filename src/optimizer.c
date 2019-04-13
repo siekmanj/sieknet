@@ -7,7 +7,7 @@
 #ifndef SIEKNET_USE_GPU
 static void cpu_sgd_step(SGD o){
   for(int i = 0; i < o.num_params; i++){
-    o.weights[i] += o.learning_rate * o.gradient[i];
+    o.weights[i] -= o.learning_rate * o.gradient[i];
     o.gradient[i] = 0.0;
   }
 }
@@ -15,7 +15,7 @@ static void cpu_sgd_step(SGD o){
 static void cpu_momentum_step(Momentum o){
   for(int i = 0; i < o.num_params; i++){
     o.z[i] = o.beta * o.z[i] + o.alpha * o.gradient[i];
-    o.weights[i] += o.z[i];
+    o.weights[i] -= o.z[i];
     o.gradient[i] = 0.0;
   }
 }
