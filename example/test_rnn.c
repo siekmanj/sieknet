@@ -71,19 +71,19 @@ int main(){
   srand(1);
 
   /* LSTM tests */
+  printf("\n******** TESTING RNN FUNCTIONALITY ********\n\n");
 #ifndef SIEKNET_USE_GPU
   {
-    printf("doing numerical gradient checking\n");
-    float x[] = {0.33, 1.00, 0.00};
-    float y[] = {0.00, 1.00, 0.00};
+    float x[] = {0.33, 1.00, 0.00, 0.50, 0.25, 0.90};
+    float y[] = {0.00, 1.00, 0.00, 0.00, 0.00, 0.00};
 
-    //LSTM n = create_lstm(3, 5, 3);
-    RNN n = create_rnn(3, 5, 3);
+    RNN n = create_rnn(6, 50, 6);
     n.cost_fn = quadratic;
-    n.seq_len = 3;
+    n.seq_len = 5;
+    n.output_layer.logistic = sigmoid;
     int correct = 1;
-    float epsilon = 0.0001;
-    float threshold = 0.01; //gradients over time seem to be noisy - a high threshold is required
+    float epsilon = 0.01;
+    float threshold = epsilon;
     float norm = 0;
     for(int i = 0; i < n.num_params; i++){
       rnn_wipe(&n);
@@ -130,12 +130,10 @@ int main(){
   }
 #endif
   {
-    printf("\n******** TESTING RNN FUNCTIONALITY ********\n\n");
     sleep(1);
     float *tmp, *cmp;
     float x1[] = {0.34, 1.00, 0.00, 0.25, 0.89};
     float x2[] = {0.99, 0.00, 1.00, 0.59, 0.89};
-    float x3[] = {0.13, 0.66, 0.72, 0.01, 0.89};
 
     RNN n = create_rnn(5, 4, 5);
     rnn_wipe(&n);
@@ -151,9 +149,7 @@ int main(){
       printf("  | TEST PASSED: RNN recurrent input matched last timestep's output (without incrementing n.t)\n");
     }
 
-    PRINTLIST(n.output, n.output_dimension);
-    
-    float c = rnn_cost(&n, x1);
+    rnn_cost(&n, x1);
     rnn_backward(&n);
   }
 }
