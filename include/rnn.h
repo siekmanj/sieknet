@@ -218,8 +218,8 @@ static void agnostic_rnn_parameter_gradient_kernel(__mem_ro float *gradient,
   }
   param_grad[w_base] += (g + r) * d;
 #ifdef SIEKNET_MAX_GRAD
-  //if(param_grad[w_base] >  SIEKNET_MAX_GRAD) param_grad[w_base] =  SIEKNET_MAX_GRAD;
-  //if(param_grad[w_base] < -SIEKNET_MAX_GRAD) param_grad[w_base] = -SIEKNET_MAX_GRAD;
+  if(param_grad[w_base] >  SIEKNET_MAX_GRAD) param_grad[w_base] =  SIEKNET_MAX_GRAD;
+  if(param_grad[w_base] < -SIEKNET_MAX_GRAD) param_grad[w_base] = -SIEKNET_MAX_GRAD;
 #endif
 }
 /*<<KERNEL END>>*/

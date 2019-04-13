@@ -71,6 +71,64 @@ int main(){
   srand(1);
 
   /* LSTM tests */
+#ifndef SIEKNET_USE_GPU
+  {
+    printf("doing numerical gradient checking\n");
+    float x[] = {0.33, 1.00, 0.00};
+    float y[] = {0.00, 1.00, 0.00};
+
+    //LSTM n = create_lstm(3, 5, 3);
+    RNN n = create_rnn(3, 5, 3);
+    n.cost_fn = quadratic;
+    n.seq_len = 3;
+    int correct = 1;
+    float epsilon = 0.0001;
+    float threshold = 0.01; //gradients over time seem to be noisy - a high threshold is required
+    float norm = 0;
+    for(int i = 0; i < n.num_params; i++){
+      rnn_wipe(&n);
+      float c = 0;
+      for(int t = 0; t < n.seq_len; t++){
+        rnn_forward(&n, x);
+        c += rnn_cost(&n, y);
+      }
+      rnn_backward(&n);
+
+      float p_grad = n.param_grad[i];
+
+      float c1 = 0;
+      n.params[i] += epsilon;
+      for(int t = 0; t < n.seq_len; t++){
+        rnn_forward(&n, x);
+        c1 += rnn_cost(&n, y);
+      }
+      rnn_backward(&n);
+      memset(n.param_grad, '\0', n.num_params*sizeof(float));
+
+      float c2 = 0;
+      n.params[i] -= 2*epsilon;
+      for(int t = 0; t < n.seq_len; t++){
+        rnn_forward(&n, x);
+        c2 += rnn_cost(&n, y);
+      }
+      rnn_backward(&n);
+      memset(n.param_grad, '\0', n.num_params*sizeof(float));
+
+      float diff = p_grad - ((c1 - c2)/(2*epsilon));
+      if(diff < 0) diff *=-1;
+      if(diff > threshold){ // a fairly generous threshold
+        printf("  | (param %d: difference between numerical and actual gradient: %f - %f = %f)\n", i, ((c1 - c2)/(2*epsilon)), p_grad, diff);
+        correct = 0;
+      }
+      memset(n.param_grad, '\0', n.num_params*sizeof(float));
+      norm += diff * diff;
+    }
+    if(correct)
+      printf("  | TEST PASSED: numerical gradient matched calculated gradient (norm %f)\n", sqrt(norm));
+    else
+      printf("X | TEST FAILED: numerical gradient didn't match calculated gradient (norm %f)\n", sqrt(norm));
+  }
+#endif
   {
     printf("\n******** TESTING RNN FUNCTIONALITY ********\n\n");
     sleep(1);

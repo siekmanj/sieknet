@@ -144,7 +144,6 @@ RNN cpu_rnn_from_arr(const size_t *arr, const size_t len){
     num_params += ((arr[i-1]+arr[i]+1)*arr[i]); //parameters for input, recurrent input, and bias term
   num_params += (arr[len-2]+1)*arr[len-1]; //output mlp layer params
   n.num_params = num_params;
-  printf("num params: %lu\n", num_params);
 
   n.layers = ALLOC(RNN_layer, len-2);
   n.params = ALLOC(float, num_params);
@@ -154,7 +153,6 @@ RNN cpu_rnn_from_arr(const size_t *arr, const size_t len){
 
   int param_idx = 0;
   for(int i = 1; i < len-1; i++){
-    printf("giving layer %d param offset of %d\n", i-1, param_idx);
     RNN_layer l = cpu_create_RNN_layer(arr[i-1], arr[i], n.params, param_idx, hypertan);
     param_idx += (arr[i-1]+arr[i]+1)*arr[i];
     n.layers[i-1] = l;
@@ -170,7 +168,6 @@ RNN cpu_rnn_from_arr(const size_t *arr, const size_t len){
   cpu_zero_2d_arr(n.network_input, SIEKNET_MAX_UNROLL_LENGTH, arr[0]);
 
   n.output = n.output_layer.output;
-  getchar();
   return n;
 }
 #else
