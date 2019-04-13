@@ -13,7 +13,6 @@ int ALLOCS = 0;
 int FREES  = 0;
 
 #define CREATEONEHOT(name, size, index) float name[size]; memset(name, '\0', size*sizeof(float)); name[index] = 1.0;
-#define PRINTLIST(name, len) printf("printing %s: {", #name); for(int xyz = 0; xyz < len; xyz++){printf("%f", name[xyz]); if(xyz < len-1) printf(", "); else printf("};\n");}
 
 float uniform(float minimum, float maximum){
   float center = minimum + (maximum - minimum)/2;
@@ -83,8 +82,66 @@ int main(){
   srand(1);
 
   /* LSTM tests */
+  printf("\n******** TESTING LSTM FUNCTIONALITY ********\n\n");
+#ifndef SIEKNET_USE_GPU
   {
-    printf("\n******** TESTING LSTM FUNCTIONALITY ********\n\n");
+    printf("doing numerical gradient checking\n");
+    float x[] = {0.33, 1.00, 0.00};
+    float y[] = {0.00, 1.00, 0.00};
+
+    LSTM n = create_lstm(3, 5, 3);
+    n.cost_fn = quadratic;
+    n.seq_len = 2;
+    int correct = 1;
+    float epsilon = 0.0001;
+    float threshold = 0.025; //gradients over time seem to be noisy - a high threshold is required
+    float norm = 0;
+    for(int i = 0; i < n.num_params; i++){
+      lstm_wipe(&n);
+      float c = 0;
+      for(int t = 0; t < n.seq_len; t++){
+        lstm_forward(&n, x);
+        c += lstm_cost(&n, y);
+      }
+      lstm_backward(&n);
+
+
+      float p_grad = n.param_grad[i];
+
+      float c1 = 0;
+      n.params[i] += epsilon;
+      for(int t = 0; t < n.seq_len; t++){
+        lstm_forward(&n, x);
+        c1 += lstm_cost(&n, y);
+      }
+      lstm_backward(&n);
+      memset(n.param_grad, '\0', n.num_params*sizeof(float));
+
+      float c2 = 0;
+      n.params[i] -= 2*epsilon;
+      for(int t = 0; t < n.seq_len; t++){
+        lstm_forward(&n, x);
+        c2 += lstm_cost(&n, y);
+      }
+      lstm_backward(&n);
+      memset(n.param_grad, '\0', n.num_params*sizeof(float));
+
+      float diff = p_grad - ((c1 - c2)/(2*epsilon));
+      if(diff < 0) diff *=-1;
+      if(diff > threshold){ // a fairly generous threshold
+        printf("  | (param %d: difference between numerical and actual gradient: %f - %f = %f)\n", i, ((c1 - c2)/(2*epsilon)), p_grad, diff);
+        correct = 0;
+      }
+      norm += diff * diff;
+      memset(n.param_grad, '\0', n.num_params*sizeof(float));
+    }
+    if(correct)
+      printf("  | TEST PASSED: numerical gradient matched calculated gradient (norm %f)\n", sqrt(norm));
+    else
+      printf("X | TEST FAILED: numerical gradient didn't match calculated gradient. Check above lines for severity of failure and difference (norm %f)\n", sqrt(norm));
+  }
+#endif
+  {
     sleep(1);
     float x1[] = {0.34, 1.00, 0.00, 0.25, 0.89};
     float x2[] = {0.99, 0.00, 1.00, 0.59, 0.89};

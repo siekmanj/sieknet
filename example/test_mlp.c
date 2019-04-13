@@ -223,7 +223,7 @@ int main(){
       mlp_backward(&n);
 
       int p_idx = i;
-      float epsilon = 0.001;
+      float epsilon = 0.01;
       float p_grad = n.param_grad[p_idx];
 
       n.params[p_idx] += epsilon;
@@ -241,7 +241,6 @@ int main(){
         correct = 0;
       }
 
-      n.params[p_idx] += epsilon;
       memset(n.param_grad, '\0', n.num_params*sizeof(float));
     }
     if(correct)
