@@ -119,7 +119,7 @@ int main(){
     n.stateful = 1;
     assign_array(p, n.params, n.num_params);
 
-    wipe(&n);
+    lstm_wipe(&n);
     printf("Testing forward pass functionality...\n\n");
     sleep(1);
     lstm_forward(&n, x1);
@@ -223,7 +223,7 @@ int main(){
     sleep(1);
     printf("\ntesting forward + backward pass in conjunction...\n");
     sleep(1);
-    wipe(&n);
+    lstm_wipe(&n);
     //LSTM n = create_lstm(5, 6, 7, 4);
     //assign_array(p, n.params, n.num_params);
 
