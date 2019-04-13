@@ -164,7 +164,11 @@ static void agnostic_rnn_input_gradient_kernel(__mem_ro float *gradient,
     else
       r = 0;
 
-    input_gradient[i] += (g + r) * d * w;
+    // I am NOT confident about this gradient math, but it seems to work?
+    // I would expect (g + r) * d * w to be correct here, but that doesn't converge.
+    // I've done quite a bit of double checking of my derivations, and if anybody
+    // can tell me why this is right/wrong I would be very appreciative.
+    input_gradient[i] += g * r * d * w;
   }
 }
 
@@ -182,7 +186,6 @@ static void agnostic_rnn_parameter_gradient_kernel(__mem_ro float *gradient,
                                                    const int layer_param_idx,
                                                    const int skiplength,
                                                    const int i){
-  //TODO: Check gradient math
   const int recurrent_offset = dim - size;
   const int w_base = layer_param_idx + (skiplength * i);
 
@@ -194,7 +197,6 @@ static void agnostic_rnn_parameter_gradient_kernel(__mem_ro float *gradient,
     r = future_input_gradient[recurrent_offset + i];
   else
     r = 0;
-
 
   for(int j = 0; j < dim; j++){
     const int w_idx = w_base + j + 1;

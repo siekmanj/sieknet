@@ -46,7 +46,7 @@ int main(void){
 #endif
 
   Momentum o = create_optimizer(Momentum, n);
-  o.alpha = 0.005;
+  o.alpha = 0.0005;
   o.beta = 0.99;
 
   float cost = 0;

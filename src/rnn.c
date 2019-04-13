@@ -92,7 +92,7 @@ RNN_layer cpu_create_RNN_layer(size_t input_dim, size_t size, float *params, int
   l.output = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.size);
   l.input_gradient = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, l.input_dimension);
 
-  l.input = ALLOC(float *, SIEKNET_MAX_UNROLL_LENGTH);
+  l.input   = ALLOC(float *, SIEKNET_MAX_UNROLL_LENGTH);
   l.loutput = ALLOC(float, l.size);
 
   cpu_zero_2d_arr(l.input_gradient, SIEKNET_MAX_UNROLL_LENGTH, l.input_dimension);
@@ -144,6 +144,7 @@ RNN cpu_rnn_from_arr(const size_t *arr, const size_t len){
     num_params += ((arr[i-1]+arr[i]+1)*arr[i]); //parameters for input, recurrent input, and bias term
   num_params += (arr[len-2]+1)*arr[len-1]; //output mlp layer params
   n.num_params = num_params;
+  printf("num params: %lu\n", num_params);
 
   n.layers = ALLOC(RNN_layer, len-2);
   n.params = ALLOC(float, num_params);
@@ -153,14 +154,15 @@ RNN cpu_rnn_from_arr(const size_t *arr, const size_t len){
 
   int param_idx = 0;
   for(int i = 1; i < len-1; i++){
-    RNN_layer l = cpu_create_RNN_layer(arr[i-1], arr[i], n.params, param_idx, sigmoid);
+    printf("giving layer %d param offset of %d\n", i-1, param_idx);
+    RNN_layer l = cpu_create_RNN_layer(arr[i-1], arr[i], n.params, param_idx, hypertan);
     param_idx += (arr[i-1]+arr[i]+1)*arr[i];
     n.layers[i-1] = l;
   }
   n.output_layer = cpu_create_MLP_layer(arr[len-2], arr[len-1], n.params, param_idx, softmax);
 
   n.recurrent_gradient = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, arr[len-2]);
-  n.network_input = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, arr[0]);
+  n.network_input      = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, arr[0]);
 
   n.cost_gradient = ALLOC(float, n.output_dimension);
 
@@ -168,6 +170,7 @@ RNN cpu_rnn_from_arr(const size_t *arr, const size_t len){
   cpu_zero_2d_arr(n.network_input, SIEKNET_MAX_UNROLL_LENGTH, arr[0]);
 
   n.output = n.output_layer.output;
+  getchar();
   return n;
 }
 #else
@@ -237,6 +240,7 @@ void cpu_rnn_layer_forward(RNN_layer *l, float *x, const float *params, size_t t
   l->input[t] = x;
   int params_per_neuron = l->input_dimension+1;
   for(int i = 0; i < l->size; i++){
+    l->z[t][i] = 0;
     agnostic_rnn_forward_kernel(x, l->loutput, l->z[t], params, l->input_dimension, l->size, l->param_offset, params_per_neuron, i);
     l->output[t][i] = activate(l->z[t][i], l->logistic);
   }
@@ -358,7 +362,7 @@ void cpu_rnn_layer_backward(RNN_layer *l, float **grad, float *params, float *pa
     else
       previous_output = NULL;
 
-    for(int i = 0; i < l->size; i++){
+    for(int i = 0; i < l->input_dimension; i++){
       agnostic_rnn_input_gradient_kernel(grad[t],
                                          l->output[t],
                                          params,
@@ -372,7 +376,7 @@ void cpu_rnn_layer_backward(RNN_layer *l, float **grad, float *params, float *pa
                                          params_per_neuron,
                                          i);
     }
-    for(int i = 0; i < l->input_dimension; i++){
+    for(int i = 0; i < l->size; i++){
       agnostic_rnn_parameter_gradient_kernel(grad[t],
                                              l->output[t],
                                              future_input_gradient,
