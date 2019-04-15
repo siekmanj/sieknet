@@ -213,18 +213,19 @@ int main(){
 
     MLP n = create_mlp(3, 5, 5, 3);
     //n.cost_fn = quadratic;
-    n.layers[n.depth-1].logistic = sigmoid;
+    //n.layers[n.depth-1].logistic = sigmoid;
     //assign_array(p, n.params, n.num_params);
     
     int correct = 1;
     float norm = 0;
     for(int i = 0; i < n.num_params; i++){
+      memset(n.param_grad, '\0', n.num_params*sizeof(float));
       mlp_forward(&n, x);
       mlp_cost(&n, y);
       mlp_backward(&n);
 
       int p_idx = i;
-      float epsilon = 0.01;
+      float epsilon = 0.001;
       float p_grad = n.param_grad[p_idx];
 
       n.params[p_idx] += epsilon;
@@ -243,7 +244,6 @@ int main(){
       }
       norm += diff * diff;
 
-      memset(n.param_grad, '\0', n.num_params*sizeof(float));
     }
     if(correct)
       printf("  | TEST PASSED: Numerical gradient checking was successful (norm %f)\n", sqrt(norm));
