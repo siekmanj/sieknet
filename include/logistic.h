@@ -67,16 +67,18 @@ static float D_RELU(float x){
 
 static float CROSS_ENTROPY(float o, float y){
   float o_n = o;
-  if(o_n > 0.99999f) o_n = 0.99999f;
-  if(o_n < 0.00001f) o_n = 0.00001f;
+  //if(o_n > 0.99999f) o_n = 0.99999f;
+  //if(o_n < 0.00001f) o_n = 0.00001f;
   return (-(y * log(o_n) + (1-y) * log(1-o_n)));
 }
 
 static float D_CROSS_ENTROPY(float o, float y){
   float o_n = o;
-  if(o_n > 0.99999f) o_n = 0.99999f;
-  if(o_n < 0.00001f) o_n = 0.00001f;
+  //if(o_n > 0.99999f) o_n = 0.99999f;
+  //if(o_n < 0.00001f) o_n = 0.00001f;
   return (o_n - y) / (o_n * (1 - o_n));
+  //return y - o_n;
+  //return -y / o_n;
 }
 
 static float QUADRATIC(float o, float y){

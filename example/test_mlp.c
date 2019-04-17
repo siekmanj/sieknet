@@ -213,7 +213,7 @@ int main(){
 
     MLP n = create_mlp(3, 5, 5, 3);
     //n.cost_fn = quadratic;
-    n.layers[n.depth-1].logistic = sigmoid;
+    //n.layers[n.depth-1].logistic = sigmoid;
     //assign_array(p, n.params, n.num_params);
     
     int correct = 1;
@@ -223,15 +223,14 @@ int main(){
       mlp_cost(&n, y);
       mlp_backward(&n);
 
-      int p_idx = i;
-      float epsilon = 0.01;
-      float p_grad = n.param_grad[p_idx];
+      float epsilon = 0.0001;
+      float p_grad = n.param_grad[i];
 
-      n.params[p_idx] += epsilon;
+      n.params[i] += epsilon;
       mlp_forward(&n, x);
       float c1 = mlp_cost(&n, y);
 
-      n.params[p_idx] -= 2*epsilon;
+      n.params[i] -= 2*epsilon;
       mlp_forward(&n, x);
       float c2 = mlp_cost(&n, y);
       

@@ -14,7 +14,7 @@ INCLUDE=-Iinclude
 LIBS=-lm 
 GPULIBS=$(LIBS) -lOpenCL
 
-CFLAGS=-O0 -Wall -Wno-unused-function
+CFLAGS=-O3 -Wall -Wno-unused-function
 GPUFLAGS=$(CFLAGS) -DSIEKNET_USE_GPU
 
 LSTM_SRC=$(SRC_DIR)/lstm.c
