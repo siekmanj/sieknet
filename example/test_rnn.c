@@ -78,12 +78,10 @@ int main(){
     float y[] = {0.00, 1.00, 0.00, 0.00, 0.00, 0.00};
 
     RNN n = create_rnn(6, 50, 6);
-    n.cost_fn = quadratic;
-    n.seq_len = 5;
-    n.output_layer.logistic = sigmoid;
+    n.seq_len = 3;
     int correct = 1;
-    float epsilon = 0.01;
-    float threshold = epsilon;
+    float epsilon = 0.001;
+    float threshold = 0.005;
     float norm = 0;
     for(int i = 0; i < n.num_params; i++){
       rnn_wipe(&n);
@@ -114,14 +112,14 @@ int main(){
       rnn_backward(&n);
       memset(n.param_grad, '\0', n.num_params*sizeof(float));
 
-      float diff = p_grad - ((c1 - c2)/(2*epsilon));
+      float diff = (p_grad - ((c1 - c2)/(2*epsilon)))/n.seq_len;
       if(diff < 0) diff *=-1;
       if(diff > threshold){ // a fairly generous threshold
         printf("  | (param %d: difference between numerical and actual gradient: %f - %f = %f)\n", i, ((c1 - c2)/(2*epsilon)), p_grad, diff);
         correct = 0;
       }
       memset(n.param_grad, '\0', n.num_params*sizeof(float));
-      norm += diff * diff;
+      norm += (diff * diff);
     }
     if(correct)
       printf("  | TEST PASSED: numerical gradient matched calculated gradient (norm %f)\n", sqrt(norm));
