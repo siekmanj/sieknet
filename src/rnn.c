@@ -60,7 +60,6 @@ void rnn_kernel_setup(){
 void cpu_rnn_wipe(RNN *n){
   for(int i = 0; i < n->depth; i++){
     RNN_layer *l = &n->layers[i];
-    //cpu_zero_2d_arr(&l->loutput, SIEKNET_MAX_UNROLL_LENGTH, 1);
     for(int j = 0; j < l->size; j++)
       l->loutput[j] = 0.0f;
   }
@@ -117,6 +116,7 @@ RNN_layer gpu_create_RNN_layer(size_t input_dim, size_t size, cl_mem params, int
   free(tmp);
 
   l.z = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+  l.input = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
   l.output = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
   l.input_gradient = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
 
@@ -238,7 +238,7 @@ RNN gpu_rnn_from_arr(const size_t *arr, const size_t len){
 
   int param_idx = 0;
   for(int i = 1; i < len-1; i++){
-    RNN_layer l = gpu_create_RNN_layer(arr[i-1], arr[i], n.params, param_idx, sigmoid);
+    RNN_layer l = gpu_create_RNN_layer(arr[i-1], arr[i], n.params, param_idx, hypertan);
     param_idx += ((arr[i-1]+arr[i]+1))*arr[i];
     n.layers[i-1] = l;
   }
@@ -284,7 +284,6 @@ static void gpu_rnn_layer_forward(RNN_layer *l, cl_mem x, cl_mem params, size_t 
 
   check_error(clEnqueueCopyBuffer(get_opencl_queue0(), l->output[t], l->loutput, 0, 0, l->size * sizeof(float), 0, NULL, NULL), "copying output to loutput");
   check_error(clFinish(get_opencl_queue0()), "waiting for queue 0 to finish executing (forward pass)");
-
 }
 #endif
 
@@ -307,7 +306,6 @@ void cpu_rnn_forward(RNN *n, const float *x){
 void gpu_rnn_forward(RNN *n, const float *x){
   size_t t = n->t;
   check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->network_input[t], 1, 0, sizeof(float) * n->input_dimension, x, 0, NULL, NULL), "copying input");
-
   cl_mem input = n->network_input[t];
   for(int i = 0; i < n->depth; i++){
     RNN_layer *l = &n->layers[i];
@@ -317,7 +315,6 @@ void gpu_rnn_forward(RNN *n, const float *x){
   gpu_mlp_layer_forward(&n->output_layer, input, n->params);
 
   check_error(clEnqueueReadBuffer(get_opencl_queue0(), n->output_layer.output, 1, 0, sizeof(float) * n->output_layer.size, n->output, 0, NULL, NULL), "error reading output from gpu");
-
   check_error(clFinish(get_opencl_queue0()), "waiting for kernels to finish executing (forward pass)");
 }
 #endif
@@ -514,7 +511,6 @@ void rnn_forward(RNN *n, const float *x){
     n->guess = sample_softmax(n->output, n->output_dimension);
   else
     n->guess = argmax(n->output, n->output_dimension);
-  //printf("rnn forw done\n");
 }
 
 float rnn_cost(RNN *n, const float *y){
@@ -547,6 +543,158 @@ void rnn_wipe(RNN *n){
 #endif
 }
 
+void dealloc_rnn(RNN *n){
+#ifndef SIEKNET_USE_GPU
+  free(n->params);
+  free(n->param_grad);
+  for(int i = 0; i < n->depth; i++){
+    RNN_layer *l = &n->layers[i];
+    free(l->input);
+    free(l->loutput);
+    for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
+      free(l->z[t]);
+      free(l->output[t]);
+      free(l->input_gradient[t]);
+    }
+    free(l->z);
+    free(l->output);
+    free(l->input_gradient);
+  }
+  for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
+    free(n->recurrent_gradient[t]);
+    free(n->network_input[t]);
+  }
+  free(n->recurrent_gradient);
+  free(n->network_input);
+  free(n->output_layer.z);
+  free(n->output_layer.output);
+  free(n->output_layer.input_gradient);
+  free(n->cost_gradient);
+  free(n->layers);
+#else
+  clReleaseMemObject(n->params);
+  clReleaseMemObject(n->param_grad);
+  for(int i = 0; i < n->depth; i++){
+    RNN_layer *l = &n->layers[i];
+    for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
+      clReleaseMemObject(l->z[t]);
+      clReleaseMemObject(l->output[t]);
+      clReleaseMemObject(l->input_gradient[t]);
+    }
+    clReleaseMemObject(l->loutput);
+    free(l->input);
+    free(l->z);
+    free(l->output);
+    free(l->input_gradient);
+  }
+  for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
+    clReleaseMemObject(n->recurrent_gradient[t]);
+    clReleaseMemObject(n->network_input[t]);
+  }
+  clReleaseMemObject(n->cost_gradient);
+  free(n->recurrent_gradient);
+  free(n->network_input);
+  free(n->layers);
+  free(n->output);
+  clReleaseMemObject(n->output_layer.z);
+  clReleaseMemObject(n->output_layer.output);
+  clReleaseMemObject(n->output_layer.input_gradient);
+#endif
+}
 
+/*
+ * IO FUNCTIONS FOR READING AND WRITING TO A FILE
+ */
 
+static int getWord(FILE *fp, char* dest){
+  memset(dest, '\0', strlen(dest));
+  return fscanf(fp, " %1023s", dest);
+}
 
+void save_rnn(RNN *n, const char *filename){
+  printf("SAVING!\n");
+  FILE *fp = fopen(filename, "w");
+  if(!fp){
+    printf("ERROR: save_lstm(): could not open file '%s' (correct filepath? does dir exist?)", filename);
+    exit(1);
+  }
+  fprintf(fp, "RNN %lu %lu ", n->depth, n->input_dimension);
+  for(int i = 0; i < n->depth; i++){
+    fprintf(fp, "%lu %u ", n->layers[i].size, n->layers[i].logistic);
+  }
+  fprintf(fp, "%lu %u\n", n->output_layer.size, n->output_layer.logistic);
+
+#ifdef SIEKNET_USE_GPU
+  float *tmp = (float*)malloc(sizeof(float)*n->num_params);
+  check_error(clEnqueueReadBuffer(get_opencl_queue0(), n->params, 1, 0, sizeof(float) * n->num_params, tmp, 0, NULL, NULL), "error reading params from gpu");
+  for(int i = 0; i < n->num_params; i++){
+    fprintf(fp, "%f", tmp[i]);
+    if(i < n->num_params-1) fprintf(fp, " ");
+    else fprintf(fp, "\n");
+  }
+  free(tmp);
+#else
+  for(int i = 0; i < n->num_params; i++){
+    fprintf(fp, "%f", n->params[i]);
+    if(i < n->num_params-1) fprintf(fp, " ");
+    else fprintf(fp, "\n");
+  }
+#endif
+  fclose(fp);
+}
+
+RNN load_rnn(const char *filename){
+  FILE *fp = fopen(filename, "rb");
+  char buff[1024];
+  memset(buff, '\0', 1024);
+
+  getWord(fp, buff); //Get first word to check if MLP file
+
+  if(strcmp(buff, "RNN") != 0){
+    printf("ERROR: [%s] is not an RNN.\n", buff);
+    exit(1);
+  }
+  size_t num_layers, input_dim;
+  if(fscanf(fp, "%lu %lu", &num_layers, &input_dim) == EOF){
+    printf("ERROR: '%s' potentially corrupted.\n", filename);
+    exit(1);
+  }
+
+  size_t arr[num_layers+2];
+  Nonlinearity logistics[num_layers+1];
+  arr[0] = input_dim;
+  for(int i = 1; i <= num_layers; i++){
+    if(fscanf(fp, " %lu %u ", &arr[i], &logistics[i-1]) == EOF){
+      printf("ERROR: '%s' potentially corrupted.\n", filename);
+      exit(1);
+    }
+  }
+  if(fscanf(fp, " %lu %u", &arr[num_layers+1], &logistics[num_layers]) == EOF){
+    printf("ERROR: '%s' potentially corrupted.\n", filename);
+    exit(1);
+  }
+  RNN n = rnn_from_arr(arr, num_layers+2);
+  for(int i = 0; i < n.depth; i++){
+    n.layers[i].logistic = logistics[i];
+  }
+  n.output_layer.logistic = logistics[num_layers];
+#ifndef SIEKNET_USE_GPU
+  for(int i = 0; i < n.num_params; i++){
+    if(fscanf(fp, "%f", &n.params[i]) == EOF){
+      printf("ERROR: '%s' potentially corrupted.\n", filename);
+      exit(1);
+    }
+  }
+#else
+  float *tmp = (float*)malloc(sizeof(float)*n.num_params);
+  for(int i = 0; i < n.num_params; i++){
+    if(fscanf(fp, "%f", &tmp[i]) == EOF){
+      printf("ERROR: '%s' potentially corrupted.\n", filename);
+      exit(1);
+    }
+  }
+  check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n.params, 1, 0, sizeof(float) * n.num_params, tmp, 0, NULL, NULL), "copying input");
+  free(tmp);
+#endif
+  return n;
+}

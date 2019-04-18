@@ -43,7 +43,6 @@ float *retrieve_array(cl_mem arr, size_t len){
   memset(tmp, '\0', len*sizeof(float)); 
   check_error(clEnqueueReadBuffer(get_opencl_queue0(), arr, 1, 0, sizeof(float) * len, tmp, 0, NULL, NULL), "error reading from gpu (retrieve_array)");
   check_error(clFinish(get_opencl_queue0()), "waiting on queue to finish");
-  ALLOCS++;
   return tmp;
 }
 void assign_array(float *arr, cl_mem dest, size_t len){
@@ -51,7 +50,6 @@ void assign_array(float *arr, cl_mem dest, size_t len){
   check_error(clFinish(get_opencl_queue0()), "waiting on queue to finish");
 }
 void dispose_array(float *arr){
-  FREES++;
   free(arr);
 }
 #endif
@@ -70,14 +68,13 @@ int main(){
 
   srand(1);
 
-  /* LSTM tests */
   printf("\n******** TESTING RNN FUNCTIONALITY ********\n\n");
 #ifndef SIEKNET_USE_GPU
   {
     float x[] = {0.33, 1.00, 0.00, 0.50, 0.25, 0.90};
     float y[] = {0.00, 1.00, 0.00, 0.00, 0.00, 0.00};
 
-    RNN n = create_rnn(6, 50, 6);
+    RNN n = create_rnn(6, 5, 6);
     n.seq_len = 3;
     int correct = 1;
     float epsilon = 0.001;
@@ -125,6 +122,7 @@ int main(){
       printf("  | TEST PASSED: numerical gradient matched calculated gradient (norm %f)\n", sqrt(norm));
     else
       printf("X | TEST FAILED: numerical gradient didn't match calculated gradient (norm %f)\n", sqrt(norm));
+    dealloc_rnn(&n);
   }
 #endif
   {
@@ -149,5 +147,7 @@ int main(){
 
     rnn_cost(&n, x1);
     rnn_backward(&n);
+
+    dealloc_rnn(&n);
   }
 }
