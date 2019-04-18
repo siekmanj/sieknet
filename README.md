@@ -277,7 +277,7 @@ n.output_layer.logistic = relu;
 Using the lstm forward/backward pass functions is identical to how you'd use an RNN:
 ```C
 LSTM n = create_lstm(2, 5, 2);
-SGD o = create_optimizer(SGD, n); //Create a momentum optimizer
+SGD o = create_optimizer(SGD, n);
 o.learning_rate = 0.001;
 
 n.seq_len = 3; //How long the time sequences in your data are.
