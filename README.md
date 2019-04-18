@@ -28,9 +28,9 @@ This project has no mandatory dependencies and is written completely from scratc
 	
 ## But why?
 
-This project began in June of 2018, when I decided to teach myself how neural networks work while working a summer internship. I decided to implement the algorithms I was learning about in the language I was most comfortable in - C. At some point that summer, I stumbled across Andrej Karpathy's [inspirational article](http://karpathy.github.io/2015/05/21/rnn-effectiveness/) on RNNs, and was struck by how powerful these relatively simple algorithms were at capturing highly complex relationships across time, and began trying to understand how to implement these algorithms from scratch. This project has essentially been one giant learning experience as I have slowly built up my knowledge of the underlying math and statistic involved in deep learning, and especially of recurrent neural networks. It is not an attempt to be a full-featured library, though I have tried to make the code as flexible and modular as possible.
+This project began in June of 2018, when I decided to teach myself how neural networks work while working a summer internship. I decided to implement the algorithms I was learning about in the language I was most comfortable in - C. At some point that summer, I stumbled across Andrej Karpathy's [inspirational article](http://karpathy.github.io/2015/05/21/rnn-effectiveness/) on RNNs, and was struck by how powerful these relatively simple algorithms were at capturing highly complex relationships across time, and began trying to understand how to implement these algorithms from scratch. This project has essentially been one giant learning experience as I have slowly built up my knowledge of the underlying math and statistic involved in deep learning. It is not an attempt to create a full-featured library, though I have tried to make it as useful as possible.
 
-This library is unlikely to be more useful to you than any existing architecture; if you're a researcher, you're probably already using a Python-based framework like PyTorch, TensorFlow, or Caffe. If you're trying to bring neural networks to an embedded systems platform, or you're trying to accelerate your experiments by using a compiled language, you can find some wonderful C-based libraries available online, from the minimalist [Genann](https://github.com/codeplea/genann) to the relatively full-featured [FANN](https://github.com/libfann/fann). I have additionally decided to focus only on implementing recurrent architectures - it is unlikely that convolution, for instance, will be implemented.
+That said, this library is unlikely to be more useful to you than any existing architecture; if you're a researcher, you're probably already using a Python-based framework like PyTorch, TensorFlow, or Caffe. If you're trying to bring neural networks to an embedded systems platform, or you're trying to accelerate your experiments by using a compiled language, you can find some wonderful C-based libraries available online, from the minimalist [Genann](https://github.com/codeplea/genann) to the relatively full-featured [FANN](https://github.com/libfann/fann). I have additionally decided to focus only on implementing recurrent architectures - it is unlikely that convolution, for instance, will be implemented.
 
 If you would like to use my library for some reason, you can find instructions on use below, as well as a description of the general architecture. 
 
@@ -113,12 +113,7 @@ Plans for the near future include:
  - [ ] gated recurrent unit (GRU)
  - [ ] policy gradients and various RL algorithms
  - [ ] OpenMP support for multithreading
- 
- Plans for the distant future include:
- 
-- [ ] Filip Pieknewski's [predictive vision model](https://blog.piekniewski.info/2016/11/04/predictive-vision-in-a-nutshell/)
-- [ ] Transformer
-
+  
 <a name="gpu">
 	
 ## GPU Acceleration
@@ -126,7 +121,6 @@ Plans for the near future include:
 As of April 2019, you can run sieknet on your GPU via OpenCL 1.1. If you don't need to use the GPU, you don't need to worry about installing OpenCL - it is an optional dependency. 
 
 If you would like to use the GPU, you need to `#define SIEKNET_USE_GPU` when compiling. You can put this in include/conf.h, or declare it with the -D flag (check the Makefile for an example).
-
 
 
 <a name="usage">
