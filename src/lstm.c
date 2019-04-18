@@ -934,58 +934,74 @@ void lstm_backward(LSTM *n){
 
 
 void dealloc_lstm(LSTM *n){
-  /*
-     for(int i = 0; i < n->depth; i++){
-     LSTM_layer *l = &n->layers[i];
-     for(int j = 0; j < l->size; j++){
-     Cell *c = &l->cells[j];
-     Gate *a = &c->input_nonl;
-     Gate *i = &c->input_gate;
-     Gate *f = &c->forget_gate;
-     Gate *o = &c->output_gate;
-     free(a->output);
-     free(a->dOutput);
-     free(a->gradient);
+#ifndef SIEKNET_USE_GPU
+  free(n->params);
+  free(n->param_grad);
+  for(int i = 0; i < n->depth; i++){
+    LSTM_layer *l = &n->layers[i];
+    free(l->input);
+    free(l->loutput);
+    free(l->lstate);
+    for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
+      free(l->input_nonl_z[t]);
+      free(l->input_gate_z[t]);
+      free(l->forget_gate_z[t]);
+      free(l->output_gate_z[t]);
+      
+      free(l->input_nonl_output[t]);
+      free(l->input_gate_output[t]);
+      free(l->forget_gate_output[t]);
+      free(l->output_gate_output[t]);
 
-     free(i->output);
-     free(i->dOutput);
-     free(i->gradient);
+      free(l->input_nonl_gradient[t]);
+      free(l->input_gate_gradient[t]);
+      free(l->forget_gate_gradient[t]);
+      free(l->output_gate_gradient[t]);
+      
+      free(l->input_gradient[t]);
+      free(l->cell_gradient[t]);
 
-     free(f->output);
-     free(f->dOutput);
-     free(f->gradient);
+      free(l->cell_state[t]);
+      free(l->cell_dstate[t]);
 
-     free(o->output);
-     free(o->dOutput);
-     free(o->gradient);
+      free(l->output[t]);
+    }
+    free(l->input_nonl_z);
+    free(l->input_gate_z);
+    free(l->forget_gate_z);
+    free(l->output_gate_z);
+    
+    free(l->input_nonl_output);
+    free(l->input_gate_output);
+    free(l->forget_gate_output);
+    free(l->output_gate_output);
 
-     free(c->state);
-     free(c->dstate);
-     free(c->gradient);
-     }
-     for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
-     free(l->input_gradient[t]);
-     free(l->output[t]);
-     }
-     free(l->input_gradient);
-     free(l->output);
-     free(l->cells);
-     }
-     for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
-     free(n->recurrent_gradient[t]);
-     free(n->network_input[t]);
-     }
-     free(n->recurrent_gradient);
-     free(n->network_input);
-     free(n->layers);
-     free(n->params);
-     free(n->output_layer.layers[0].output);
-     free(n->output_layer.layers[0].gradient);
-     free(n->output_layer.layers[0].neurons);
-     free(n->output_layer.layers);
-     free(n->output_layer.output);
-     free(n->output_layer.cost_gradient);
-   */
+    free(l->input_nonl_gradient);
+    free(l->input_gate_gradient);
+    free(l->forget_gate_gradient);
+    free(l->output_gate_gradient);
+    
+    free(l->input_gradient);
+    free(l->cell_gradient);
+
+    free(l->cell_state);
+    free(l->cell_dstate);
+    free(l->output);
+  }
+  for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
+    free(n->recurrent_gradient[t]);
+    free(n->network_input[t]);
+  }
+  free(n->recurrent_gradient);
+  free(n->network_input);
+  free(n->cost_gradient);
+  free(n->layers);
+  free(n->output_layer.z);
+  free(n->output_layer.output);
+  free(n->output_layer.input_gradient);
+#else
+
+#endif
 }
 /*
  * IO FUNCTIONS FOR READING AND WRITING TO A FILE
@@ -1007,7 +1023,7 @@ void save_lstm(LSTM *n, const char *filename){
     fprintf(fp, "%lu", n->layers[i].size);
     fprintf(fp, " ");
   }
-  fprintf(fp, "%lu\n", n->output_layer.size);
+  fprintf(fp, "%lu %u\n", n->output_layer.size, n->output_layer.logistic);
 
 #ifdef SIEKNET_USE_GPU
   float *tmp = (float*)malloc(sizeof(float)*n->num_params);
@@ -1053,11 +1069,13 @@ LSTM load_lstm(const char *filename){
       exit(1);
     }
   }
-  if(fscanf(fp, " %lu", &arr[num_layers+1]) == EOF){
+  Nonlinearity output_logistic;
+  if(fscanf(fp, " %lu %u", &arr[num_layers+1], &output_logistic) == EOF){
     printf("ERROR: '%s' potentially corrupted.\n", filename);
     exit(1);
   }
   LSTM n = lstm_from_arr(arr, num_layers+2);
+  n.output_layer.logistic = output_logistic;
 #ifndef SIEKNET_USE_GPU
   for(int i = 0; i < n.num_params; i++){
     if(fscanf(fp, "%f", &n.params[i]) == EOF){

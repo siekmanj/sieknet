@@ -89,7 +89,7 @@ int main(){
     float x[] = {0.33, 1.00, 0.00, 0.50, 0.25, 0.90};
     float y[] = {0.00, 1.00, 0.00, 0.00, 0.00, 0.00};
 
-    LSTM n = create_lstm(6, 20, 6);
+    LSTM n = create_lstm(6, 5, 6);
     //n.cost_fn = quadratic;
     n.seq_len = 3;
     //n.output_layer.logistic = sigmoid;
@@ -141,6 +141,7 @@ int main(){
       printf("  | TEST PASSED: numerical gradient matched calculated gradient (norm %f)\n", sqrt(norm));
     else
       printf("X | TEST FAILED: numerical gradient didn't match calculated gradient. Check above lines for severity of failure and difference (norm %f)\n", sqrt(norm));
+    dealloc_lstm(&n);
   }
   printf("\n");
 #endif
@@ -500,7 +501,6 @@ int main(){
       printf("  | TEST PASSED: Layer 1 input gradient at t 2 was as expected.\n");
     }
     dispose_array(tmp);
-
 
     printf("\n");
 
