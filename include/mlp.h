@@ -11,7 +11,6 @@
 #include <logistic.h>
 
 #ifdef SIEKNET_USE_GPU
-#define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 #include <CL/cl.h>
 #endif
 
@@ -70,12 +69,14 @@ MLP load_mlp(const char *filename);
 MLP_layer cpu_create_MLP_layer(const size_t, const size_t, float *, const int, const Nonlinearity);
 void cpu_mlp_layer_forward(MLP_layer *, float *, float *);
 void cpu_mlp_layer_backward(MLP_layer *, float *, float *, float *);
-float cpu_cost(float *, float *, float *, size_t, Costfn);
+float cpu_cost(const float *, const float *, float *, size_t, Costfn);
+void cpu_zero_2d_arr(float **, size_t, size_t);
 #else
 MLP_layer gpu_create_MLP_layer(size_t, size_t, cl_mem, int, Nonlinearity);
 void gpu_mlp_layer_forward(MLP_layer *, cl_mem, cl_mem);
 void gpu_mlp_layer_backward(MLP_layer *, cl_mem, cl_mem, cl_mem);
 float gpu_cost(cl_mem, cl_mem, cl_mem, size_t, Costfn);
+void gpu_zero_2d_arr(cl_mem *, size_t, size_t);
 #endif
 
 void mlp_forward(MLP *, float *);
@@ -87,6 +88,11 @@ void dealloc_mlp(MLP *);
 
 void xavier_init(float *, size_t, size_t);
 void zero_2d_arr(float **, size_t, size_t);
+
+int argmax(float *, size_t);
+int sample_softmax(float *, size_t);
+
+float **alloc_2d_array(size_t, size_t);
 
 #ifdef SIEKNET_USE_GPU
 void mlp_kernel_setup();

@@ -5,20 +5,20 @@
  * https://blog.aidangomez.ca/2016/04/17/Backpropogating-an-LSTM-A-Numerical-Example/
  */
 
-#include "lstm.h"
-#include "rnn.h"
-#include "logistic.h"
+#include <lstm.h>
+#include <rnn.h>
+#include <logistic.h>
 #include <math.h>
 #include <string.h>
 
 #ifdef SIEKNET_USE_GPU
 #include "opencl_utils.h"
-cl_kernel make_onehot_kernel;
-cl_kernel rnn_forward_kernel, rnn_backward_kernel;
-cl_kernel lstm_forward_kernel;
-cl_kernel lstm_input_gradient_kernel, lstm_parameter_gradient_kernel;
-cl_kernel lstm_input_nonl_gradient_kernel, lstm_forget_gate_gradient_kernel, lstm_output_gate_gradient_kernel, lstm_dstate_kernel;
-cl_kernel logistic_kernel, zero_init_kernel;
+static cl_kernel make_onehot_kernel;
+static cl_kernel rnn_forward_kernel;
+static cl_kernel lstm_forward_kernel;
+static cl_kernel lstm_input_gradient_kernel, lstm_parameter_gradient_kernel;
+static cl_kernel lstm_input_nonl_gradient_kernel, lstm_forget_gate_gradient_kernel, lstm_output_gate_gradient_kernel, lstm_dstate_kernel;
+static cl_kernel logistic_kernel, zero_init_kernel;
 
 static int ARE_KERNELS_INITIALIZED = 0;
 void lstm_kernel_setup(){
@@ -28,7 +28,7 @@ void lstm_kernel_setup(){
 
   int err = 0;
 
-  char *src = get_kernel_source(kernels, 7);
+  char *src = get_kernel_source(kernels, sizeof(kernels)/sizeof(kernels[0]));
   cl_program prog = build_program(src);
   free(src);
 
@@ -72,84 +72,23 @@ void lstm_kernel_setup(){
 
 #define ARR_FROM_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue0(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_SIEKNET_USE_GPU)");
 
-#define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%5.4f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
-#define ALLOC(TYPE, NUM) (TYPE*)malloc((NUM) * (sizeof(TYPE)));
-
-float **alloc_2d_array(size_t num, size_t depth){
-  float **ret = ALLOC(float *, num);
-  for(int i = 0; i < num; i++)
-    ret[i] = ALLOC(float, depth);
-  return ret;
-}
-
-/*
- * Used to sample from softmax distribution, treats float
- * array as a normal distribution and returns a sample.
- */
-int sample_softmax(float *probs, size_t len){
-  float random_num = ((float)rand()) / (float)RAND_MAX;
-
-  float lower_bound = 0;
-  for(int i = 0; i < len; i++){
-    float upper_bound = lower_bound + probs[i];
-    if(random_num >= lower_bound && random_num < upper_bound){
-      return i;
-    }
-    lower_bound += probs[i];
-  }
-  return len-1;
-}
-
-/*
- * Used as alternative to sampling from softmax distribution,
- * simply returns the largest number in a float array.
- */
-int argmax(float *args, size_t len){
-  int argm = 0;
-  for(int i = 0; i < len; i++){
-    if(args[argm] < args[i])
-      argm = i;
-  }
-  return argm;
-}
-
-/*
- * Handy function for zeroing out a 2d array
- */
-#ifndef SIEKNET_USE_GPU
-void cpu_zero_2d_arr(float **arr, size_t sequence_length, size_t input_dimension){
-  for(long i = 0; i < sequence_length; i++){
-    for(long j = 0; j < input_dimension; j++){
-      arr[i][j] = 0.0;
-    }
-  }
-}
-#else
-void gpu_zero_2d_arr(cl_mem *arr, size_t num, size_t len){
-  for(int i = 0; i < num; i++){
-    check_error(clSetKernelArg(zero_init_kernel, 0, sizeof(cl_mem), &arr[i]), "couldn't set zero kernel arg");
-    check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), zero_init_kernel, 1, NULL, &len, NULL, 0, NULL, NULL), "couldn't use zero kernel");
-  }
-}
-#endif
-
 
 /*
  * Used to reset the hidden state of the lstm
  */ 
 #ifndef SIEKNET_USE_GPU
-static void cpu_wipe(LSTM *n){
+static void cpu_lstm_wipe(LSTM *n){
   for(int i = 0; i < n->depth; i++){
     LSTM_layer *l = &n->layers[i];
     cpu_zero_2d_arr(&l->loutput, 1, l->size);
     cpu_zero_2d_arr(&l->lstate, 1, l->size);
   }
-  cpu_zero_2d_arr(n->network_gradient, SIEKNET_MAX_UNROLL_LENGTH, n->layers[n->depth-1].size);
+  cpu_zero_2d_arr(n->recurrent_gradient, SIEKNET_MAX_UNROLL_LENGTH, n->layers[n->depth-1].size);
   n->t = 0;
 }	
 #else
-void gpu_wipe(LSTM *n){
-  gpu_zero_2d_arr(n->network_gradient, SIEKNET_MAX_UNROLL_LENGTH, n->input_dimension);
+void gpu_lstm_wipe(LSTM *n){
+  gpu_zero_2d_arr(n->recurrent_gradient, SIEKNET_MAX_UNROLL_LENGTH, n->input_dimension);
   //gpu_zero_2d_arr(n->network_input,    SIEKNET_MAX_UNROLL_LENGTH, n->input_dimension);
 
   for(int i = 0; i < n->depth; i++){
@@ -162,44 +101,6 @@ void gpu_wipe(LSTM *n){
 }
 #endif
 
-#ifndef SIEKNET_USE_GPU
-float cpu_lstm_cost(LSTM *n, float *y){
-  MLP_layer *mlp = &n->output_layer;
-  float *o = mlp->output;
-  float c = cpu_cost(o, y, n->mlp_cost_gradient, n->output_dimension, n->cost_fn);
-
-  cpu_mlp_layer_backward(mlp, n->mlp_cost_gradient, n->params, n->param_grad);
-  float *grads = mlp->input_gradient;
-
-  /* copy gradient serially from mlp output layer to lstm network gradient. */
-  for(int i = 0; i < mlp->input_dimension; i++)
-    n->network_gradient[n->t][i] = grads[i];
-
-  return c;
-}
-#else
-float gpu_lstm_cost(LSTM *n, float *y){
-  MLP_layer *mlp = &n->output_layer;
-  cl_mem o = mlp->output;
-#ifdef SIEKNET_ONEHOT_SPEEDUP
-  int m = argmax(y, n->output_dimension);
-  check_error(clSetKernelArg(make_onehot_kernel, 0, sizeof(cl_mem), &n->output_label), "couldn't set onehot arg 0");
-  check_error(clSetKernelArg(make_onehot_kernel, 1, sizeof(int), &m), "couldn't set onehot arg 1");
-  check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), make_onehot_kernel, 1, NULL, &n->output_dimension, NULL, 0, NULL, NULL), "couldn't do onehot kernel");
-#else
-  check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->output_label, 1, 0, sizeof(float) * n->output_dimension, y, 0, NULL, NULL), "enqueuing label");
-#endif
-
-  float c = gpu_cost(o, n->output_label, n->mlp_cost_gradient, n->output_dimension, n->cost_fn);
-
-  gpu_mlp_layer_backward(mlp, n->mlp_cost_gradient, n->params, n->param_grad);
-
-  check_error(clEnqueueCopyBuffer(get_opencl_queue0(), mlp->input_gradient, n->network_gradient[n->t], 0, 0, sizeof(float) * mlp->input_dimension, 0, NULL, NULL), "copying mlp grads to lstm network grads");
-
-  return c;
-
-}
-#endif
 
 
 
@@ -263,7 +164,8 @@ LSTM_layer gpu_create_LSTM_layer(size_t input_dim, size_t size, cl_mem params, i
     xavier_init(&tmp[neuron_offset], (l.input_dimension+1), l.size);
     neuron_offset += l.input_dimension+1;
   }
-  check_error(clEnqueueWriteBuffer(get_opencl_queue0(), params, 1, param_offset * sizeof(float), sizeof(float)*l.size*(l.input_dimension+1)*4, tmp, 0, NULL, NULL), "could not enqueue layer params");
+  check_error(clEnqueueWriteBuffer(get_opencl_queue0(), params, 1, sizeof(float) * param_offset, sizeof(float)*l.size*(l.input_dimension+1)*4, tmp, 0, NULL, NULL), "could not enqueue layer params");
+  free(tmp);
 
   l.input_nonl_z  = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
   l.input_gate_z  = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
@@ -381,13 +283,13 @@ LSTM cpu_lstm_from_arr(size_t *arr, size_t len){
   }	
 
   //Allocate the 2d array to store the gradients calculated by the mlp output layer
-  n.network_gradient = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, arr[len-2]);
+  n.recurrent_gradient = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, arr[len-2]);
 
   n.network_input = alloc_2d_array(SIEKNET_MAX_UNROLL_LENGTH, arr[0]);
 
-  n.mlp_cost_gradient = ALLOC(float, n.output_dimension);
+  n.cost_gradient = ALLOC(float, n.output_dimension);
 
-  cpu_zero_2d_arr(n.network_gradient, SIEKNET_MAX_UNROLL_LENGTH, arr[len-2]);
+  cpu_zero_2d_arr(n.recurrent_gradient, SIEKNET_MAX_UNROLL_LENGTH, arr[len-2]);
   cpu_zero_2d_arr(n.network_input, SIEKNET_MAX_UNROLL_LENGTH, arr[0]);
 
   n.output_layer = cpu_create_MLP_layer(arr[len-2], arr[len-1], n.params, param_idx, softmax);
@@ -429,21 +331,21 @@ LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
   n.param_grad = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.num_params, NULL, &err);
   check_error(err, "creating param grad");
 
-  n.network_gradient  = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
-  n.network_input     = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
-  n.mlp_cost_gradient = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.output_dimension, NULL, &err);
+  n.recurrent_gradient = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+  n.network_input      = ALLOC(cl_mem, SIEKNET_MAX_UNROLL_LENGTH);
+  n.cost_gradient      = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.output_dimension, NULL, &err);
   check_error(err, "allocating gpu mem for cost grad");
-  n.output_label      = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.output_dimension, NULL, &err);
+  n.output_label       = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * n.output_dimension, NULL, &err);
   check_error(err, "allocating gpu mem for output label");
 
   for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
-    n.network_gradient[t] = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * arr[len-2], NULL, &err);
+    n.recurrent_gradient[t] = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * arr[len-2], NULL, &err);
     check_error(err, "couldn't make internal lstm memory (network gradient)");
     n.network_input[t] = clCreateBuffer(get_opencl_context(), CL_MEM_READ_WRITE, sizeof(float) * arr[0], NULL, &err);
     check_error(err, "couldn't make internal lstm memory (network input)");
   }
 
-  gpu_zero_2d_arr(n.network_gradient, SIEKNET_MAX_UNROLL_LENGTH, arr[len-2]);
+  gpu_zero_2d_arr(n.recurrent_gradient, SIEKNET_MAX_UNROLL_LENGTH, arr[len-2]);
   gpu_zero_2d_arr(n.network_input, SIEKNET_MAX_UNROLL_LENGTH, arr[0]);
   gpu_zero_2d_arr(&n.param_grad, 1, n.num_params);
 
@@ -456,7 +358,7 @@ LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
   n.output_layer = gpu_create_MLP_layer(arr[len-2], arr[len-1], n.params, param_idx, softmax);
   n.output = ALLOC(float, n.output_dimension);
 
-  gpu_wipe(&n);
+  gpu_lstm_wipe(&n);
   return n;
 }
 
@@ -466,7 +368,7 @@ LSTM gpu_lstm_from_arr(size_t *arr, size_t len){
  * Computes the forward pass of a single layer
  */
 #ifndef SIEKNET_USE_GPU
-void cpu_lstm_layer_forward(LSTM_layer *l, float *input, float *params, size_t t, size_t nump){
+void cpu_lstm_layer_forward(LSTM_layer *l, float *input, float *params, size_t t){
   l->input[t] = input; /* save pointer to input for backward pass */
 
   Nonlinearity gate_fn = sigmoid;
@@ -509,7 +411,7 @@ void cpu_lstm_layer_forward(LSTM_layer *l, float *input, float *params, size_t t
 }
 #else
 /* oh boy here we go */
-static void gpu_lstm_layer_forward(LSTM_layer *l, cl_mem x, cl_mem params, size_t t, size_t nump){
+static void gpu_lstm_layer_forward(LSTM_layer *l, cl_mem x, cl_mem params, size_t t){
   l->input[t] = x;
 
   Nonlinearity gate_fn = sigmoid;
@@ -610,7 +512,7 @@ void cpu_lstm_forward(LSTM *n, float *x){
   float *input = n->network_input[t];
   for(int i = 0; i < n->depth; i++){
     LSTM_layer *l = &n->layers[i];
-    cpu_lstm_layer_forward(l, input, n->params, t, n->num_params);
+    cpu_lstm_layer_forward(l, input, n->params, t);
     input = l->output[t];
   }
   cpu_mlp_layer_forward(&n->output_layer, input, n->params);
@@ -631,7 +533,7 @@ static void gpu_lstm_forward(LSTM *n, float *x){
   cl_mem input = n->network_input[t];
   for(int i = 0; i < n->depth; i++){
     LSTM_layer *l = &n->layers[i];
-    gpu_lstm_layer_forward(l, input, n->params, t, n->num_params);
+    gpu_lstm_layer_forward(l, input, n->params, t);
     input = l->output[t];
   }
   gpu_mlp_layer_forward(&n->output_layer, input, n->params);
@@ -644,7 +546,44 @@ static void gpu_lstm_forward(LSTM *n, float *x){
 }
 #endif
 
+#ifndef SIEKNET_USE_GPU
+float cpu_lstm_cost(LSTM *n, float *y){
+  MLP_layer *mlp = &n->output_layer;
+  float *o = mlp->output;
+  float c = cpu_cost(o, y, n->cost_gradient, n->output_dimension, n->cost_fn);
 
+  cpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad);
+  float *grads = mlp->input_gradient;
+
+  /* copy gradient serially from mlp output layer to lstm network gradient. */
+  for(int i = 0; i < mlp->input_dimension; i++)
+    n->recurrent_gradient[n->t][i] = grads[i];
+
+  return c;
+}
+#else
+float gpu_lstm_cost(LSTM *n, float *y){
+  MLP_layer *mlp = &n->output_layer;
+  cl_mem o = mlp->output;
+#ifdef SIEKNET_ONEHOT_SPEEDUP
+  int m = argmax(y, n->output_dimension);
+  check_error(clSetKernelArg(make_onehot_kernel, 0, sizeof(cl_mem), &n->output_label), "couldn't set onehot arg 0");
+  check_error(clSetKernelArg(make_onehot_kernel, 1, sizeof(int), &m), "couldn't set onehot arg 1");
+  check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), make_onehot_kernel, 1, NULL, &n->output_dimension, NULL, 0, NULL, NULL), "couldn't do onehot kernel");
+#else
+  check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->output_label, 1, 0, sizeof(float) * n->output_dimension, y, 0, NULL, NULL), "enqueuing label");
+#endif
+
+  float c = gpu_cost(o, n->output_label, n->cost_gradient, n->output_dimension, n->cost_fn);
+
+  gpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad);
+
+  check_error(clEnqueueCopyBuffer(get_opencl_queue0(), mlp->input_gradient, n->recurrent_gradient[n->t], 0, 0, sizeof(float) * mlp->input_dimension, 0, NULL, NULL), "copying mlp grads to lstm network grads");
+
+  return c;
+
+}
+#endif
 
 #ifndef SIEKNET_USE_GPU
 void cpu_lstm_layer_backward(LSTM_layer *l, float **grads, float *params, float *param_grad, size_t MAX_TIME){
@@ -667,128 +606,126 @@ void cpu_lstm_layer_backward(LSTM_layer *l, float **grads, float *params, float 
     for(int i = 0; i < l->size; i++){
       if(use_future_grads){
         agnostic_lstm_dstate_kernel(grads[t],
-            l->cell_state[t],
-            l->output_gate_output[t],
-            l->cell_dstate[t+1],
-            l->forget_gate_output[t+1],
-            l->input_gradient[t+1],
-            l->cell_dstate[t],
-            recurrent_offset,
-            use_future_grads,
-            i);
+                                    l->cell_state[t],
+                                    l->output_gate_output[t],
+                                    l->cell_dstate[t+1],
+                                    l->forget_gate_output[t+1],
+                                    l->input_gradient[t+1],
+                                    l->cell_dstate[t],
+                                    recurrent_offset,
+                                    use_future_grads,
+                                    i);
       }else{
         agnostic_lstm_dstate_kernel(grads[t],
-            l->cell_state[t],
-            l->output_gate_output[t],
-            NULL,
-            NULL,
-            NULL,
-            l->cell_dstate[t],
-            recurrent_offset,
-            use_future_grads,
-            i);
+                                    l->cell_state[t],
+                                    l->output_gate_output[t],
+                                    NULL,
+                                    NULL,
+                                    NULL,
+                                    l->cell_dstate[t],
+                                    recurrent_offset,
+                                    use_future_grads,
+                                    i);
       }
       agnostic_lstm_input_nonl_gradient_kernel(l->cell_dstate[t],
-          l->input_gate_output[t],
-          l->input_nonl_output[t],
-          l->input_nonl_gradient[t],
-          nonl_fn,
-          i);
+                                               l->input_gate_output[t],
+                                               l->input_nonl_output[t],
+                                               l->input_nonl_gradient[t],
+                                               nonl_fn,
+                                               i);
       agnostic_lstm_input_nonl_gradient_kernel(l->cell_dstate[t],
-          l->input_nonl_output[t],
-          l->input_gate_output[t],
-          l->input_gate_gradient[t],
-          gate_fn,
-          i);
+                                               l->input_nonl_output[t],
+                                               l->input_gate_output[t],
+                                               l->input_gate_gradient[t],
+                                               gate_fn,
+                                               i);
 
       if(use_past_outputs){
         agnostic_lstm_forget_gate_gradient_kernel(l->cell_dstate[t],
-            l->cell_state[t-1],
-            l->forget_gate_output[t],
-            l->forget_gate_gradient[t],
-            gate_fn,
-            use_past_outputs,
-            i);
+                                                  l->cell_state[t-1],
+                                                  l->forget_gate_output[t],
+                                                  l->forget_gate_gradient[t],
+                                                  gate_fn,
+                                                  use_past_outputs,
+                                                  i);
       }else{
         agnostic_lstm_forget_gate_gradient_kernel(l->cell_dstate[t],
-            NULL,
-            l->forget_gate_output[t],
-            l->forget_gate_gradient[t],
-            gate_fn,
-            use_past_outputs,
-            i);
+                                                  NULL,
+                                                  l->forget_gate_output[t],
+                                                  l->forget_gate_gradient[t],
+                                                  gate_fn,
+                                                  use_past_outputs,
+                                                  i);
       }
       if(use_future_grads){
         agnostic_lstm_output_gate_gradient_kernel(grads[t],
-            l->cell_state[t],
-            l->output_gate_output[t],
-            l->input_gradient[t+1],
-            l->output_gate_gradient[t],
-            gate_fn,
-            recurrent_offset,
-            use_future_grads,
-            i);
+                                                  l->cell_state[t],
+                                                  l->output_gate_output[t],
+                                                  l->input_gradient[t+1],
+                                                  l->output_gate_gradient[t],
+                                                  gate_fn,
+                                                  recurrent_offset,
+                                                  use_future_grads,
+                                                  i);
         agnostic_lstm_parameter_gradient_kernel(l->input_nonl_gradient[t],
-            l->input_gate_gradient[t],
-            l->forget_gate_gradient[t],
-            l->output_gate_gradient[t],
-            l->input_nonl_gradient[t+1],
-            l->input_gate_gradient[t+1],
-            l->forget_gate_gradient[t+1],
-            l->output_gate_gradient[t+1],
-            param_grad,
-            l->input[t],
-            l->output[t],
-            use_future_grads,
-            l->size,
-            l->input_dimension,
-            l->param_offset,
-            params_per_cell,
-            i);
+                                                l->input_gate_gradient[t],
+                                                l->forget_gate_gradient[t],
+                                                l->output_gate_gradient[t],
+                                                l->input_nonl_gradient[t+1],
+                                                l->input_gate_gradient[t+1],
+                                                l->forget_gate_gradient[t+1],
+                                                l->output_gate_gradient[t+1],
+                                                param_grad,
+                                                l->input[t],
+                                                l->output[t],
+                                                use_future_grads,
+                                                l->size,
+                                                l->input_dimension,
+                                                l->param_offset,
+                                                params_per_cell,
+                                                i);
 
       }else{
         agnostic_lstm_output_gate_gradient_kernel(grads[t],
-            l->cell_state[t],
-            l->output_gate_output[t],
-            NULL,
-            l->output_gate_gradient[t],
-            gate_fn,
-            recurrent_offset,
-            use_future_grads,
-            i);
+                                                  l->cell_state[t],
+                                                  l->output_gate_output[t],
+                                                  NULL,
+                                                  l->output_gate_gradient[t],
+                                                  gate_fn,
+                                                  recurrent_offset,
+                                                  use_future_grads,
+                                                  i);
         agnostic_lstm_parameter_gradient_kernel(l->input_nonl_gradient[t],
-            l->input_gate_gradient[t],
-            l->forget_gate_gradient[t],
-            l->output_gate_gradient[t],
-            NULL,
-            NULL,
-            NULL,
-            NULL,
-            param_grad,
-            l->input[t],
-            l->output[t],
-            use_future_grads,
-            l->size,
-            l->input_dimension,
-            l->param_offset,
-            params_per_cell,
-            i);
-
+                                                l->input_gate_gradient[t],
+                                                l->forget_gate_gradient[t],
+                                                l->output_gate_gradient[t],
+                                                NULL,
+                                                NULL,
+                                                NULL,
+                                                NULL,
+                                                param_grad,
+                                                l->input[t],
+                                                l->output[t],
+                                                use_future_grads,
+                                                l->size,
+                                                l->input_dimension,
+                                                l->param_offset,
+                                                params_per_cell,
+                                                i);
       }
     }
     for(int i = 0; i < l->input_dimension; i++){
       agnostic_lstm_input_gradient_kernel(l->input_nonl_gradient[t],
-          l->input_gate_gradient[t],
-          l->forget_gate_gradient[t],
-          l->output_gate_gradient[t],
-          params,
-          l->input_gradient[t],
-          l->size,
-          l->input_dimension,
-          l->param_offset,
-          params_per_cell,
-          i);
-
+                                          l->input_gate_gradient[t],
+                                          l->forget_gate_gradient[t],
+                                          l->output_gate_gradient[t],
+                                          params,
+                                          l->input_gradient[t],
+                                          l->size,
+                                          l->input_dimension,
+                                          l->param_offset,
+                                          params_per_cell,
+                                          i);
     }
   }
 }
@@ -920,25 +857,25 @@ static void gpu_lstm_layer_backward(LSTM_layer *l, cl_mem *grad, cl_mem params, 
 #ifndef SIEKNET_USE_GPU
 void cpu_lstm_backward(LSTM *n){
   if(n->t >= n->seq_len){
-    float **grads = n->network_gradient;
+    float **grads = n->recurrent_gradient;
     for(int i = n->depth-1; i >= 0; i--){
       cpu_lstm_layer_backward(&n->layers[i], grads, n->params, n->param_grad, n->t-1);
       grads = n->layers[i].input_gradient;
     }
-    if(!n->stateful) cpu_wipe(n);
+    if(!n->stateful) cpu_lstm_wipe(n);
     n->t = 0;
   }
 }
 #else
 static void gpu_lstm_backward(LSTM *n){
   if(n->t >= n->seq_len){
-    cl_mem *grads = n->network_gradient;
+    cl_mem *grads = n->recurrent_gradient;
     for(int i = n->depth-1; i >= 0; i--){
       LSTM_layer *l = &n->layers[i];
       gpu_lstm_layer_backward(l, grads, n->params, n->param_grad, n->t-1);
       grads = n->layers[i].input_gradient;
     }
-    if(!n->stateful) gpu_wipe(n);
+    if(!n->stateful) gpu_lstm_wipe(n);
     n->t = 0;
     check_error(clFinish(get_opencl_queue0()), "waiting for kernels to finish executing (backward pass)");
   }
@@ -953,11 +890,11 @@ LSTM lstm_from_arr(size_t *arr, size_t len){
 #endif
 }
 
-void wipe(LSTM *n){
+void lstm_wipe(LSTM *n){
 #ifdef SIEKNET_USE_GPU
-  gpu_wipe(n);
+  gpu_lstm_wipe(n);
 #else
-  cpu_wipe(n);
+  cpu_lstm_wipe(n);
 #endif
 }
 
@@ -997,58 +934,74 @@ void lstm_backward(LSTM *n){
 
 
 void dealloc_lstm(LSTM *n){
-  /*
-     for(int i = 0; i < n->depth; i++){
-     LSTM_layer *l = &n->layers[i];
-     for(int j = 0; j < l->size; j++){
-     Cell *c = &l->cells[j];
-     Gate *a = &c->input_nonl;
-     Gate *i = &c->input_gate;
-     Gate *f = &c->forget_gate;
-     Gate *o = &c->output_gate;
-     free(a->output);
-     free(a->dOutput);
-     free(a->gradient);
+#ifndef SIEKNET_USE_GPU
+  free(n->params);
+  free(n->param_grad);
+  for(int i = 0; i < n->depth; i++){
+    LSTM_layer *l = &n->layers[i];
+    free(l->input);
+    free(l->loutput);
+    free(l->lstate);
+    for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
+      free(l->input_nonl_z[t]);
+      free(l->input_gate_z[t]);
+      free(l->forget_gate_z[t]);
+      free(l->output_gate_z[t]);
+      
+      free(l->input_nonl_output[t]);
+      free(l->input_gate_output[t]);
+      free(l->forget_gate_output[t]);
+      free(l->output_gate_output[t]);
 
-     free(i->output);
-     free(i->dOutput);
-     free(i->gradient);
+      free(l->input_nonl_gradient[t]);
+      free(l->input_gate_gradient[t]);
+      free(l->forget_gate_gradient[t]);
+      free(l->output_gate_gradient[t]);
+      
+      free(l->input_gradient[t]);
+      free(l->cell_gradient[t]);
 
-     free(f->output);
-     free(f->dOutput);
-     free(f->gradient);
+      free(l->cell_state[t]);
+      free(l->cell_dstate[t]);
 
-     free(o->output);
-     free(o->dOutput);
-     free(o->gradient);
+      free(l->output[t]);
+    }
+    free(l->input_nonl_z);
+    free(l->input_gate_z);
+    free(l->forget_gate_z);
+    free(l->output_gate_z);
+    
+    free(l->input_nonl_output);
+    free(l->input_gate_output);
+    free(l->forget_gate_output);
+    free(l->output_gate_output);
 
-     free(c->state);
-     free(c->dstate);
-     free(c->gradient);
-     }
-     for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
-     free(l->input_gradient[t]);
-     free(l->output[t]);
-     }
-     free(l->input_gradient);
-     free(l->output);
-     free(l->cells);
-     }
-     for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
-     free(n->network_gradient[t]);
-     free(n->network_input[t]);
-     }
-     free(n->network_gradient);
-     free(n->network_input);
-     free(n->layers);
-     free(n->params);
-     free(n->output_layer.layers[0].output);
-     free(n->output_layer.layers[0].gradient);
-     free(n->output_layer.layers[0].neurons);
-     free(n->output_layer.layers);
-     free(n->output_layer.output);
-     free(n->output_layer.cost_gradient);
-   */
+    free(l->input_nonl_gradient);
+    free(l->input_gate_gradient);
+    free(l->forget_gate_gradient);
+    free(l->output_gate_gradient);
+    
+    free(l->input_gradient);
+    free(l->cell_gradient);
+
+    free(l->cell_state);
+    free(l->cell_dstate);
+    free(l->output);
+  }
+  for(int t = 0; t < SIEKNET_MAX_UNROLL_LENGTH; t++){
+    free(n->recurrent_gradient[t]);
+    free(n->network_input[t]);
+  }
+  free(n->recurrent_gradient);
+  free(n->network_input);
+  free(n->cost_gradient);
+  free(n->layers);
+  free(n->output_layer.z);
+  free(n->output_layer.output);
+  free(n->output_layer.input_gradient);
+#else
+
+#endif
 }
 /*
  * IO FUNCTIONS FOR READING AND WRITING TO A FILE
@@ -1070,7 +1023,7 @@ void save_lstm(LSTM *n, const char *filename){
     fprintf(fp, "%lu", n->layers[i].size);
     fprintf(fp, " ");
   }
-  fprintf(fp, "%lu\n", n->output_layer.size);
+  fprintf(fp, "%lu %u\n", n->output_layer.size, n->output_layer.logistic);
 
 #ifdef SIEKNET_USE_GPU
   float *tmp = (float*)malloc(sizeof(float)*n->num_params);
@@ -1116,11 +1069,13 @@ LSTM load_lstm(const char *filename){
       exit(1);
     }
   }
-  if(fscanf(fp, " %lu", &arr[num_layers+1]) == EOF){
+  Nonlinearity output_logistic;
+  if(fscanf(fp, " %lu %u", &arr[num_layers+1], &output_logistic) == EOF){
     printf("ERROR: '%s' potentially corrupted.\n", filename);
     exit(1);
   }
   LSTM n = lstm_from_arr(arr, num_layers+2);
+  n.output_layer.logistic = output_logistic;
 #ifndef SIEKNET_USE_GPU
   for(int i = 0; i < n.num_params; i++){
     if(fscanf(fp, "%f", &n.params[i]) == EOF){

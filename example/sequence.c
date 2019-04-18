@@ -5,10 +5,10 @@
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
-#include "lstm.h"
-#include "optimizer.h"
+#include <lstm.h>
+#include <rnn.h>
+#include <optimizer.h>
 
-#define PRINTLIST(name, len) printf("printing %s: [", #name); for(int xyz = 0; xyz < len; xyz++){printf("%10.9f", name[xyz]); if(xyz < len-1) printf(", "); else printf("]\n");}
 #define ARR_FROM_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue0(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_SIEKNET_USE_GPU)");
 
 /*
@@ -16,6 +16,10 @@
  * The network is trained to match a pattern which outputs a number n, n times.
  * For instance, 1, 2, 2, 3, 3, 3, 4, 4, 4, 4 .... and so on.
  */
+
+size_t MAX_ITERATIONS = 10000;
+
+double LR = 0.00001;
 
 int data[] = {
   1,
@@ -30,23 +34,24 @@ int data[] = {
 };
 
 int main(void){
-  //srand(time(NULL));
   srand(1);
   setbuf(stdout, NULL);
-  LSTM n = create_lstm(10, 4, 10); //Create a network with 4 layers. Note that it's important that the input and output layers are both 10 neurons large.
-  //LSTM n = load_lstm("./model/test.lstm");
+  
+  RNN n = create_rnn(10, 5, 10);
+
   Momentum o = create_optimizer(Momentum, n);
-  o.alpha = 0.005;
-  o.beta = 0.95;
+  o.alpha = LR;
+  o.beta = 0.99;
 
   float cost = 0;
   float cost_threshold = 0.5;
   int count = 0;
 
-  for(int epoch = 0; epoch < 100000; epoch++){ //Train for 1000 epochs.
+  for(int epoch = 0; epoch < MAX_ITERATIONS; epoch++){ //Train for 1000 epochs.
     size_t len = sizeof(data)/sizeof(data[0]);
     n.seq_len = len;
-    wipe(&n);
+    rnn_wipe(&n);
+
     for(int i = 0; i < len; i++){ //Run through the entirety of the training data.
 
       //Make a one-hot vector and use it to set the activations of the input layer
@@ -59,9 +64,9 @@ int main(void){
       memset(expected, '\0', 10*sizeof(float));
       expected[label] = 1.0;
 
-      lstm_forward(&n, one_hot);
-      float c = lstm_cost(&n, expected);
-      lstm_backward(&n);
+      rnn_forward(&n, one_hot);
+      float c = rnn_cost(&n, expected);
+      rnn_backward(&n);
 
       if(!n.t){
         o.step(o);
@@ -78,23 +83,22 @@ int main(void){
       }
     }
 
-    if(cost/count < cost_threshold){
+    if(epoch == MAX_ITERATIONS-1 || cost/count < cost_threshold){
       printf("\nCost threshold %1.2f reached in %d iterations\n", cost_threshold, epoch);
       printf("Running sequence:\n");
-      wipe(&n);
+      rnn_wipe(&n);
       printf("1, ");
       int input = 1;
       for(int i = 0; i < len; i++){
         float one_hot[10];
         memset(one_hot, '\0', 10*sizeof(float));
         one_hot[input] = 1.0;
-
-        lstm_forward(&n, one_hot);
+        rnn_forward(&n, one_hot);
         printf("%d, ", n.guess);
         input = n.guess;
       }
       printf("\n");
-      save_lstm(&n, "./model/test.lstm");
+      save_rnn(&n, "./model/test.rnn");
       exit(0);
     }
   }

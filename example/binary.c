@@ -15,7 +15,9 @@ int main(){
   srand(1);
 
   MLP n = create_mlp(4, 16);
-  SGD o = create_optimizer(SGD, n);
+  //n.cost_fn = quadratic;
+  //SGD o = create_optimizer(SGD, n);
+  Momentum o = create_optimizer(Momentum, n);
 
   //n.layers[0].logistic = relu;
   float avg_cost = 0;
