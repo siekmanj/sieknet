@@ -48,6 +48,11 @@ binary:
 binary_gpu:
 	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(CL_SRC) example/binary.c -o $(BIN)/$@ $(GPULIBS)
 
+clock:
+	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
+clock_gpu:
+	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(CL_SRC) example/clock.c -o $(BIN)/$@ $(GPULIBS)
+
 sequence:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
 sequence_gpu:
