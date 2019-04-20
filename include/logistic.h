@@ -26,7 +26,8 @@ typedef enum nonlin{
   sigmoid,
   hypertan,
   relu,
-  softmax
+  softmax,
+  linear
 } Nonlinearity;
 
 typedef enum costfn{
@@ -48,6 +49,10 @@ static float RELU(float x){
   return ((0 <= x) * x);
 }
 
+static float LINEAR(float x){
+  return x;
+}
+
 static float D_SIGMOID(float x){
   return x*(1-x);
 } 
@@ -62,6 +67,10 @@ static float D_SOFTMAX(float x){
 
 static float D_RELU(float x){
   return ((0 <= x) * 1);
+}
+
+static float D_LINEAR(float x){
+  return 1;
 }
 
 
@@ -102,6 +111,9 @@ static float differentiate(float x, Nonlinearity n){
     case softmax:
       return D_SOFTMAX(x);
       break;
+    case linear:
+      return D_LINEAR(x);
+      break;
   }
   return 0.0f;
 }
@@ -119,6 +131,9 @@ static float activate(float x, Nonlinearity n){
       break;
     case softmax:
       //do nothing
+      break;
+    case linear:
+      return LINEAR(x);
       break;
   }
   return 0.0f;
