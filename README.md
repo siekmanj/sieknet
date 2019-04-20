@@ -37,6 +37,7 @@ That said, this library is unlikely to be more useful to you than any existing a
 If you would like to use my library, you can find instructions on use below, as well as a description of the general architecture. 
 
 <a name="samples">
+	
 ## Samples			
 Here is a short sample from an lstm trained on shakespeare's complete works:
 
