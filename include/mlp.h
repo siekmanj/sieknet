@@ -45,6 +45,7 @@ typedef struct mlp{
 
 	float learning_rate;
 	float *output;
+  float performance;
 
 #ifndef SIEKNET_USE_GPU
 	float *params;

@@ -2,34 +2,50 @@
 #define GA_H
 
 #include <logistic.h>
+#include <lstm.h>
+#include <rnn.h>
+#include <mlp.h>
 
-typedef enum mutation_t { NONE, BASELINE, SAFE } MUTATION_TYPE;
+typedef enum mutation_t { MUT_none, MUT_baseline, MUT_safe, MUT_momentum, MUT_safe_momentum } Mutation_type;
+typedef enum network_t {mlp, rnn, lstm} Network_type;
 
-typedef struct mutation {
-	float *params;
+typedef struct mutation_ {
+  Network_type network_type;
+  Mutation_type mutation_type;
+
 	float mutation_rate;
-	void (*recombine)(void *a, void *b);
+  size_t num_params;
+  float *momentum;
+
+	void *(*recombine)(struct mutation_ m, void *a, void *b);
 } Mutator;
 
-typedef struct safe_mutation {
-	float *params;
-	float *param_grad;
-	float mutation_rate;
-	void (*recombine)(void *a, void *b);
-} Safe_Mutator;
+typedef struct env_ {
+  float *state;
+  void *data;
+  
+  size_t action_space;
+  size_t observation_space;
+
+  void (*create)(struct env_ env);
+  void (*dispose)(struct env_ env);
+  void (*reset)(struct env_ env);
+  void (*render)(struct env_ env);
+  float (*step)(struct env_ env, float *action);
+  
+  
+} Environment;
 
 
 //typedef LSTM** LSTM_pool;
 //typedef RNN**  RNN_pool;
 //typedef MLP**  MLP_pool;
 
-LSTM copy_lstm(LSTM *);
-RNN copy_rnn(RNN *);
-MLP copy_mlp(MLP *);
+LSTM *copy_lstm(LSTM *);
+RNN *copy_rnn(RNN *);
+MLP *copy_mlp(MLP *);
 
-LSTM lstm_recombinate(LSTM *, LSTM *, float, MUTATION_TYPE);
-RNN  rnn_recombinate(RNN *, RNN *, float, MUTATION_TYPE);
-MLP  mlp_recombinate(MLP *, MLP *, float, MUTATION_TYPE);
+Mutator create_mutator(Network_type, Mutation_type);
 
 void set_sensitivity_gradient(float *, float *, Nonlinearity);
 

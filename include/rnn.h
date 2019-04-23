@@ -57,6 +57,7 @@ typedef struct rnn {
   cl_mem output_label;
 #endif
   float *output;
+  float performance;
 
   int stateful;
   int guess;
