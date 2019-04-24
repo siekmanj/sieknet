@@ -23,6 +23,8 @@
 #define NETWORK_TYPE LSTM
 #endif
 
+/* Some ghetto polymorphism */
+
 #define forward_(arch) arch ## _forward
 #define forward(arch) forward_(arch)
 
@@ -38,12 +40,18 @@
 #define dealloc_(arch) dealloc_ ## arch
 #define dealloc(arch) dealloc_(arch)
 
+#define create_pool_(arch) create_ ## arch ## _pool
+#define create_pool(arch) create_pool_(arch)
+
+#define network_pool_(ARCH) ARCH ## _pool
+#define network_pool(ARCH) network_pool_(ARCH)
+
 #define POOL_SIZE 5
 
-#define OBS_SPACE 2
-#define ACT_SPACE 2
+#define OBS_SPACE 1
+#define ACT_SPACE 1
 
-#define HIDDEN_SIZE 16
+#define HIDDEN_SIZE 1
 
 #define ELITE_PERCENTILE 0.5f;
 
@@ -58,7 +66,9 @@
  */
 
 int main(){
+	srand(2);
   
+	/*
   NETWORK_TYPE **pool = ALLOC(NETWORK_TYPE*, POOL_SIZE);
 
   for(int i = 0; i < POOL_SIZE; i++){
@@ -66,7 +76,16 @@ int main(){
     *pool[i] = create(network_type)(OBS_SPACE, HIDDEN_SIZE, ACT_SPACE);
     pool[i]->performance = 0.0f;
   }
-  Mutator m = create_mutator(lstm, MUT_baseline);
+	*/
+	int random = 1;
+	NETWORK_TYPE seed = create(network_type)(OBS_SPACE, HIDDEN_SIZE, ACT_SPACE);
+
+	network_pool(NETWORK_TYPE) pool = create_pool(network_type)(POOL_SIZE, &seed, random);
+
+  Mutator m = create_mutator(network_type, MUT_baseline);
+	m.mutation_rate = 0.1;
+	
+
   /*
 
   for(int gen = 0; gen < GENERATIONS; gen++){

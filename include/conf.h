@@ -13,7 +13,7 @@
  * updates. SIEKNET_MAX_GRAD will bound the maximum gradient wrt any parameter to the below
  * value.
  */
-#define SIEKNET_MAX_GRAD 13.0f //the max gradient of any parameter across all network types
+#define SIEKNET_MAX_GRAD 1.0f //the max gradient of any parameter across all network types
 
 /*
  * LSTM's can sometimes suffer from the exploding gradient problem. In my experience,

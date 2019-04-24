@@ -94,7 +94,7 @@ int main(){
     n.seq_len = 3;
     //n.output_layer.logistic = sigmoid;
     int correct = 1;
-    float epsilon = 0.001;
+    float epsilon = 0.0005;
     float threshold = 0.01; //gradients over time seem to be noisy - a high threshold is required
     float norm = 0;
     for(int i = 0; i < n.num_params; i++){

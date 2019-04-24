@@ -14,6 +14,7 @@ typedef struct mutation_ {
   Mutation_type mutation_type;
 
 	float mutation_rate;
+	float step_size;
   size_t num_params;
   float *momentum;
 
@@ -37,13 +38,17 @@ typedef struct env_ {
 } Environment;
 
 
-//typedef LSTM** LSTM_pool;
-//typedef RNN**  RNN_pool;
-//typedef MLP**  MLP_pool;
+typedef LSTM** LSTM_pool;
+typedef RNN**  RNN_pool;
+typedef MLP**  MLP_pool;
 
 LSTM *copy_lstm(LSTM *);
 RNN *copy_rnn(RNN *);
 MLP *copy_mlp(MLP *);
+
+LSTM_pool create_lstm_pool(size_t, LSTM *, int);
+RNN_pool create_rnn_pool(size_t, RNN *, int);
+MLP_pool create_mlp_pool(size_t, MLP *, int);
 
 Mutator create_mutator(Network_type, Mutation_type);
 
