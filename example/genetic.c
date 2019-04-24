@@ -46,6 +46,16 @@
 #define network_pool_(ARCH) ARCH ## _pool
 #define network_pool(ARCH) network_pool_(ARCH)
 
+#define sort_pool_(arch) sort_ ## arch ## _pool
+#define sort_pool(arch) sort_pool_(arch)
+
+#define cull_pool_(arch) cull_ ## arch ## _pool
+#define cull_pool(arch) cull_pool_(arch)
+
+#define breed_pool_(arch) breed_ ## arch ## _pool
+#define breed_pool(arch) breed_pool_(arch)
+
+
 #define POOL_SIZE 5
 
 #define OBS_SPACE 1
@@ -67,27 +77,27 @@
 
 int main(){
 	srand(2);
-  
-	/*
-  NETWORK_TYPE **pool = ALLOC(NETWORK_TYPE*, POOL_SIZE);
-
-  for(int i = 0; i < POOL_SIZE; i++){
-    pool[i] = ALLOC(NETWORK_TYPE, 1);
-    *pool[i] = create(network_type)(OBS_SPACE, HIDDEN_SIZE, ACT_SPACE);
-    pool[i]->performance = 0.0f;
-  }
-	*/
-	int random = 1;
 	NETWORK_TYPE seed = create(network_type)(OBS_SPACE, HIDDEN_SIZE, ACT_SPACE);
 
-	network_pool(NETWORK_TYPE) pool = create_pool(network_type)(POOL_SIZE, &seed, random);
+	network_pool(NETWORK_TYPE) pool = create_pool(network_type)(POOL_SIZE, &seed, 1);
 
   Mutator m = create_mutator(network_type, MUT_baseline);
 	m.mutation_rate = 0.1;
+
+  for(int i = 0; i < POOL_SIZE; i++){
+    pool[i]->performance = (float)rand() / RAND_MAX;
+    printf("pool[%d] has perf %f\n", i, pool[i]->performance);
+  }
+  sort_pool(network_type)(pool, POOL_SIZE);
+  for(int i = 0; i < POOL_SIZE; i++){
+    printf("pool[%d] now has perf %f\n", i, pool[i]->performance);
+  }
+
+  //cull_pool(network_type)(
 	
 
-  /*
 
+/*
   for(int gen = 0; gen < GENERATIONS; gen++){
     //TODO: ENV SETUP
     Environment env;
@@ -117,15 +127,10 @@ int main(){
     }
     
     //repopulate pool
-    for(int i = 0; i < (int)(ELITE_PERCENTAGE * POOL_SIZE); i++){
+    
 
     }
-
-
-
   }
-
-  
   */
   return 0;
 }
