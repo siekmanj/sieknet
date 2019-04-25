@@ -62,8 +62,10 @@
 int main(){
 	srand(2);
 	NETWORK_TYPE seed = create(network_type)(OBS_SPACE, HIDDEN_SIZE, ACT_SPACE);
-
+	
+	printf("creating pool\n");
 	Pool p = create_pool(network_type, &seed, POOL_SIZE);
+	printf("creating done\n");
 	p.mutation_type = MUT_baseline;
 	p.mutation_rate = 0.05;
 	p.elite_percentile = 0.9;
@@ -77,9 +79,13 @@ int main(){
 		n->performance += 0.05;
 	}
 
+	printf("sorting pool\n");
 	sort_pool(&p);
+	printf("culling pool\n");
 	cull_pool(&p);
+	printf("breeding pool\n");
 	breed_pool(&p);
+	printf("done!\n");
 
 
 
