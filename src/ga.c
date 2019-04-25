@@ -151,7 +151,161 @@ float *recombine(const float step_size, const Mutation_type type, const float *p
   return NULL;
 }
 
+#define fill_comparator(type, a, b)       \
+  float l = (*((type **)a))->performance; \
+  float r = (*((type **)b))->performance; \
+  if(l < r) return 1;                     \
+  if(l > r) return -1;                    \
+  return 0
+
+int mlp_comparator(const void *a, const void *b){
+  fill_comparator(MLP, a, b);
+}
+
+int rnn_comparator(const void *a, const void *b){
+  fill_comparator(RNN, a, b);
+}
+
+int lstm_comparator(const void *a, const void *b){
+  fill_comparator(LSTM, a, b);
+}
+
+
+Pool create_pool(Network_type type, void *seed, size_t pool_size){
+	Pool p;
+	p.network_type = type;
+	p.mutation_type = MUT_baseline;
+	p.pool_size = pool_size;
+
+	p.mutation_rate = 0.01;
+	p.step_size = 0.01;
+	p.elite_percentile = 0.95;
+
+	switch(type){
+		case mlp:
+			p.members = (void*)ALLOC(MLP *, pool_size);
+			p.members[0] = copy_mlp((MLP*)seed);
+			p.momentum = ALLOC(float, ((MLP*)seed)->num_params);
+
+			for(int i = 1; i < pool_size; i++){
+				p.members[i] = copy_mlp((MLP*)seed);
+				for(int j = 0; j < ((MLP*)seed)->num_params; j++)
+					((MLP*)p.members[i])->params[j] = normal(0, 0.5);
+			}
+			break;
+
+		case rnn:
+			p.members = (void*)ALLOC(RNN *, pool_size);
+			p.members[0] = copy_rnn((RNN*)seed);
+			p.momentum = ALLOC(float, ((RNN*)seed)->num_params);
+
+			for(int i = 1; i < pool_size; i++){
+				p.members[i] = copy_rnn((RNN*)seed);
+				for(int j = 0; j < ((RNN*)seed)->num_params; j++)
+					((RNN*)p.members[i])->params[j] = normal(0, 0.5);
+			}
+			break;
+
+		case lstm:
+			p.members = (void*)ALLOC(LSTM *, pool_size);
+			p.members[0] = copy_lstm((LSTM*)seed);
+			p.momentum = ALLOC(float, ((LSTM*)seed)->num_params);
+
+			for(int i = 1; i < pool_size; i++){
+				p.members[i] = copy_lstm((LSTM*)seed);
+				for(int j = 0; j < ((LSTM*)seed)->num_params; j++)
+					((LSTM*)p.members[i])->params[j] = normal(0, 0.5);
+			}
+			break;
+	}
+	return p;
+}
+
+void sort_pool(Pool *p){
+	switch(p->network_type){
+		case mlp:
+			qsort(p->members, p->pool_size, sizeof(MLP*), mlp_comparator);
+			break;
+		
+		case rnn:
+			qsort(p->members, p->pool_size, sizeof(RNN*), rnn_comparator);
+			break;
+
+		case lstm:
+			qsort(p->members, p->pool_size, sizeof(LSTM*), lstm_comparator);
+			break;
+	}
+	return;
+}
+
+void cull_pool(Pool *p){
+	size_t size = p->pool_size;
+	float percentile = p->elite_percentile;
+
+	switch(p->network_type){
+		case mlp:
+			for(int i = size - (int)((percentile)*size); i < size; i++){
+				dealloc_mlp((MLP*)p->members[i]);
+				p->members[i] = NULL;
+			}
+			break;
+		
+		case rnn:
+			for(int i = size - (int)((percentile)*size); i < size; i++){
+				dealloc_rnn((RNN*)p->members[i]);
+				p->members[i] = NULL;
+			}
+			
+			break;
+
+		case lstm:
+			for(int i = size - (int)((percentile)*size); i < size; i++){
+				dealloc_lstm((LSTM*)p->members[i]);
+				p->members[i] = NULL;
+			}
+			break;
+	}
+}
+
+void breed_pool(Pool *p){
+	size_t size = p->pool_size;
+	switch(p->network_type){
+		case mlp:
+			for(int i = size - (int)((p->elite_percentile)*size); i < size; i++){
+				MLP *a = (MLP*)p->members[rand() % (size - (int)((p->elite_percentile)*size))];
+				MLP *b = (MLP*)p->members[rand() % (size - (int)((p->elite_percentile)*size))];
+
+				MLP *child = copy_mlp(a);
+				child->params = recombine(p->step_size, p->mutation_type, a->params, a->param_grad, b->params, b->param_grad, p->momentum, p->mutation_rate, a->num_params);
+				p->members[i] = (void*)child;
+			}
+			break;
+		case rnn:
+			for(int i = size - (int)((p->elite_percentile)*size); i < size; i++){
+				RNN *a = (RNN*)p->members[rand() % (size - (int)((p->elite_percentile)*size))];
+				RNN *b = (RNN*)p->members[rand() % (size - (int)((p->elite_percentile)*size))];
+
+				RNN *child = copy_rnn(a);
+				child->params = recombine(p->step_size, p->mutation_type, a->params, a->param_grad, b->params, b->param_grad, p->momentum, p->mutation_rate, a->num_params);
+				p->members[i] = (void*)child;
+			}
+			break;
+		case lstm:
+			for(int i = size - (int)((p->elite_percentile)*size); i < size; i++){
+				LSTM *a = (LSTM*)p->members[rand() % (size - (int)((p->elite_percentile)*size))];
+				LSTM *b = (LSTM*)p->members[rand() % (size - (int)((p->elite_percentile)*size))];
+
+				LSTM *child = copy_lstm(a);
+				child->params = recombine(p->step_size, p->mutation_type, a->params, a->param_grad, b->params, b->param_grad, p->momentum, p->mutation_rate, a->num_params);
+				p->members[i] = (void*)child;
+			}
+			break;
+	}
+}
+
+
 /* forgive me for I have sinned */
+/*
 
 #define agnostic_recombine(TYPE, type, m, a, b) \
   assert(a->num_params == b->num_params); \
@@ -176,7 +330,6 @@ LSTM *LSTM_recombine(Mutator m, LSTM *a, LSTM *b){
 	agnostic_recombine(LSTM, lstm, m, a, b);
 }
 
-/* don't try this at home kids  */
 
 #define fill_pool(type, p, size, seed, random) \
 	for(int i = 0; i < size; i++){               \
@@ -214,7 +367,7 @@ LSTM_pool create_lstm_pool(size_t size, LSTM *seed, int random){
   float r = (*((type **)b))->performance; \
   if(l < r) return 1;                     \
   if(l > r) return -1;                    \
-  if(l == r) return 0
+  return 0
 
 int mlp_comparator(const void *a, const void *b){
   fill_comparator(MLP, a, b);
@@ -242,7 +395,7 @@ void sort_lstm_pool(LSTM_pool p, size_t size){
 }
 
 #define cull_pool(type, p, percentile, size)                \
-  for(int i = (int)((1-percentile)*size); i < size; i++){   \
+  for(int i = size - (int)((percentile)*size); i < size; i++){   \
     dealloc_ ## type(p[i]);                                 \
     p[i] = NULL;                                            \
   }
@@ -260,9 +413,9 @@ void cull_lstm_pool(LSTM_pool p, Mutator m, size_t size){
 }
 
 #define breed_pool(TYPE, p, mutator, size)                            \
-  for(int i = (int)((1-m.elite_percentile)*size); i < size; i++){     \
-    TYPE *parent1 = p[rand() % ((int)((1-m.elite_percentile)*size))]; \
-    TYPE *parent2 = p[rand() % ((int)((1-m.elite_percentile)*size))]; \
+  for(int i = size - (int)((m.elite_percentile)*size); i < size; i++){     \
+    TYPE *parent1 = p[rand() % (size - (int)((m.elite_percentile)*size))]; \
+    TYPE *parent2 = p[rand() % (size - (int)((m.elite_percentile)*size))]; \
     p[i] = (TYPE*) m.recombine(m, parent1, parent2);                  \
   }
 
@@ -301,3 +454,4 @@ Mutator create_mutator(Network_type net, Mutation_type mut){
   }
 	return m;
 }
+*/

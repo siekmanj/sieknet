@@ -40,22 +40,6 @@
 #define dealloc_(arch) dealloc_ ## arch
 #define dealloc(arch) dealloc_(arch)
 
-#define create_pool_(arch) create_ ## arch ## _pool
-#define create_pool(arch) create_pool_(arch)
-
-#define network_pool_(ARCH) ARCH ## _pool
-#define network_pool(ARCH) network_pool_(ARCH)
-
-#define sort_pool_(arch) sort_ ## arch ## _pool
-#define sort_pool(arch) sort_pool_(arch)
-
-#define cull_pool_(arch) cull_ ## arch ## _pool
-#define cull_pool(arch) cull_pool_(arch)
-
-#define breed_pool_(arch) breed_ ## arch ## _pool
-#define breed_pool(arch) breed_pool_(arch)
-
-
 #define POOL_SIZE 5
 
 #define OBS_SPACE 1
@@ -79,6 +63,27 @@ int main(){
 	srand(2);
 	NETWORK_TYPE seed = create(network_type)(OBS_SPACE, HIDDEN_SIZE, ACT_SPACE);
 
+	Pool p = create_pool(network_type, &seed, POOL_SIZE);
+	p.mutation_type = MUT_baseline;
+	p.mutation_rate = 0.05;
+	p.elite_percentile = 0.9;
+
+	for(int i = 0; i < p.pool_size; i++){
+		NETWORK_TYPE *n = p.members[i];
+		forward(network_type)(n, NULL);
+		//set_sensitivity_gradient(n->cost_gradient, n->output, n->output_layer->logistic);
+		backward(network_type)(n);
+
+		n->performance += 0.05;
+	}
+
+	sort_pool(&p);
+	cull_pool(&p);
+	breed_pool(&p);
+
+
+
+/*
 	network_pool(NETWORK_TYPE) pool = create_pool(network_type)(POOL_SIZE, &seed, 1);
 
   Mutator m = create_mutator(network_type, MUT_baseline);
@@ -93,7 +98,13 @@ int main(){
     printf("pool[%d] now has perf %f\n", i, pool[i]->performance);
   }
 
-  //cull_pool(network_type)(
+  cull_pool(network_type)(pool, m, POOL_SIZE);
+	for(int i = 0; i < POOL_SIZE; i++)
+		printf("pool[%d]: %p\n", i, pool[i]);
+	breed_pool(network_type)(pool, m, POOL_SIZE);
+	for(int i = 0; i < POOL_SIZE; i++)
+		printf("pool[%d]: %p\n", i, pool[i]);
+*/
 	
 
 
