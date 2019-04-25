@@ -9,6 +9,7 @@ BIN=bin
 
 SRC_DIR=src
 DAT_DIR=data
+MJ_DIR=/home/drl/.mujoco/mujoco200
 
 INCLUDE=-Iinclude
 LIBS=-lm 
@@ -16,6 +17,7 @@ GPULIBS=$(LIBS) -lOpenCL
 
 CFLAGS=-O3 -Wall -Wno-unused-function
 GPUFLAGS=$(CFLAGS) -DSIEKNET_USE_GPU
+MUJOCOFLAGS=$(CFLAGS) -I$(MJ_DIR)/include -L$(MJ_DIR)/bin -mavx -pthread -lmujoco200 -lGl -lglew $(MJ_DIR)/bin/libglfw.so.3
 
 LSTM_SRC=$(SRC_DIR)/lstm.c
 RNN_SRC=$(SRC_DIR)/rnn.c
@@ -24,6 +26,7 @@ MNIST_SRC=$(SRC_DIR)/mnist.c
 OPTIM_SRC=$(SRC_DIR)/optimizer.c
 CL_SRC=$(SRC_DIR)/opencl_utils.c
 GA_SRC=$(SRC_DIR)/ga.c
+HOPPER_SRC=$(SRC_DIR)/hopper2d_env.c
 
 CPU_SRC=$(MLP_SRC) $(OPTIM_SRC)
 GPU_SRC=$(MLP_SRC) $(OPTIM_SRC) $(CL_SRC)
@@ -60,7 +63,7 @@ sequence_gpu:
 	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(CL_SRC) example/sequence.c -o $(BIN)/$@ $(GPULIBS)
 
 genetic:
-	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(GA_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
+	$(CC) $(MUJOCOFLAGS) -I/home/drl/.mujoco/mujoco200/include $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(GA_SRC) $(HOPPER_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
 
 test_lstm:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) example/test_lstm.c -o $(BIN)/$@ $(LIBS)

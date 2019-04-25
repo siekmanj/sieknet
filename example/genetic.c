@@ -3,6 +3,8 @@
 #include <lstm.h>
 #include <rnn.h>
 #include <ga.h>
+#include <env.h>
+#include <hopper2d_env.h>
 
 //#define USE_MLP
 //#define USE_RNN
@@ -59,95 +61,25 @@
  *  observation_space
  */
 
+
 int main(){
+  Environment env = create_hopper2d_env();
 	srand(2);
+
+  /*
 	NETWORK_TYPE seed = create(network_type)(OBS_SPACE, HIDDEN_SIZE, ACT_SPACE);
-	
-	printf("creating pool\n");
 	Pool p = create_pool(network_type, &seed, POOL_SIZE);
-	printf("creating done\n");
 	p.mutation_type = MUT_baseline;
 	p.mutation_rate = 0.05;
 	p.elite_percentile = 0.9;
 
 	for(int i = 0; i < p.pool_size; i++){
+    float x = 0.5;
 		NETWORK_TYPE *n = p.members[i];
-		forward(network_type)(n, NULL);
-		//set_sensitivity_gradient(n->cost_gradient, n->output, n->output_layer->logistic);
-		backward(network_type)(n);
-
-		n->performance += 0.05;
+		forward(network_type)(n, &x);
+		n->performance = (float)rand()/RAND_MAX;
 	}
-
-	printf("sorting pool\n");
-	sort_pool(&p);
-	printf("culling pool\n");
-	cull_pool(&p);
-	printf("breeding pool\n");
-	breed_pool(&p);
-	printf("done!\n");
-
-
-
-/*
-	network_pool(NETWORK_TYPE) pool = create_pool(network_type)(POOL_SIZE, &seed, 1);
-
-  Mutator m = create_mutator(network_type, MUT_baseline);
-	m.mutation_rate = 0.1;
-
-  for(int i = 0; i < POOL_SIZE; i++){
-    pool[i]->performance = (float)rand() / RAND_MAX;
-    printf("pool[%d] has perf %f\n", i, pool[i]->performance);
-  }
-  sort_pool(network_type)(pool, POOL_SIZE);
-  for(int i = 0; i < POOL_SIZE; i++){
-    printf("pool[%d] now has perf %f\n", i, pool[i]->performance);
-  }
-
-  cull_pool(network_type)(pool, m, POOL_SIZE);
-	for(int i = 0; i < POOL_SIZE; i++)
-		printf("pool[%d]: %p\n", i, pool[i]);
-	breed_pool(network_type)(pool, m, POOL_SIZE);
-	for(int i = 0; i < POOL_SIZE; i++)
-		printf("pool[%d]: %p\n", i, pool[i]);
-*/
-	
-
-
-/*
-  for(int gen = 0; gen < GENERATIONS; gen++){
-    //TODO: ENV SETUP
-    Environment env;
-    for(int i = 0; i < POOL_SIZE; i++){
-      for(int t = 0; t < MAX_TIMESTEPS; t++){
-
-        //MUJOCO STUFF HERE
-
-        float *obs; //TODO
-
-        forward(network_type)(pool[i], env->state);
-        set_sensitivity_gradient(pool[i]->mlp_cost_gradient, pool[i]->output, pool[i]->output_layer.logistic);
-        backward(network_type)(pool[i]);
-
-        //TODO: ENV STEP
-        reward += env->step(env, action);
-        
-
-      }
-    }
-    //TODO: SORTING
-    //qsort(pool);
-
-    //Cull everyone but elites
-    for(int i = (int)(ELITE_PERCENTILE * POOL_SIZE); i < POOL_SIZE; i++){
-      dealloc(network_type)(&pool[i]);
-    }
-    
-    //repopulate pool
-    
-
-    }
-  }
+  evolve_pool(&p);
   */
   return 0;
 }
