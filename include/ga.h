@@ -30,7 +30,7 @@ MLP *copy_mlp(MLP *);
 
 Pool create_pool(Network_type, void *, size_t);
 
-void evolve(Pool *p);
+void evolve_pool(Pool *p);
 
 void sort_pool(Pool *p);
 void cull_pool(Pool *p);

@@ -2,9 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <conf.h>
 #include <hopper2d_env.h>
 #include <mujoco.h>
 #include <glfw3.h>
+
+
+#define CTRL_HZ 30.0f
 
 typedef struct data {
   mjModel *model;
@@ -14,86 +18,176 @@ typedef struct data {
   mjvScene scene;
   mjrContext context;
   GLFWwindow *window;
+  int render_setup;
 } Data;
 
-/*
-// mouse move callback
-void mouse_move(GLFWwindow* window, double xpos, double ypos)
-{
-    // no buttons down: nothing to do
-    if( !button_left && !button_middle && !button_right )
-        return;
-
-    // compute mouse displacement, save
-    double dx = xpos - lastx;
-    double dy = ypos - lasty;
-    lastx = xpos;
-    lasty = ypos;
-
-    // get current window size
-    int width, height;
-    glfwGetWindowSize(window, &width, &height);
-
-    // get shift key state
-    bool mod_shift = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT)==GLFW_PRESS ||
-                      glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT)==GLFW_PRESS);
-
-    // determine action based on mouse button
-    mjtMouse action;
-    if( button_right )
-        action = mod_shift ? mjMOUSE_MOVE_H : mjMOUSE_MOVE_V;
-    else if( button_left )
-        action = mod_shift ? mjMOUSE_ROTATE_H : mjMOUSE_ROTATE_V;
-    else
-        action = mjMOUSE_ZOOM;
-
-    // move camera
-    mjv_moveCamera(m, action, dx/height, dy/height, &scn, &cam);
+static float uniform(float lowerbound, float upperbound){
+	return lowerbound + (upperbound - lowerbound) * ((float)rand()/RAND_MAX);
 }
-*/
-static void dispose(Environment env){
 
+static float normal(float mean, float std){
+	float u1 = uniform(0, 1);
+	float u2 = uniform(0, 1);
+	float norm = sqrt(-2 * log(u1)) * cos(2 * 3.14159 * u2);
+	return mean + norm * std;
+}
+
+static void dispose(Environment env){
+  Data *tmp = ((Data*)env.data);
+  mjData *d = tmp->data;
+  mjModel *m = tmp->model;
+
+  mjv_freeScene(&tmp->scene);
+  mjr_freeContext(&tmp->context);
+  mj_deleteData(d);
+  mj_deleteModel(m);
+  mj_deactivate();
 }
 
 static void reset(Environment env){
+  Data *tmp = ((Data*)env.data);
+  mjData *d = tmp->data;
+  mjModel *m = tmp->model;
+
+  mj_resetData(m, d);
+  mj_forward(m, d);
+
+  *env.done = 0;
+}
+
+static void seed(Environment env){
+  Data *tmp = ((Data*)env.data);
+  mjData *d = tmp->data;
+  mjModel *m = tmp->model;
+
+  for(int i = 0; i < m->nq; i++)
+    d->qpos[i] += normal(0, 0.005);
+
+  for(int i = 0; i < m->nu; i++)
+    d->qvel[i] += normal(0, 0.005);
 
 }
 
 static void render(Environment env){
+  Data *tmp = ((Data*)env.data);
+  mjData *d = tmp->data;
+  mjModel *m = tmp->model;
+
+
+  if(!tmp->render_setup){
+
+    tmp->window = glfwCreateWindow(1200, 900, "Hopper2d", NULL, NULL);
+    glfwMakeContextCurrent(tmp->window);
+    glfwSwapInterval(1);
+
+    mjv_defaultCamera(&tmp->camera);
+    mjv_defaultOption(&tmp->opt);
+    mjv_defaultScene(&tmp->scene);
+    mjr_defaultContext(&tmp->context);
+
+    mjv_makeScene(tmp->model, &tmp->scene, 2000);
+    mjr_makeContext(tmp->model, &tmp->context, mjFONTSCALE_150);
+    tmp->render_setup = 1;
+  }
+
+  tmp->camera.lookat[0] = d->qpos[0];
+  tmp->camera.distance = 4.0;
+  tmp->camera.elevation = -20.0;
+
+  // get framebuffer viewport
+  mjrRect viewport = {0, 0, 0, 0};
+  glfwGetFramebufferSize(tmp->window, &viewport.width, &viewport.height);
+
+  // update scene and render
+  mjv_updateScene(m, d, &tmp->opt, NULL, &tmp->camera, mjCAT_ALL, &tmp->scene);
+  mjr_render(viewport, &tmp->scene, &tmp->context);
+
+  // swap OpenGL buffers (blocking call due to v-sync)
+  glfwSwapBuffers(tmp->window);
+
+  // process pending GUI events, call GLFW callbacks
+  glfwPollEvents();
+
+}
+
+static void close(Environment env){
+  Data *tmp = ((Data*)env.data);
+  glfwDestroyWindow(tmp->window);
+  //glfwTerminate();
+
+  tmp->render_setup = 0;
 
 }
 
 static float step(Environment env, float *action){
+  Data *tmp = ((Data*)env.data);
+  mjData *d = tmp->data;
+  mjModel *m = tmp->model;
 
+  float posbefore = d->qpos[0];
+
+  mjtNum simstart = d->time;
+  for(int i = 0; i < env.action_space; i++)
+    d->ctrl[i] = action[i];
+  
+  while(d->time - simstart < 1.0/CTRL_HZ)
+    mj_step(m, d);
+
+  for(int i = 0; i < m->nq; i++)
+    env.state[i] = d->qpos[i];
+
+  for(int i = 0; i < m->nv; i++)
+    env.state[i+m->nq] = d->qvel[i];
+
+  /* REWARD CALCULATION: Identical to OpenAI's */
+  float alive_bonus = 0.0f;
+  
+  float reward = (d->qpos[0] - posbefore) * (1.0/CTRL_HZ);
+  reward += alive_bonus;
+
+  float action_sum = 0;
+  for(int i = 0; i < env.action_space; i++)
+    action_sum += action[i]*action[i];
+
+  reward -= 0.001 * action_sum;
+
+  if(d->qpos[1] < 0.7){
+    *env.done = 1;
+  }
+
+  return reward;
 }
 
 Environment create_hopper2d_env(){
+  glfwInit();
 
   // activate software
-  mj_activate("mjkey.txt");
+  mj_activate(SIEKNET_MJKEYPATH);
 
   Environment env;
   env.dispose = dispose;
   env.reset = reset;
+  env.seed = seed;
   env.render = render;
+  env.close = close;
   env.step = step;
 
-  //env.observation_space = 0;
-  //env.action_space = 0;
+  Data *d = (Data*)malloc(sizeof(Data));
+  char error[1000] = "Couldn't load model file.";
+  d->model = mj_loadXML("./assets/hopper.xml", 0, error, 1000);
+  if(!d->model)
+    mju_error_s("Load model error: %s", error);
 
-  Data d;
-  /*
-  d.window = glfwCreateWindow(1200, 900, "Hopper2d", NULL, NULL);
-  glfwMakeContextCurrent(d.window);
-  glfwSwapInterval(1);
+  d->data = mj_makeData(d->model);
+  d->render_setup = 0;
 
-  mjv_defaultCamera(&d.camera);
-  mjv_defaultOption(&d.opt);
-  mjv_defaultScene(&d.scene);
-  mjv_defaultContext(&d.context);
+  env.observation_space = d->model->nq + d->model->nv;
+  env.action_space = d->model->nu;
 
-  mjv_makeScene(&d
-*/
+  env.data = d;
+  env.state = (float*)calloc(env.observation_space, sizeof(float));
+
+  env.done = calloc(1, sizeof(int));
+
   return env;
-
 }

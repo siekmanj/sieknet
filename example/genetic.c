@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+
 #include <lstm.h>
 #include <rnn.h>
 #include <ga.h>
@@ -7,8 +8,8 @@
 #include <hopper2d_env.h>
 
 //#define USE_MLP
-//#define USE_RNN
-#define USE_LSTM
+#define USE_RNN
+//#define USE_LSTM
 
 #ifdef USE_MLP
 #define network_type mlp
@@ -24,6 +25,16 @@
 #define network_type lstm
 #define NETWORK_TYPE LSTM
 #endif
+
+#define POOL_SIZE        500
+#define HIDDEN_SIZE      20
+#define STEP_SIZE        0.005f
+#define MUTATION_RATE    0.005f
+#define ELITE_PERCENTILE 0.900f
+
+#define GENERATIONS  150
+#define MAX_TRAJ_LEN 300
+#define RENDER_EVERY 5
 
 /* Some ghetto polymorphism */
 
@@ -42,44 +53,57 @@
 #define dealloc_(arch) dealloc_ ## arch
 #define dealloc(arch) dealloc_(arch)
 
-#define POOL_SIZE 5
+#define MACROVAL_(s) #s
+#define MACROVAL(s) MACROVAL_(s)
 
-#define OBS_SPACE 1
-#define ACT_SPACE 1
-
-#define HIDDEN_SIZE 1
-
-#define ELITE_PERCENTILE 0.5f;
-
-/*
- * Env:
- *  create()
- *  reset()
- *  step()
- *  dispose()
- *  action_space
- *  observation_space
- */
-
+#define LOGFILE_ ./log/pool_size.POOL_SIZE.hidden_size.HIDDEN_SIZE.step_size.STEP_SIZE.mutation_rate.MUTATION_RATE.network_type.log
 
 int main(){
-  Environment env = create_hopper2d_env();
 	srand(2);
+  FILE *log = fopen(MACROVAL(LOGFILE_), "wb");
 
-  /*
-	NETWORK_TYPE seed = create(network_type)(OBS_SPACE, HIDDEN_SIZE, ACT_SPACE);
+  Environment env = create_hopper2d_env();
+
+	NETWORK_TYPE seed = create(network_type)(env.observation_space, HIDDEN_SIZE, env.action_space);
+
+#if defined(USE_LSTM) || defined(USE_RNN)
+  seed.output_layer.logistic = hypertan;
+#else
+  seed.layers[seed.depth-1].logistic = hypertan;
+#endif
+
 	Pool p = create_pool(network_type, &seed, POOL_SIZE);
+  p.step_size = STEP_SIZE;
 	p.mutation_type = MUT_baseline;
-	p.mutation_rate = 0.05;
-	p.elite_percentile = 0.9;
+	p.mutation_rate = MUTATION_RATE;
+	p.elite_percentile = ELITE_PERCENTILE;
 
-	for(int i = 0; i < p.pool_size; i++){
-    float x = 0.5;
-		NETWORK_TYPE *n = p.members[i];
-		forward(network_type)(n, &x);
-		n->performance = (float)rand()/RAND_MAX;
-	}
-  evolve_pool(&p);
-  */
+  for(int gen = 0; gen < GENERATIONS; gen++){
+    for(int i = 0; i < p.pool_size; i++){
+      NETWORK_TYPE *n = p.members[i];
+      n->performance = 0;
+
+      env.reset(env);
+      env.seed(env);
+
+      for(int t = 0; t < MAX_TRAJ_LEN; t++){
+
+        forward(network_type)(n, env.state);
+        n->performance += env.step(env, n->output);
+        if(!i && gen && !(gen % RENDER_EVERY))
+          env.render(env);
+        if(*env.done){
+          break;
+        }
+      }
+      if(!i && gen && !(gen % RENDER_EVERY))
+        env.close(env);
+    }
+    evolve_pool(&p);
+    printf("%3d %6.4f\n", gen, ((NETWORK_TYPE*)p.members[0])->performance);
+    fprintf(log, "%f\n", ((NETWORK_TYPE*)p.members[0])->performance);
+    fflush(log);
+  }
+  fclose(log);
   return 0;
 }
