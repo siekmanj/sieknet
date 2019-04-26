@@ -6,8 +6,8 @@
 #include <env.h>
 #include <hopper2d_env.h>
 
-#define USE_MLP
-//#define USE_RNN
+//#define USE_MLP
+#define USE_RNN
 //#define USE_LSTM
 
 #ifdef USE_MLP
