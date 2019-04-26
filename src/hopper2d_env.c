@@ -6,6 +6,9 @@
 #include <mujoco.h>
 #include <glfw3.h>
 
+
+#define CTRL_HZ 30.0f
+
 typedef struct data {
   mjModel *model;
   mjData *data;
@@ -17,41 +20,17 @@ typedef struct data {
   int render_setup;
 } Data;
 
-/*
-// mouse move callback
-void mouse_move(GLFWwindow* window, double xpos, double ypos)
-{
-    // no buttons down: nothing to do
-    if( !button_left && !button_middle && !button_right )
-        return;
-
-    // compute mouse displacement, save
-    double dx = xpos - lastx;
-    double dy = ypos - lasty;
-    lastx = xpos;
-    lasty = ypos;
-
-    // get current window size
-    int width, height;
-    glfwGetWindowSize(window, &width, &height);
-
-    // get shift key state
-    bool mod_shift = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT)==GLFW_PRESS ||
-                      glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT)==GLFW_PRESS);
-
-    // determine action based on mouse button
-    mjtMouse action;
-    if( button_right )
-        action = mod_shift ? mjMOUSE_MOVE_H : mjMOUSE_MOVE_V;
-    else if( button_left )
-        action = mod_shift ? mjMOUSE_ROTATE_H : mjMOUSE_ROTATE_V;
-    else
-        action = mjMOUSE_ZOOM;
-
-    // move camera
-    mjv_moveCamera(m, action, dx/height, dy/height, &scn, &cam);
+static float uniform(float lowerbound, float upperbound){
+	return lowerbound + (upperbound - lowerbound) * ((float)rand()/RAND_MAX);
 }
-*/
+
+static float normal(float mean, float std){
+	float u1 = uniform(0, 1);
+	float u2 = uniform(0, 1);
+	float norm = sqrt(-2 * log(u1)) * cos(2 * 3.14159 * u2);
+	return mean + norm * std;
+}
+
 static void dispose(Environment env){
   Data *tmp = ((Data*)env.data);
   mjData *d = tmp->data;
@@ -68,6 +47,24 @@ static void reset(Environment env){
   Data *tmp = ((Data*)env.data);
   mjData *d = tmp->data;
   mjModel *m = tmp->model;
+
+  mj_resetData(m, d);
+  mj_forward(m, d);
+
+  *env.done = 0;
+}
+
+static void seed(Environment env){
+  Data *tmp = ((Data*)env.data);
+  mjData *d = tmp->data;
+  mjModel *m = tmp->model;
+
+  for(int i = 0; i < m->nq; i++)
+    d->qpos[i] += normal(0, 0.05);
+
+  for(int i = 0; i < m->nu; i++)
+    d->qvel[i] += normal(0, 0.05);
+
 }
 
 static void render(Environment env){
@@ -93,6 +90,10 @@ static void render(Environment env){
     tmp->render_setup = 1;
   }
 
+  tmp->camera.lookat[0] = d->qpos[0];
+  tmp->camera.distance = 4.0;
+  tmp->camera.elevation = -20.0;
+
   // get framebuffer viewport
   mjrRect viewport = {0, 0, 0, 0};
   glfwGetFramebufferSize(tmp->window, &viewport.width, &viewport.height);
@@ -111,8 +112,8 @@ static void render(Environment env){
 
 static void close(Environment env){
   Data *tmp = ((Data*)env.data);
-  mjData *d = tmp->data;
-  mjModel *m = tmp->model;
+  //mjData *d = tmp->data;
+  //mjModel *m = tmp->model;
 
   glfwDestroyWindow(tmp->window);
   glfwTerminate();
@@ -126,11 +127,29 @@ static float step(Environment env, float *action){
   mjData *d = tmp->data;
   mjModel *m = tmp->model;
 
+  float posbefore = d->qpos[0];
+
   mjtNum simstart = d->time;
-  while(d->time - simstart < 1.0/60.0)
+  for(int i = 0; i < env.action_space; i++)
+    d->ctrl[i] = action[i];
+  
+  while(d->time - simstart < 1.0/CTRL_HZ)
     mj_step(m, d);
 
+  for(int i = 0; i < m->nq; i++)
+    env.state[i] = d->qpos[i];
 
+  for(int i = 0; i < m->nv; i++)
+    env.state[i+m->nq] = d->qvel[i];
+  
+  float reward = (d->qpos[0] - posbefore) * (1.0/CTRL_HZ);
+
+  if(d->qpos[1] < 0.3){
+    *env.done = 1;
+    //reward -= 10.0;
+  }
+
+  return reward;
 }
 
 Environment create_hopper2d_env(){
@@ -141,6 +160,7 @@ Environment create_hopper2d_env(){
   Environment env;
   env.dispose = dispose;
   env.reset = reset;
+  env.seed = seed;
   env.render = render;
   env.close = close;
   env.step = step;
@@ -154,10 +174,13 @@ Environment create_hopper2d_env(){
   d->data = mj_makeData(d->model);
   d->render_setup = 0;
 
-  env.observation_space = d->model->nq;
+  env.observation_space = d->model->nq + d->model->nv;
   env.action_space = d->model->nu;
 
   env.data = d;
+  env.state = (float*)calloc(env.observation_space, sizeof(float));
+
+  env.done = calloc(1, sizeof(int));
 
   return env;
 }

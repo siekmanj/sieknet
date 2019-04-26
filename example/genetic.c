@@ -6,9 +6,9 @@
 #include <env.h>
 #include <hopper2d_env.h>
 
-//#define USE_MLP
+#define USE_MLP
 //#define USE_RNN
-#define USE_LSTM
+//#define USE_LSTM
 
 #ifdef USE_MLP
 #define network_type mlp
@@ -42,52 +42,58 @@
 #define dealloc_(arch) dealloc_ ## arch
 #define dealloc(arch) dealloc_(arch)
 
-#define POOL_SIZE 5
+#define POOL_SIZE 250
 
-#define OBS_SPACE 1
-#define ACT_SPACE 1
+#define HIDDEN_SIZE 10
 
-#define HIDDEN_SIZE 1
+#define STEP_SIZE 0.005f
+#define MUTATION_RATE 0.01f
+#define ELITE_PERCENTILE 0.5f
 
-#define ELITE_PERCENTILE 0.5f;
-
-/*
- * Env:
- *  create()
- *  reset()
- *  step()
- *  dispose()
- *  action_space
- *  observation_space
- */
-
+#define MAX_TRAJ_LEN 400
 
 int main(){
-  Environment env = create_hopper2d_env();
 	srand(2);
-  while(1){
-    for(int i = 0; i < 100; i++){
-      env.step(env, NULL);
-      env.render(env);
-    }
-    env.close(env);
-    getchar();
-  }
 
-  /*
-	NETWORK_TYPE seed = create(network_type)(OBS_SPACE, HIDDEN_SIZE, ACT_SPACE);
+  Environment env = create_hopper2d_env();
+
+	NETWORK_TYPE seed = create(network_type)(env.observation_space, HIDDEN_SIZE, env.action_space);
+
+#if defined(USE_LSTM) || defined(USE_RNN)
+  seed.output_layer.logistic = hypertan;
+#else
+  seed.layers[seed.depth-1].logistic = hypertan;
+#endif
+
 	Pool p = create_pool(network_type, &seed, POOL_SIZE);
+  p.step_size = STEP_SIZE;
 	p.mutation_type = MUT_baseline;
-	p.mutation_rate = 0.05;
-	p.elite_percentile = 0.9;
+	p.mutation_rate = MUTATION_RATE;
+	p.elite_percentile = ELITE_PERCENTILE;
 
-	for(int i = 0; i < p.pool_size; i++){
-    float x = 0.5;
-		NETWORK_TYPE *n = p.members[i];
-		forward(network_type)(n, &x);
-		n->performance = (float)rand()/RAND_MAX;
-	}
-  evolve_pool(&p);
-  */
+  for(int gen = 0; gen < 1000; gen++){
+    for(int i = 0; i < p.pool_size; i++){
+      NETWORK_TYPE *n = p.members[i];
+      n->performance = 0;
+
+      env.reset(env);
+      env.seed(env);
+
+      for(int t = 0; t < MAX_TRAJ_LEN; t++){
+
+        forward(network_type)(n, env.state);
+        n->performance += env.step(env, n->output);
+        if(!i && gen && !(gen % 15))
+          env.render(env);
+        if(*env.done){
+          break;
+        }
+      }
+      if(!i && gen && !(gen % 15))
+        env.close(env);
+    }
+    evolve_pool(&p);
+    printf("done with gen %d, best fitness %f\n", gen, ((NETWORK_TYPE*)p.members[0])->performance);
+  }
   return 0;
 }

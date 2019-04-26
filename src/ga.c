@@ -306,7 +306,7 @@ void breed_pool(Pool *p){
 	}
 }
 
-void evolve(Pool *p){
+void evolve_pool(Pool *p){
   sort_pool(p);
   cull_pool(p);
   breed_pool(p);
