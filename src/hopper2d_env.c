@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <conf.h>
 #include <hopper2d_env.h>
 #include <mujoco.h>
 #include <glfw3.h>
@@ -60,10 +61,10 @@ static void seed(Environment env){
   mjModel *m = tmp->model;
 
   for(int i = 0; i < m->nq; i++)
-    d->qpos[i] += normal(0, 0.05);
+    d->qpos[i] += normal(0, 0.005);
 
   for(int i = 0; i < m->nu; i++)
-    d->qvel[i] += normal(0, 0.05);
+    d->qvel[i] += normal(0, 0.005);
 
 }
 
@@ -74,7 +75,6 @@ static void render(Environment env){
 
 
   if(!tmp->render_setup){
-    glfwInit();
 
     tmp->window = glfwCreateWindow(1200, 900, "Hopper2d", NULL, NULL);
     glfwMakeContextCurrent(tmp->window);
@@ -112,11 +112,8 @@ static void render(Environment env){
 
 static void close(Environment env){
   Data *tmp = ((Data*)env.data);
-  //mjData *d = tmp->data;
-  //mjModel *m = tmp->model;
-
   glfwDestroyWindow(tmp->window);
-  glfwTerminate();
+  //glfwTerminate();
 
   tmp->render_setup = 0;
 
@@ -141,21 +138,31 @@ static float step(Environment env, float *action){
 
   for(int i = 0; i < m->nv; i++)
     env.state[i+m->nq] = d->qvel[i];
+
+  /* REWARD CALCULATION: Identical to OpenAI's */
+  float alive_bonus = 0.0f;
   
   float reward = (d->qpos[0] - posbefore) * (1.0/CTRL_HZ);
+  reward += alive_bonus;
 
-  if(d->qpos[1] < 0.3){
+  float action_sum = 0;
+  for(int i = 0; i < env.action_space; i++)
+    action_sum += action[i]*action[i];
+
+  reward -= 0.001 * action_sum;
+
+  if(d->qpos[1] < 0.7){
     *env.done = 1;
-    //reward -= 10.0;
   }
 
   return reward;
 }
 
 Environment create_hopper2d_env(){
+  glfwInit();
 
   // activate software
-  mj_activate("/home/jonah/.mujoco/mjkey.txt");
+  mj_activate(SIEKNET_MJKEYPATH);
 
   Environment env;
   env.dispose = dispose;

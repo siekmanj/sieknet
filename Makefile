@@ -9,7 +9,7 @@ BIN=bin
 
 SRC_DIR=src
 DAT_DIR=data
-MJ_DIR=/home/jonah/.mujoco/mujoco200
+MJ_DIR=$(HOME)/.mujoco/mujoco200
 
 INCLUDE=-Iinclude
 LIBS=-lm 

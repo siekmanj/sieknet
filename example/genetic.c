@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+
 #include <lstm.h>
 #include <rnn.h>
 #include <ga.h>
@@ -25,6 +26,16 @@
 #define NETWORK_TYPE LSTM
 #endif
 
+#define POOL_SIZE        500
+#define HIDDEN_SIZE      20
+#define STEP_SIZE        0.005f
+#define MUTATION_RATE    0.005f
+#define ELITE_PERCENTILE 0.900f
+
+#define GENERATIONS  150
+#define MAX_TRAJ_LEN 300
+#define RENDER_EVERY 5
+
 /* Some ghetto polymorphism */
 
 #define forward_(arch) arch ## _forward
@@ -42,18 +53,14 @@
 #define dealloc_(arch) dealloc_ ## arch
 #define dealloc(arch) dealloc_(arch)
 
-#define POOL_SIZE 250
+#define MACROVAL_(s) #s
+#define MACROVAL(s) MACROVAL_(s)
 
-#define HIDDEN_SIZE 10
-
-#define STEP_SIZE 0.005f
-#define MUTATION_RATE 0.01f
-#define ELITE_PERCENTILE 0.5f
-
-#define MAX_TRAJ_LEN 400
+#define LOGFILE_ ./log/pool_size.POOL_SIZE.hidden_size.HIDDEN_SIZE.step_size.STEP_SIZE.mutation_rate.MUTATION_RATE.network_type.log
 
 int main(){
 	srand(2);
+  FILE *log = fopen(MACROVAL(LOGFILE_), "wb");
 
   Environment env = create_hopper2d_env();
 
@@ -71,7 +78,7 @@ int main(){
 	p.mutation_rate = MUTATION_RATE;
 	p.elite_percentile = ELITE_PERCENTILE;
 
-  for(int gen = 0; gen < 1000; gen++){
+  for(int gen = 0; gen < GENERATIONS; gen++){
     for(int i = 0; i < p.pool_size; i++){
       NETWORK_TYPE *n = p.members[i];
       n->performance = 0;
@@ -83,17 +90,20 @@ int main(){
 
         forward(network_type)(n, env.state);
         n->performance += env.step(env, n->output);
-        if(!i && gen && !(gen % 15))
+        if(!i && gen && !(gen % RENDER_EVERY))
           env.render(env);
         if(*env.done){
           break;
         }
       }
-      if(!i && gen && !(gen % 15))
+      if(!i && gen && !(gen % RENDER_EVERY))
         env.close(env);
     }
     evolve_pool(&p);
-    printf("done with gen %d, best fitness %f\n", gen, ((NETWORK_TYPE*)p.members[0])->performance);
+    printf("%3d %6.4f\n", gen, ((NETWORK_TYPE*)p.members[0])->performance);
+    fprintf(log, "%f\n", ((NETWORK_TYPE*)p.members[0])->performance);
+    fflush(log);
   }
+  fclose(log);
   return 0;
 }
