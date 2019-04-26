@@ -14,6 +14,7 @@ typedef struct data {
   mjvScene scene;
   mjrContext context;
   GLFWwindow *window;
+  int render_setup;
 } Data;
 
 /*
@@ -52,48 +53,111 @@ void mouse_move(GLFWwindow* window, double xpos, double ypos)
 }
 */
 static void dispose(Environment env){
+  Data *tmp = ((Data*)env.data);
+  mjData *d = tmp->data;
+  mjModel *m = tmp->model;
 
+  mjv_freeScene(&tmp->scene);
+  mjr_freeContext(&tmp->context);
+  mj_deleteData(d);
+  mj_deleteModel(m);
+  mj_deactivate();
 }
 
 static void reset(Environment env){
-
+  Data *tmp = ((Data*)env.data);
+  mjData *d = tmp->data;
+  mjModel *m = tmp->model;
 }
 
 static void render(Environment env){
+  Data *tmp = ((Data*)env.data);
+  mjData *d = tmp->data;
+  mjModel *m = tmp->model;
+
+
+  if(!tmp->render_setup){
+    glfwInit();
+
+    tmp->window = glfwCreateWindow(1200, 900, "Hopper2d", NULL, NULL);
+    glfwMakeContextCurrent(tmp->window);
+    glfwSwapInterval(1);
+
+    mjv_defaultCamera(&tmp->camera);
+    mjv_defaultOption(&tmp->opt);
+    mjv_defaultScene(&tmp->scene);
+    mjr_defaultContext(&tmp->context);
+
+    mjv_makeScene(tmp->model, &tmp->scene, 2000);
+    mjr_makeContext(tmp->model, &tmp->context, mjFONTSCALE_150);
+    tmp->render_setup = 1;
+  }
+
+  // get framebuffer viewport
+  mjrRect viewport = {0, 0, 0, 0};
+  glfwGetFramebufferSize(tmp->window, &viewport.width, &viewport.height);
+
+  // update scene and render
+  mjv_updateScene(m, d, &tmp->opt, NULL, &tmp->camera, mjCAT_ALL, &tmp->scene);
+  mjr_render(viewport, &tmp->scene, &tmp->context);
+
+  // swap OpenGL buffers (blocking call due to v-sync)
+  glfwSwapBuffers(tmp->window);
+
+  // process pending GUI events, call GLFW callbacks
+  glfwPollEvents();
+
+}
+
+static void close(Environment env){
+  Data *tmp = ((Data*)env.data);
+  mjData *d = tmp->data;
+  mjModel *m = tmp->model;
+
+  glfwDestroyWindow(tmp->window);
+  glfwTerminate();
+
+  tmp->render_setup = 0;
 
 }
 
 static float step(Environment env, float *action){
+  Data *tmp = ((Data*)env.data);
+  mjData *d = tmp->data;
+  mjModel *m = tmp->model;
+
+  mjtNum simstart = d->time;
+  while(d->time - simstart < 1.0/60.0)
+    mj_step(m, d);
+
 
 }
 
 Environment create_hopper2d_env(){
 
   // activate software
-  mj_activate("mjkey.txt");
+  mj_activate("/home/jonah/.mujoco/mjkey.txt");
 
   Environment env;
   env.dispose = dispose;
   env.reset = reset;
   env.render = render;
+  env.close = close;
   env.step = step;
 
-  //env.observation_space = 0;
-  //env.action_space = 0;
+  Data *d = (Data*)malloc(sizeof(Data));
+  char error[1000] = "Couldn't load model file.";
+  d->model = mj_loadXML("./assets/hopper.xml", 0, error, 1000);
+  if(!d->model)
+    mju_error_s("Load model error: %s", error);
 
-  Data d;
-  /*
-  d.window = glfwCreateWindow(1200, 900, "Hopper2d", NULL, NULL);
-  glfwMakeContextCurrent(d.window);
-  glfwSwapInterval(1);
+  d->data = mj_makeData(d->model);
+  d->render_setup = 0;
 
-  mjv_defaultCamera(&d.camera);
-  mjv_defaultOption(&d.opt);
-  mjv_defaultScene(&d.scene);
-  mjv_defaultContext(&d.context);
+  env.observation_space = d->model->nq;
+  env.action_space = d->model->nu;
 
-  mjv_makeScene(&d
-*/
+  env.data = d;
+
   return env;
-
 }

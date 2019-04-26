@@ -65,6 +65,14 @@
 int main(){
   Environment env = create_hopper2d_env();
 	srand(2);
+  while(1){
+    for(int i = 0; i < 100; i++){
+      env.step(env, NULL);
+      env.render(env);
+    }
+    env.close(env);
+    getchar();
+  }
 
   /*
 	NETWORK_TYPE seed = create(network_type)(OBS_SPACE, HIDDEN_SIZE, ACT_SPACE);
