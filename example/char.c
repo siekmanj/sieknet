@@ -10,17 +10,32 @@
 #include <rnn.h>
 #include <optimizer.h>
 
-
 #define CREATEONEHOT(name, size, index) float name[size]; memset(name, '\0', size*sizeof(float)); name[index] = 1.0;
 
 #define USE_MOMENTUM 
 
-//#define USE_RNN
+#if !defined(USE_RNN) && !defined(USE_LSTM)
 #define USE_LSTM
+#endif
 
-#ifdef USE_MLP
-#define network_type mlp
-#define NETWORK_TYPE MLP
+#ifndef HIDDEN_LAYER_SIZE
+#define HIDDEN_LAYER_SIZE 256
+#endif
+
+#ifndef LAYERS
+#define LAYERS 3
+#endif
+
+#ifndef NUM_EPOCHS
+#define NUM_EPOCHS 3
+#endif
+
+#ifndef SAMPLE_CHARS
+#define SAMPLE_CHARS 1000
+#endif
+
+#ifndef LR
+#define LR 5e-4
 #endif
 
 #ifdef USE_RNN
@@ -48,6 +63,9 @@
 #define create_(arch) create_ ## arch
 #define create(arch) create_(arch)
 
+#define from_arr_(arch) arch ## _from_arr
+#define from_arr(arch) from_arr_(arch)
+
 #define save_(arch) save_ ## arch
 #define save(arch) save_(arch)
 
@@ -56,14 +74,11 @@
 
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 256;
-size_t NUM_EPOCHS				 = 10;
 size_t SEQ_LEN					 = 150;
 size_t ASCII_RANGE			 = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 size_t SAMPLE_EVERY			 = 100;
-size_t SAMPLE_CHARS			 = 1000;
 
-float LEARNING_RATE			 = 0.0005;
+float LEARNING_RATE			 = LR;
 float MOMENTUM					 = 0.99;
 
 /*
@@ -126,9 +141,6 @@ void sample(NETWORK_TYPE *n, size_t chars, char seed){
 
 void train(NETWORK_TYPE *n, char *modelfile, char *datafile, size_t num_epochs, float learning_rate){
   /* Begin training */
-
-  //SGD o = create_optimizer(SGD, *n);
-  //o.learning_rate = learning_rate;
   Momentum o = create_optimizer(Momentum, *n);
   o.alpha = learning_rate;
   o.beta = MOMENTUM;
@@ -158,7 +170,6 @@ void train(NETWORK_TYPE *n, char *modelfile, char *datafile, size_t num_epochs, 
     n->seq_len	= SEQ_LEN;
     n->stateful = 1;
     o.alpha = learning_schedule[i];
-    //o.learning_rate = learning_schedule[i];
 
     FILE *fp = fopen(datafile, "rb");
     fseek(fp, 0, SEEK_SET);
@@ -186,8 +197,7 @@ void train(NETWORK_TYPE *n, char *modelfile, char *datafile, size_t num_epochs, 
         float time_left = (1-completion) * (datafilelen / n->seq_len) * ((avg_seq_time / ((sequence_counter % training_iterations))));
         int hrs_left = (int)(time_left / (60*60));
         int min_left = ((int)(time_left - (hrs_left * 60 * 60))) / 60;
-        printf("seqlen %3lu | (%3lu)/(%3lu) | (%5.4f s, appr. %2dh %2dmin left) | epoch %2d %4.2f%% | last %3lu seqs: %4.3f | epoch cost: %5.4f | previous epoch: %5.4f | lr: %7.6f\r",
-            n->seq_len, 
+        printf("%3lu/%3lu | (%5.4f s, appr. %2dh %2dmin left) | epoch %2d %4.2f%% of %2ld| last %3lu seqs: %4.3f | epoch cost: %5.4f | previous epoch: %5.4f | lr: %7.6f\r",
             sequence_counter % training_iterations, 
             training_iterations,
             seq_time,
@@ -195,11 +205,11 @@ void train(NETWORK_TYPE *n, char *modelfile, char *datafile, size_t num_epochs, 
             min_left,
             i,
             100 * completion, 
+            num_epochs,
             sequence_counter % training_iterations, 
             avg_seq_cost / (sequence_counter % training_iterations), 
             avg_cost/sequence_counter, 
             last_epoch_cost,
-            //o.learning_rate
             o.alpha
             );
       }
@@ -235,7 +245,7 @@ void train(NETWORK_TYPE *n, char *modelfile, char *datafile, size_t num_epochs, 
         printf("\n");
         wipe(network_type)(n);
         for(int i = 3; i > 0; i--){
-          printf("Sampling from lstm in %d\r", i);
+          printf("Sampling from model in %d\r", i);
           sleep(1);
         }
         sample(n, SAMPLE_CHARS, '\n');
@@ -275,9 +285,15 @@ int main(int argc, char** argv){
   //srand(1);
   setbuf(stdout, NULL);
 
-  bool newlstm;
-  if(!strcmp(argv[1], "load")) newlstm = 0;
-  else if(!strcmp(argv[1], "new")) newlstm = 1;
+  size_t layersizes[LAYERS];
+  layersizes[0] = ASCII_RANGE;
+  for(int i = 1; i < LAYERS-1; i++)
+    layersizes[i] = HIDDEN_LAYER_SIZE;
+  layersizes[LAYERS-1] = ASCII_RANGE;
+
+  bool newmodel;
+  if(!strcmp(argv[1], "load")) newmodel = 0;
+  else if(!strcmp(argv[1], "new")) newmodel = 1;
   else bad_args(argv[1], 0);
 
   char *modelfile = argv[2];
@@ -285,8 +301,8 @@ int main(int argc, char** argv){
   FILE *fp;
 
   NETWORK_TYPE n;
-  if(newlstm){
-    n = create(network_type)(ASCII_RANGE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
+  if(newmodel){
+    n = from_arr(network_type)(layersizes, LAYERS);
     printf("creating '%s'\n", modelfile);
   }else{
     printf("loading '%s'\n", modelfile);
@@ -309,6 +325,6 @@ int main(int argc, char** argv){
   fclose(fp);
 
   train(&n, modelfile, datafile, NUM_EPOCHS, LEARNING_RATE);
-  printf("training finished! Saved to '%s'\n", modelfile);
+  printf("\ntraining finished! Saved to '%s'\n", modelfile);
 
 }
