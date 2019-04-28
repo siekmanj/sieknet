@@ -9,6 +9,8 @@ This project has no mandatory dependencies and is written completely from scratc
  - [But why?](#purpose)  
  
  - [Samples](#samples)
+ 
+ - [Quick Start](#quickstart)
 
  - [Features](#features)  
 
@@ -88,6 +90,51 @@ Here is a short sample from an lstm trained the complete works of Jane Austen:
     the party."
 
 
+<a name="quickstart"/>
+
+## Quick Start
+
+I've written a bash script which you can use to easily compile and run sieknet.
+
+You'll first need to clone the repo:
+```
+git clone https://github.com/siekmanj/sieknet
+```
+
+Then, cd into the cloned repo and give the bash script permission to run:
+```
+cd sieknet
+chmod +x sieknet
+```
+
+From there, compiling is handled by the script. 
+
+### Char-nn
+
+You can use Sieknet to create your own char-nn (and generate text samples as shown above). You'll need to supply your own text file; I recommend the complete works of William Shakespeare, [available here](http://www.gutenberg.org/files/100/100-0.txt). To train a char-nn, simply type:
+
+```
+./sieknet char_nn --new ./where/to/save/the/model.lstm --train ./where/your/text_file/is.txt
+```
+
+If you have a GPU and you'd like to use it, you can use the `--gpu` option.
+
+```
+./sieknet char_nn --new ./where/to/save/the/model.lstm --train ./where/your/text_file/is.txt --gpu
+```
+
+Please note that using the GPU might actually be slower than using the CPU due to the overhead of transferring data across the PCI-E bus. It only makes sense to use the GPU when working with large models - so let's try doing that next.
+
+```
+./sieknet char_nn --new ./test.lstm --train ./data.txt --layers 5 --hidden_size 1024 --gpu
+```
+
+You'll notice that we used the `--layers 5` and `--hidden_size 1024` options. Of the five layers, one is a softmax output layer, and one is a 'pretend' input layer; only three of the five are actually recurrent layers. However, each of the recurrent layers is 1024 nodes large. In total, the above network has about 21,475,424 parameters; not especially large by research standards, but it should give your GPU a nice workout. 
+
+### Genetic Algorithms
+
+You can use sieknet to train a pool of neural networks to come up with control and locomotion strategies in a variety of environments. This section to be completed at a later time.
+
 <a name="features"/>
 
 ## Features
@@ -98,6 +145,8 @@ Features include:
  - long short-term memory (LSTM)
  - stochastic gradient descent
  - stochastic gradient descent with momentum
+ - neuroevolution
+   - safe mutations w/ gradients (OpenAI)
  - backpropagation through time (BPTT)
  - GPU support (via OpenCL)
  - platform agnosticism
@@ -113,6 +162,7 @@ Plans for the near future include:
  - [ ] neural turing machine
  - [ ] differentiable neural computer
  - [ ] nesterov's accelerated gradient optimizer
+ - [ ] novelty search
  - [ ] adam stochastic optimizer
  - [ ] gated recurrent unit (GRU)
  - [ ] policy gradients and various RL algorithms
