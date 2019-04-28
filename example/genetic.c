@@ -117,7 +117,7 @@ int main(int argc, char** argv){
   printf(" ___/ // // /___/ /| |/ /|  / /___  / /    \n");
   printf("/____/___/_____/_/ |_/_/ |_/_____/ /_/	   \n");
   printf("																					 \n");
-  printf("ascii-nn recurrent neural network interface.\n");
+  printf("genetic algorithms for reinforcement learning.\n");
 
 	srand(2);
   setbuf(stdout, NULL);
@@ -221,7 +221,11 @@ int main(int argc, char** argv){
         env.close(env);
     }
     evolve_pool(&p);
+#ifndef VERBOSE_OUTPUT
     printf("%3d %6.4f\n", gen, ((NETWORK_TYPE*)p.members[0])->performance);
+#else
+    printf("%s %3d %6.4f\n", MACROVAL(LOGFILE_), gen, ((NETWORK_TYPE*)p.members[0])->performance);
+#endif
     fprintf(log, "%f\n", ((NETWORK_TYPE*)p.members[0])->performance);
     fflush(log);
     fflush(stdout);

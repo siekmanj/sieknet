@@ -168,7 +168,7 @@ ga)
 
   SRCFILES="$SRCFILES src/ga.c src/lstm.c src/rnn.c"
 
-  options=$(getopt -l "help,eval,train,load:,new:,lr:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:" -o "h,e:,t:,L:,n:l:,d" -a -- "$@")
+  options=$(getopt -l "help,eval,train,load:,new:,lr:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:" -o "h,e:,t:,L:,n:l:,d,v" -a -- "$@")
   eval set -- "$options"
   while true
   do
@@ -231,6 +231,9 @@ ga)
       --hidden_size)
           shift
           DEFINES="$DEFINES -DHIDDEN_LAYER_SIZE=$1"
+          ;;
+      -v)
+          DEFINES="$DEFINES -DVERBOSE_OUTPUT"
           ;;
       --)
           shift
