@@ -8,8 +8,8 @@
 #include <hopper2d_env.h>
 
 //#define USE_MLP
-#define USE_RNN
-//#define USE_LSTM
+//#define USE_RNN
+#define USE_LSTM
 
 #ifdef USE_MLP
 #define network_type mlp
@@ -28,13 +28,13 @@
 
 #define POOL_SIZE        500
 #define HIDDEN_SIZE      20
-#define STEP_SIZE        0.005f
-#define MUTATION_RATE    0.005f
+#define STEP_SIZE        0.01f
+#define MUTATION_RATE    0.01f
 #define ELITE_PERCENTILE 0.900f
 
 #define GENERATIONS  150
 #define MAX_TRAJ_LEN 300
-#define RENDER_EVERY 5
+#define RENDER_EVERY 50
 
 /* Some ghetto polymorphism */
 
@@ -103,6 +103,7 @@ int main(){
     printf("%3d %6.4f\n", gen, ((NETWORK_TYPE*)p.members[0])->performance);
     fprintf(log, "%f\n", ((NETWORK_TYPE*)p.members[0])->performance);
     fflush(log);
+		save_lstm((LSTM*)p.members[0], "./model/hopper.lstm");
   }
   fclose(log);
   return 0;
