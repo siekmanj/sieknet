@@ -612,7 +612,6 @@ static int getWord(FILE *fp, char* dest){
 }
 
 void save_rnn(RNN *n, const char *filename){
-  printf("SAVING!\n");
   FILE *fp = fopen(filename, "w");
   if(!fp){
     printf("ERROR: save_lstm(): could not open file '%s' (correct filepath? does dir exist?)", filename);
