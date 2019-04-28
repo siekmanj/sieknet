@@ -7,10 +7,9 @@ LIBS="-lm"
 MODELFILE=""
 DATADIR=""
 ARCH=""
-LOAD=""
+LOADNEW=""
 
-char_nn_showHelp() {
-# `cat << EOF` This means that cat should stop reading when EOF is detected
+char_nn_help() {
 cat << EOF  
 Usage (training):   ./sieknet char_nn --new [modelpath] --train [dataset]
 Usage (evaluating): ./sieknet char_nn --load [modelpath] --eval [num_chars]
@@ -26,15 +25,15 @@ Options:
      --epochs [num epochs]   Train for set number of epochs (defaults to 3)
 -g,  --gpu                   Use GPU acceleration (must have OpenCL installed)
 -d,  --debug                 Enable debugging messages
+-s,  --seq [seq len]         Set the network unroll length
      --rnn                   Use a recurrent neural network
-     --lstm                  Use a lstm
+     --lstm                  Use an lstm
      --layers [num_layers]   The number of hidden layers
      --hidden_size [size]    The size of each hidden layer
 EOF
 }
 
-ga_showHelp() {
-# `cat << EOF` This means that cat should stop reading when EOF is detected
+ga_help() {
 cat << EOF  
 Usage (training):   ./sieknet ga --new  [modelpath] --train --env [env name]
 Usage (evaluating): ./sieknet ga --load [modelpath] --eval  --env [env name]
@@ -44,15 +43,17 @@ Options:
 -h,  --help                  Display help
 -n,  --new  [file]           Create a new model at the desired filepath
 -L,  --load [file]           Load a model from a file
--e,  --eval [num_chars]      Run forward pass
--l,  --lr  [learning_rate]   Set the learning rate
-     --env [env name]        Set the environment
+-l,  --lr   [learning_rate]  Set the learning rate
+     --mr   [mutation_rate]  Set the mutation rate
+     --env  [env name]       Set the environment
      --gens [num gens]       Set the number of generations to run the pool forward
--t,  --train                 Evolves a pool of models using a genetic algorithm
+-e,  --eval                  Evaluate a single model
+-t,  --train                 Evolve a pool of models
 -d,  --debug                 Enable debugging messages
+     --timesteps [t]         Number of timesteps per rollout
      --mlp                   Use a multilayer perceptron
      --rnn                   Use a recurrent neural network
-     --lstm                  Use a lstm
+     --lstm                  Use an lstm
      --layers [num_layers]   The number of hidden layers
      --hidden_size [size]    The size of each hidden layer
 EOF
@@ -63,7 +64,6 @@ char_nn)
   SRCFILES="$SRCFILES src/optimizer.c"
   ARCH=""
   MODE=""
-  LOADNEW=""
   DEFINES=""
   options=$(getopt -l "help,gpu,eval:,train:,load:,new:,lr:,debug,rnn,lstm,layers:,hidden_size:" -o "h,g,e:,t:,L:,n:l:,d" -a -- "$@")
 
@@ -72,7 +72,7 @@ char_nn)
   do
     case $1 in
       -h|--help) 
-          char_nn_showHelp
+          char_nn_help
           exit 0
           ;;
       -g|--gpu) 
@@ -133,13 +133,13 @@ char_nn)
   if [ -z "$LOADNEW" ]
   then
     echo "ERROR: neither --load [path] nor --new [path] specified."
-    char_nn_showHelp
+    char_nn_help
     exit
   fi
   if [ -z "$MODE" ]
   then
     echo "ERROR: need to specify either --eval [numchars] or --train [dataset]."
-    char_nn_showHelp
+    char_nn_help
     exit
   fi
 
@@ -162,20 +162,26 @@ char_nn)
   $cmd
   ;;
 ga)
+  MJ_DIR="$HOME/.mujoco/mujoco200"
+  MJ_FLAGS="-I$MJ_DIR/include -L$MJ_DIR/bin"
+  MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
+
+  SRCFILES="$SRCFILES src/ga.c src/lstm.c src/rnn.c"
+
+  options=$(getopt -l "help,eval,train,load:,new:,lr:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:" -o "h,e:,t:,L:,n:l:,d" -a -- "$@")
+  eval set -- "$options"
   while true
   do
     case $1 in
       -h|--help) 
-          char_nn_showHelp
+          ga_help
           exit 0
           ;;
       -e|--eval)
-          shift
           MODE="eval"
           ;;
       -t|--train)
-          shift
-          MODE="$1"
+          MODE="train"
           ;;
       -L|--load)
           shift
@@ -187,18 +193,36 @@ ga)
           ;;
       -l|--lr)
           shift
-          DEFINES="$DEFINES -DLR=$1"
+          DEFINES="$DEFINES -DSTEP_SIZE=$1"
+          ;;
+      --mr)
+          shift
+          DEFINES="$DEFINES -DMUTATION_RATE=$1"
+          ;;
+      --env)
+          shift
+          DEFINES="$DEFINES -DENV_NAME=$1"
+          SRCFILES="$SRCFILES src/$1_env.c"
           ;;
       -d|--debug)
           DEFINES="$DEFINES -DSIEKNET_DEBUG"
           ;;
+      --timesteps)
+          shift
+          DEFINES="$DEFINES -DMAX_TRAJ_LEN=$1"
+          ;;
+      --pool_size)
+          shift
+          DEFINES="$DEFINES -DPOOL_SIZE=$1"
+          ;;
+      --mlp)
+          ARCH="-DUSE_MLP"
+          ;;
       --rnn)
           ARCH="-DUSE_RNN"
-          SRCFILES="$SRCFILES src/rnn.c"
           ;;
       --lstm)
           ARCH="-DUSE_LSTM"
-          SRCFILES="$SRCFILES src/lstm.c"
           ;;
       --layers)
           shift
@@ -213,9 +237,38 @@ ga)
           break;;
       *)
           echo "got unrecognized arg $1"
+          ga_help
+          exit
           ;;
     esac
     shift
   done
+  if [ -z "$LOADNEW" ]
+  then
+    echo "ERROR: neither --load [path] nor --new [path] specified."
+    ga_help
+    exit
+  fi
+  if [ -z "$MODE" ]
+  then
+    echo "ERROR: need to specify either --eval or --train."
+    ga_help
+    exit
+  fi
+  if [ -z "$ENV_NAME" ]
+  then
+    ENV_NAME="hopper2d"
+    SRCFILES="$SRCFILES src/hopper2d_env.c"
+  fi
+  if [ -z "$ARCH" ]
+  then
+    echo "No arch specified, doing mlp"
+    ARCH="-DUSE_MLP"
+  fi
+  SRCFILES="$SRCFILES example/genetic.c"
+  compile="gcc $COMMON $MJ_FLAGS $SRCFILES $DEFINES $ARCH $MJ_LIBS $LIBS -o ./bin/genetic"
+  $compile
+  cmd="./bin/genetic $LOADNEW $MODE"
+  $cmd
   ;;
 esac

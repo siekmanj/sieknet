@@ -8,9 +8,8 @@
 #include <env.h>
 #include <hopper2d_env.h>
 
-
 #if !defined(USE_MLP) && !defined(USE_RNN) && !defined(USE_LSTM)
-#define USE_MLP
+#define USE_LSTM
 #endif
 
 #ifdef USE_MLP
@@ -29,7 +28,7 @@
 #endif
 
 #ifndef POOL_SIZE
-#define POOL_SIZE        1000
+#define POOL_SIZE 1000
 #endif
 
 #ifndef LAYERS
@@ -37,15 +36,15 @@
 #endif
 
 #ifndef HIDDEN_LAYER_SIZE
-#define HIDDEN_LAYER_SIZE      10
+#define HIDDEN_LAYER_SIZE 10
 #endif
 
 #ifndef STEP_SIZE
-#define STEP_SIZE        0.05f
+#define STEP_SIZE 0.05f
 #endif
 
 #ifndef MUTATION_RATE
-#define MUTATION_RATE    0.01f
+#define MUTATION_RATE 0.01f
 #endif
 
 #ifndef ELITE_PERCENTILE
@@ -53,7 +52,7 @@
 #endif
 
 #ifndef GENERATIONS
-#define GENERATIONS  350
+#define GENERATIONS 350
 #endif 
 
 #ifndef MAX_TRAJ_LEN
@@ -61,10 +60,16 @@
 #endif
 
 #ifndef RENDER_EVERY
-#define RENDER_EVERY 10
+#define RENDER_EVERY 1
 #endif
 
-#define ALGO MUT_baseline
+#ifndef MUTATION_TYPE
+#define MUTATION_TYPE MUT_baseline
+#endif
+
+#ifndef ENV_NAME
+#define ENV_NAME hopper2d
+#endif
 
 /* Some ghetto polymorphism */
 
@@ -95,28 +100,49 @@
 #define save_(arch) save_ ## arch
 #define save(arch) save_(arch)
 
+#define create_env_(envname) create_ ## envname ## _env
+#define create_env(envname) create_env_(envname)
+
 #define MACROVAL_(s) #s
 #define MACROVAL(s) MACROVAL_(s)
 
-#define LOGFILE_ ./log/pool_size.POOL_SIZE.hidden_size.HIDDEN_LAYER_SIZE.step_size.STEP_SIZE.mutation_rate.MUTATION_RATE.network_type.algo.ALGO.log
+#define LOGFILE_ ./log/POOL_SIZE.ENV_NAME.hidden_size.HIDDEN_LAYER_SIZE.step_size.STEP_SIZE.mutation_rate.MUTATION_RATE.network_type.MUTATION_TYPE.log
 
 int main(int argc, char** argv){
-  if(argc < 3){ printf("%d args needed. Usage: [new/load] [path_to_modelfile]\n", 2); exit(1);}
+  if(argc < 4){ printf("%d args needed. Usage: [new/load] [path_to_modelfile] [train/eval]\n", 3); exit(1);}
+
+  printf("   _____ ____________ __ _   ______________\n");
+  printf("  / ___//  _/ ____/ //_// | / / ____/_	__/\n");
+  printf("  \\__ \\ / // __/ / ,<  /  |/ / __/   / /   \n");
+  printf(" ___/ // // /___/ /| |/ /|  / /___  / /    \n");
+  printf("/____/___/_____/_/ |_/_/ |_/_____/ /_/	   \n");
+  printf("																					 \n");
+  printf("ascii-nn recurrent neural network interface.\n");
 
 	srand(2);
   setbuf(stdout, NULL);
   FILE *log = fopen(MACROVAL(LOGFILE_), "wb");
 
-  Environment env = create_hopper2d_env();
+  Environment env = create_env(ENV_NAME)();
 
   int newmodel;
   if(!strcmp(argv[1], "load")) newmodel = 0;
   else if(!strcmp(argv[1], "new")) newmodel = 1;
-  else throw_err("nope");
-
+  else{
+    printf("Invalid arg: '%s'\n", argv[1]);
+    exit(1);
+  }
   char *modelfile = argv[2];
 
-  NETWORK_TYPE n;
+  int eval;
+  if(!strcmp(argv[3], "train")) eval = 0;
+  else if(!strcmp(argv[3], "eval")) eval = 1;
+  else{
+    printf("Invalid arg: '%s'\n", argv[3]);
+    exit(1);
+  }
+
+  NETWORK_TYPE seed;
   if(newmodel){
     printf("creating '%s'\n", modelfile);
     size_t layersizes[LAYERS];
@@ -125,29 +151,51 @@ int main(int argc, char** argv){
       layersizes[i] = HIDDEN_LAYER_SIZE;
     layersizes[LAYERS-1] = env.action_space;
 
-    n = from_arr(network_type)(layersizes, LAYERS);
+    seed = from_arr(network_type)(layersizes, LAYERS);
   }else{
     printf("loading '%s'\n", modelfile);
     FILE *fp = fopen(modelfile, "rb");
     if(!fp){ printf("Could not open modelfile '%s' - does it exist?\n", modelfile); exit(1);}
-    n = load(network_type)(modelfile);
+    seed = load(network_type)(modelfile);
     fclose(fp);
+    if(seed.input_dimension != env.observation_space || seed.output_dimension != env.action_space){
+      printf("ERROR: Policy is not compatible with environment - mismatched observation/action space shapes.\n");
+      exit(1);
+    }
   }
-  printf("network has %lu params.\n", n.num_params);
-
+  printf("network has %lu params.\n", seed.num_params);
 
 #if defined(USE_LSTM) || defined(USE_RNN)
-  n.output_layer.logistic = hypertan;
+  seed.output_layer.logistic = hypertan;
 #else
-  n.layers[n.depth-1].logistic = hypertan;
+  seed.layers[seed.depth-1].logistic = hypertan;
 #endif
 
-	Pool p = create_pool(network_type, &n, POOL_SIZE);
+  if(eval){
+    while(1){
+      env.reset(env);
+      env.seed(env);
+      seed.performance = 0;
+      for(int t = 0; t < MAX_TRAJ_LEN; t++){
+        forward(network_type)(&seed, env.state);
+        seed.performance += env.step(env, seed.output);
+        env.render(env);
+        if(*env.done){
+          break;
+        }
+      }
+      printf("return: %5.4f\n", seed.performance);
+    }
+    exit(0);
+  }
+
+	Pool p = create_pool(network_type, &seed, POOL_SIZE);
   p.step_size = STEP_SIZE;
-	p.mutation_type = ALGO;
+	p.mutation_type = MUTATION_TYPE;
 	p.mutation_rate = MUTATION_RATE;
 	p.elite_percentile = ELITE_PERCENTILE;
 
+  printf("logging to '%s'\n", MACROVAL(LOGFILE_));
   for(int gen = 0; gen < GENERATIONS; gen++){
     for(int i = 0; i < p.pool_size; i++){
       NETWORK_TYPE *n = p.members[i];
@@ -173,7 +221,7 @@ int main(int argc, char** argv){
         env.close(env);
     }
     evolve_pool(&p);
-    printf("%s %3d %6.4f\n", MACROVAL(LOGFILE_), gen, ((NETWORK_TYPE*)p.members[0])->performance);
+    printf("%3d %6.4f\n", gen, ((NETWORK_TYPE*)p.members[0])->performance);
     fprintf(log, "%f\n", ((NETWORK_TYPE*)p.members[0])->performance);
     fflush(log);
     fflush(stdout);
