@@ -60,7 +60,7 @@
 #endif
 
 #ifndef RENDER_EVERY
-#define RENDER_EVERY 1
+#define RENDER_EVERY 10
 #endif
 
 #ifndef MUTATION_TYPE
@@ -199,24 +199,26 @@ int main(int argc, char** argv){
   for(int gen = 0; gen < GENERATIONS; gen++){
     for(int i = 0; i < p.pool_size; i++){
       NETWORK_TYPE *n = p.members[i];
-      #if defined(USE_LSTM) || defined(USE_RNN)
-      wipe(network_type)(n);
-      #endif
       n->performance = 0;
 
-      env.reset(env);
-      env.seed(env);
+			/* best of three */ 
+			for(int try = 0; try < 3; try++){
+				#if defined(USE_LSTM) || defined(USE_RNN)
+				wipe(network_type)(n);
+				#endif
+				env.reset(env);
+				env.seed(env);
 
-      for(int t = 0; t < MAX_TRAJ_LEN; t++){
-
-        forward(network_type)(n, env.state);
-        n->performance += env.step(env, n->output);
-        if(!i && gen && !(gen % RENDER_EVERY))
-          env.render(env);
-        if(*env.done){
-          break;
-        }
-      }
+				for(int t = 0; t < MAX_TRAJ_LEN; t++){
+					forward(network_type)(n, env.state);
+					n->performance += env.step(env, n->output);
+					if(!i && gen && !(gen % RENDER_EVERY))
+						env.render(env);
+					if(*env.done){
+						break;
+					}
+				}
+			}
       if(!i && gen && !(gen % RENDER_EVERY))
         env.close(env);
     }
