@@ -64,7 +64,7 @@
 #endif
 
 #ifndef MUTATION_TYPE
-#define MUTATION_TYPE MUT_baseline
+#define MUTATION_TYPE BASELINE
 #endif
 
 #ifndef ENV_NAME
@@ -167,8 +167,10 @@ int main(int argc, char** argv){
 
 #if defined(USE_LSTM) || defined(USE_RNN)
   seed.output_layer.logistic = hypertan;
+  #define sensitivity(n) sensitivity_gradient(n->cost_gradient, n->output, n->output_layer.logistic)
 #else
   seed.layers[seed.depth-1].logistic = hypertan;
+  #define sensitivity(n) sensitivity_gradient(n->cost_gradient, n->output, n->layers[n->depth-1].logistic)
 #endif
 
   if(eval){
@@ -211,6 +213,12 @@ int main(int argc, char** argv){
 
 				for(int t = 0; t < MAX_TRAJ_LEN; t++){
 					forward(network_type)(n, env.state);
+
+          #if MUTATION_TYPE == SAFE || MUTATION_TYPE = SAFE_MOMENTUM
+          sensitivity(n);
+          backward(network_type)(n);
+          #endif
+
 					n->performance += env.step(env, n->output);
 					if(!i && gen && !(gen % RENDER_EVERY))
 						env.render(env);
