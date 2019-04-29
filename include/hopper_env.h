@@ -1,5 +1,5 @@
-#ifndef HOPPER2D_ENV_H
-#define HOPPER2D_ENV_H
+#ifndef HOPPER_ENV_H
+#define HOPPER_ENV_H
 
 #include <env.h>
 
