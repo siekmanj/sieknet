@@ -135,23 +135,29 @@ float *safe_momentum_recombine(const float step_size, const float *a, const floa
 
 float *recombine(const float step_size, const Mutation_type type, const float *params1, const float *paramgrad1, const float *params2, const float *paramgrad2, float *momentum, const float mutation_rate, const size_t num_params){
   switch(type){
-    case MUT_none:
+    case NONE:
       return baseline_recombine(step_size, params1, params2, 0.0, num_params);
       break;
-    case MUT_baseline:
+    case BASELINE:
       return baseline_recombine(step_size, params1, params2, mutation_rate, num_params);
       break;
-    case MUT_momentum:
+    case MOMENTUM:
       return momentum_recombine(step_size, params1, params2, momentum, mutation_rate, num_params);
       break;
-    case MUT_safe:
+    case SAFE:
       return safe_recombine(step_size, params1, paramgrad1, params2, paramgrad2, mutation_rate, num_params);
       break;
-    case MUT_safe_momentum:
+    case SAFE_MOMENTUM:
       return safe_momentum_recombine(step_size, params1, paramgrad1, params2, paramgrad2, momentum, mutation_rate, num_params);
       break;
   }
   return NULL;
+}
+
+void sensitivity_gradient(float *gradient, const float *output, Nonlinearity nonl, size_t dim){
+  for(int i = 0; i < dim; i++){
+    gradient[i] = differentiate(output[i], nonl);
+  }
 }
 
 #define fill_comparator(type, a, b)       \
@@ -177,7 +183,7 @@ int lstm_comparator(const void *a, const void *b){
 Pool create_pool(Network_type type, void *seed, size_t pool_size){
 	Pool p;
 	p.network_type = type;
-	p.mutation_type = MUT_baseline;
+	p.mutation_type = BASELINE;
 	p.pool_size = pool_size;
 
 	p.mutation_rate = 0.01;

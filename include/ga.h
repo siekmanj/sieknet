@@ -6,7 +6,8 @@
 #include <rnn.h>
 #include <mlp.h>
 
-typedef enum mutation_t { MUT_none, MUT_baseline, MUT_safe, MUT_momentum, MUT_safe_momentum } Mutation_type;
+
+typedef enum mutation_t {NONE, BASELINE, SAFE, MOMENTUM, SAFE_MOMENTUM} Mutation_type;
 typedef enum network_t {mlp, rnn, lstm} Network_type;
 
 typedef struct pool_{
@@ -31,6 +32,8 @@ MLP *copy_mlp(MLP *);
 Pool create_pool(Network_type, void *, size_t);
 
 void evolve_pool(Pool *p);
+
+void sensitivity_gradient(float *, const float *, Nonlinearity, size_t);
 
 void sort_pool(Pool *p);
 void cull_pool(Pool *p);

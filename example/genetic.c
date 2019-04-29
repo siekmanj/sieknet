@@ -167,10 +167,10 @@ int main(int argc, char** argv){
 
 #if defined(USE_LSTM) || defined(USE_RNN)
   seed.output_layer.logistic = hypertan;
-  #define sensitivity(n) sensitivity_gradient(n->cost_gradient, n->output, n->output_layer.logistic)
+  #define sensitivity(n) sensitivity_gradient(n->cost_gradient, n->output, n->output_layer.logistic, n->output_dimension)
 #else
   seed.layers[seed.depth-1].logistic = hypertan;
-  #define sensitivity(n) sensitivity_gradient(n->cost_gradient, n->output, n->layers[n->depth-1].logistic)
+  #define sensitivity(n) sensitivity_gradient(n->cost_gradient, n->output, n->layers[n->depth-1].logistic, n->output_dimension)
 #endif
 
   if(eval){
@@ -214,10 +214,10 @@ int main(int argc, char** argv){
 				for(int t = 0; t < MAX_TRAJ_LEN; t++){
 					forward(network_type)(n, env.state);
 
-          #if MUTATION_TYPE == SAFE || MUTATION_TYPE = SAFE_MOMENTUM
-          sensitivity(n);
-          backward(network_type)(n);
-          #endif
+          if(MUTATION_TYPE == SAFE || MUTATION_TYPE == SAFE_MOMENTUM){
+            sensitivity(n);
+            backward(network_type)(n);
+          }
 
 					n->performance += env.step(env, n->output);
 					if(!i && gen && !(gen % RENDER_EVERY))
@@ -239,7 +239,7 @@ int main(int argc, char** argv){
     fprintf(log, "%f\n", ((NETWORK_TYPE*)p.members[0])->performance);
     fflush(log);
     fflush(stdout);
-    save(network_type)(((NETWORK_TYPE*)p.members[0]), modelfile);
+    save(network_type)(((NETWORK_TYPE*)p.members[0]), "./model/hopper.lstm");
   }
   fclose(log);
   return 0;

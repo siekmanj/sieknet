@@ -47,6 +47,7 @@ Options:
      --mr   [mutation_rate]  Set the mutation rate
      --env  [env name]       Set the environment
      --gens [num gens]       Set the number of generations to run the pool forward
+     --mutation_type [type]  Set the mutation type (default is BASELINE)
 -e,  --eval                  Evaluate a single model
 -t,  --train                 Evolve a pool of models
 -d,  --debug                 Enable debugging messages
@@ -168,7 +169,7 @@ ga)
 
   SRCFILES="$SRCFILES src/ga.c src/lstm.c src/rnn.c"
 
-  options=$(getopt -l "help,eval,train,load:,new:,lr:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:" -o "h,e:,t:,L:,n:l:,d,v" -a -- "$@")
+  options=$(getopt -l "help,eval,train,load:,new:,lr:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:,mutation_type:" -o "h,e:,t:,L:,n:l:,d,v" -a -- "$@")
   eval set -- "$options"
   while true
   do
@@ -204,6 +205,14 @@ ga)
           DEFINES="$DEFINES -DENV_NAME=$1"
 					ENV_NAME="$1"
           SRCFILES="$SRCFILES src/$1_env.c"
+          ;;
+      --gens)
+          shift
+          DEFINES="$DEFINES -DGENERATIONS=$1"
+          ;;
+      --mutation_type)
+          shift
+          DEFINES="$DEFINES -DMUTATION_TYPE=$1"
           ;;
       -d|--debug)
           DEFINES="$DEFINES -DSIEKNET_DEBUG"
@@ -272,6 +281,12 @@ ga)
   SRCFILES="$SRCFILES example/genetic.c"
   compile="gcc $COMMON $MJ_FLAGS $SRCFILES $DEFINES $ARCH $MJ_LIBS $LIBS -o ./bin/genetic"
   $compile
+  if [ $? -ne 0 ]
+  then
+    echo "Compilation failed."
+    exit
+  fi
+
   cmd="./bin/genetic $LOADNEW $MODE"
   $cmd
   ;;
