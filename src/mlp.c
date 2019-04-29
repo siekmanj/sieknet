@@ -266,6 +266,7 @@ MLP cpu_mlp_from_arr(size_t arr[], size_t size){
   n.params = ALLOC(float, num_params);
 
   n.param_grad = ALLOC(float, num_params);
+	memset(n.param_grad, '\0', num_params*sizeof(float));
 
   //n.cost_gradient = (float*)malloc(n.output_dimension * sizeof(float));
   n.cost_gradient = ALLOC(float, n.output_dimension);
@@ -412,9 +413,15 @@ void cpu_mlp_forward(MLP *n, float *input){
     x = l->output; //Use this layer's output as the next layer's input
   }
   n->guess = 0;
-  for(int i = 0; i < n->output_dimension; i++)
+  for(int i = 0; i < n->output_dimension; i++){
+		if(isnan(n->output[i])){
+			printf("ERROR: cpu_mlp_forward(): got nan in network output, index %d: %f\n", i, n->output[i]);
+			exit(1);
+		}
     if(n->output[n->guess] < n->output[i])
       n->guess = i;
+	
+	}
 }
 #else
 void gpu_mlp_forward(MLP *n, float *x){

@@ -90,6 +90,7 @@ static float safety(float g){
 		return exp(alpha*g);
 	else
 		return exp(-alpha*g);
+	
 }
 
 
@@ -119,6 +120,8 @@ float *safe_recombine(const float step_size, const float *a, const float *ag, co
 			if(uniform(0, 1) < mutation_rate)
 				ret[i] += safety(bg[i]) * normal(0, step_size);
 		}
+		if(isnan(ret[i]))
+			printf("got nan!\n");
 	}
   return ret;
 }
@@ -309,6 +312,31 @@ void breed_pool(Pool *p){
 				p->members[i] = (void*)child;
 			}
 			break;
+	}
+	// If we use SAFE or SAFE_MOMENTUM, clear the parameter gradients of the elites 
+	if(p->mutation_type == SAFE || p->mutation_type == SAFE_MOMENTUM){
+		for(int i = 0; i < size - (int)((p->elite_percentile)*size); i++){
+			switch(p->network_type){
+				case mlp:
+					{
+						MLP *m = (MLP*)p->members[i];
+						memset(m->param_grad, '\0', m->num_params*sizeof(float));
+					}
+					break;
+				case rnn:
+					{
+						RNN *m = (RNN*)p->members[i];
+						memset(m->param_grad, '\0', m->num_params*sizeof(float));
+					}
+					break;
+				case lstm:
+					{
+						LSTM *m = (LSTM*)p->members[i];
+						memset(m->param_grad, '\0', m->num_params*sizeof(float));
+					}
+					break;
+			}
+		}
 	}
 }
 

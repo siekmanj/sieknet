@@ -27,7 +27,7 @@ MNIST_SRC=$(SRC_DIR)/mnist.c
 OPTIM_SRC=$(SRC_DIR)/optimizer.c
 CL_SRC=$(SRC_DIR)/opencl_utils.c
 GA_SRC=$(SRC_DIR)/ga.c
-HOPPER_SRC=$(SRC_DIR)/hopper2d_env.c
+HOPPER_SRC=$(SRC_DIR)/hopper_env.c
 
 CPU_SRC=$(MLP_SRC) $(OPTIM_SRC)
 GPU_SRC=$(MLP_SRC) $(OPTIM_SRC) $(CL_SRC)

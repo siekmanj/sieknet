@@ -3,6 +3,6 @@
 
 #include <env.h>
 
-Environment create_hopper2d_env();
+Environment create_hopper_env();
 
 #endif

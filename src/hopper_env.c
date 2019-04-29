@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include <conf.h>
-#include <hopper2d_env.h>
+#include <hopper_env.h>
 #include <mujoco.h>
 #include <glfw3.h>
 
@@ -76,7 +76,7 @@ static void render(Environment env){
 
   if(!tmp->render_setup){
 
-    tmp->window = glfwCreateWindow(1200, 900, "Hopper2d", NULL, NULL);
+    tmp->window = glfwCreateWindow(1200, 900, "Hopper", NULL, NULL);
     glfwMakeContextCurrent(tmp->window);
     glfwSwapInterval(1);
 
@@ -158,7 +158,7 @@ static float step(Environment env, float *action){
   return reward;
 }
 
-Environment create_hopper2d_env(){
+Environment create_hopper_env(){
   glfwInit();
 
   // activate software

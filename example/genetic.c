@@ -6,7 +6,6 @@
 #include <rnn.h>
 #include <ga.h>
 #include <env.h>
-#include <hopper2d_env.h>
 
 #if !defined(USE_MLP) && !defined(USE_RNN) && !defined(USE_LSTM)
 #define USE_LSTM
@@ -68,8 +67,14 @@
 #endif
 
 #ifndef ENV_NAME
-#define ENV_NAME hopper2d
+#define ENV_NAME hopper
 #endif
+
+#define MAKE_INCLUDE_(envname) <envname ## _env.h>
+#define MAKE_INCLUDE(envname) MAKE_INCLUDE_(envname)
+
+/* Don't try this at home, kids */
+#include MAKE_INCLUDE(ENV_NAME)
 
 /* Some ghetto polymorphism */
 
@@ -239,7 +244,7 @@ int main(int argc, char** argv){
     fprintf(log, "%f\n", ((NETWORK_TYPE*)p.members[0])->performance);
     fflush(log);
     fflush(stdout);
-    save(network_type)(((NETWORK_TYPE*)p.members[0]), "./model/hopper.lstm");
+    save(network_type)(((NETWORK_TYPE*)p.members[0]), modelfile);
   }
   fclose(log);
   return 0;

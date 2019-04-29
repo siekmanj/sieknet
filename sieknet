@@ -270,8 +270,8 @@ ga)
   fi
   if [ -z "$ENV_NAME" ]
   then
-    ENV_NAME="hopper2d"
-    SRCFILES="$SRCFILES src/hopper2d_env.c"
+    ENV_NAME="hopper"
+    SRCFILES="$SRCFILES src/hopper_env.c"
   fi
   if [ -z "$ARCH" ]
   then
