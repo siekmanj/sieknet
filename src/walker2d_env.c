@@ -140,9 +140,9 @@ static float step(Environment env, float *action){
     env.state[i+m->nq] = d->qvel[i];
 
   /* REWARD CALCULATION: Similar to OpenAI's */
-  float alive_bonus = 0.0f; //except this
+  float alive_bonus = 1.0f; //except this
   
-  float reward = (d->qpos[0] - posbefore) * (1.0/CTRL_HZ);
+  float reward = (d->qpos[0] - posbefore) / (1.0/CTRL_HZ);
   reward += alive_bonus;
 
   float action_sum = 0;
