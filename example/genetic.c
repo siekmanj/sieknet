@@ -231,7 +231,7 @@ int main(int argc, char** argv){
     fprintf(log, "%f\n", ((NETWORK_TYPE*)p.members[0])->performance);
     fflush(log);
     fflush(stdout);
-    save(network_type)(((NETWORK_TYPE*)p.members[0]), "./model/hopper.lstm");
+    save(network_type)(((NETWORK_TYPE*)p.members[0]), modelfile);
   }
   fclose(log);
   return 0;

@@ -168,7 +168,7 @@ ga)
 
   SRCFILES="$SRCFILES src/ga.c src/lstm.c src/rnn.c"
 
-  options=$(getopt -l "help,eval,train,load:,new:,lr:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:" -o "h,e:,t:,L:,n:l:,d,v" -a -- "$@")
+  options=$(getopt -l "help,eval,train,load:,new:,lr:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:" -o "h,e,t,L:,n:l:,d,v" -a -- "$@")
   eval set -- "$options"
   while true
   do
@@ -271,6 +271,11 @@ ga)
   SRCFILES="$SRCFILES example/genetic.c"
   compile="gcc $COMMON $MJ_FLAGS $SRCFILES $DEFINES $ARCH $MJ_LIBS $LIBS -o ./bin/genetic"
   $compile
+  if [ $? -ne 0 ]
+  then
+    echo "Compilation failed."
+    exit
+  fi
   cmd="./bin/genetic $LOADNEW $MODE"
   $cmd
   ;;
