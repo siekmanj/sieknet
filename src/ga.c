@@ -90,6 +90,7 @@ static float safety(float g){
 		return exp(alpha*g);
 	else
 		return exp(-alpha*g);
+	
 }
 
 
@@ -119,6 +120,8 @@ float *safe_recombine(const float step_size, const float *a, const float *ag, co
 			if(uniform(0, 1) < mutation_rate)
 				ret[i] += safety(bg[i]) * normal(0, step_size);
 		}
+		if(isnan(ret[i]))
+			printf("got nan!\n");
 	}
   return ret;
 }
@@ -135,23 +138,29 @@ float *safe_momentum_recombine(const float step_size, const float *a, const floa
 
 float *recombine(const float step_size, const Mutation_type type, const float *params1, const float *paramgrad1, const float *params2, const float *paramgrad2, float *momentum, const float mutation_rate, const size_t num_params){
   switch(type){
-    case MUT_none:
+    case NONE:
       return baseline_recombine(step_size, params1, params2, 0.0, num_params);
       break;
-    case MUT_baseline:
+    case BASELINE:
       return baseline_recombine(step_size, params1, params2, mutation_rate, num_params);
       break;
-    case MUT_momentum:
+    case MOMENTUM:
       return momentum_recombine(step_size, params1, params2, momentum, mutation_rate, num_params);
       break;
-    case MUT_safe:
+    case SAFE:
       return safe_recombine(step_size, params1, paramgrad1, params2, paramgrad2, mutation_rate, num_params);
       break;
-    case MUT_safe_momentum:
+    case SAFE_MOMENTUM:
       return safe_momentum_recombine(step_size, params1, paramgrad1, params2, paramgrad2, momentum, mutation_rate, num_params);
       break;
   }
   return NULL;
+}
+
+void sensitivity_gradient(float *gradient, const float *output, Nonlinearity nonl, size_t dim){
+  for(int i = 0; i < dim; i++){
+    gradient[i] = differentiate(output[i], nonl);
+  }
 }
 
 #define fill_comparator(type, a, b)       \
@@ -177,7 +186,7 @@ int lstm_comparator(const void *a, const void *b){
 Pool create_pool(Network_type type, void *seed, size_t pool_size){
 	Pool p;
 	p.network_type = type;
-	p.mutation_type = MUT_baseline;
+	p.mutation_type = BASELINE;
 	p.pool_size = pool_size;
 
 	p.mutation_rate = 0.01;
@@ -303,6 +312,31 @@ void breed_pool(Pool *p){
 				p->members[i] = (void*)child;
 			}
 			break;
+	}
+	// If we use SAFE or SAFE_MOMENTUM, clear the parameter gradients of the elites 
+	if(p->mutation_type == SAFE || p->mutation_type == SAFE_MOMENTUM){
+		for(int i = 0; i < size - (int)((p->elite_percentile)*size); i++){
+			switch(p->network_type){
+				case mlp:
+					{
+						MLP *m = (MLP*)p->members[i];
+						memset(m->param_grad, '\0', m->num_params*sizeof(float));
+					}
+					break;
+				case rnn:
+					{
+						RNN *m = (RNN*)p->members[i];
+						memset(m->param_grad, '\0', m->num_params*sizeof(float));
+					}
+					break;
+				case lstm:
+					{
+						LSTM *m = (LSTM*)p->members[i];
+						memset(m->param_grad, '\0', m->num_params*sizeof(float));
+					}
+					break;
+			}
+		}
 	}
 }
 

@@ -6,7 +6,6 @@
 #include <rnn.h>
 #include <ga.h>
 #include <env.h>
-#include <hopper2d_env.h>
 
 #if !defined(USE_MLP) && !defined(USE_RNN) && !defined(USE_LSTM)
 #define USE_LSTM
@@ -64,12 +63,18 @@
 #endif
 
 #ifndef MUTATION_TYPE
-#define MUTATION_TYPE MUT_baseline
+#define MUTATION_TYPE BASELINE
 #endif
 
 #ifndef ENV_NAME
-#define ENV_NAME hopper2d
+#define ENV_NAME hopper
 #endif
+
+#define MAKE_INCLUDE_(envname) <envname ## _env.h>
+#define MAKE_INCLUDE(envname) MAKE_INCLUDE_(envname)
+
+/* Don't try this at home, kids */
+#include MAKE_INCLUDE(ENV_NAME)
 
 /* Some ghetto polymorphism */
 
@@ -167,8 +172,10 @@ int main(int argc, char** argv){
 
 #if defined(USE_LSTM) || defined(USE_RNN)
   seed.output_layer.logistic = hypertan;
+  #define sensitivity(n) sensitivity_gradient(n->cost_gradient, n->output, n->output_layer.logistic, n->output_dimension)
 #else
   seed.layers[seed.depth-1].logistic = hypertan;
+  #define sensitivity(n) sensitivity_gradient(n->cost_gradient, n->output, n->layers[n->depth-1].logistic, n->output_dimension)
 #endif
 
   if(eval){
@@ -211,6 +218,12 @@ int main(int argc, char** argv){
 
 				for(int t = 0; t < MAX_TRAJ_LEN; t++){
 					forward(network_type)(n, env.state);
+
+          if(MUTATION_TYPE == SAFE || MUTATION_TYPE == SAFE_MOMENTUM){
+            sensitivity(n);
+            backward(network_type)(n);
+          }
+
 					n->performance += env.step(env, n->output);
 					if(!i && gen && !(gen % RENDER_EVERY))
 						env.render(env);

@@ -155,8 +155,9 @@ RNN cpu_rnn_from_arr(const size_t *arr, const size_t len){
   }
 
   size_t num_params = 0;
-  for(int i = 1; i < len-1; i++)
+  for(int i = 1; i < len-1; i++){
     num_params += ((arr[i-1]+arr[i]+1)*arr[i]); //parameters for input, recurrent input, and bias term
+  }
   num_params += (arr[len-2]+1)*arr[len-1]; //output mlp layer params
   n.num_params = num_params;
 
