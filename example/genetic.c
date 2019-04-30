@@ -212,6 +212,7 @@ int main(int argc, char** argv){
 			for(int try = 0; try < 3; try++){
 				#if defined(USE_LSTM) || defined(USE_RNN)
 				wipe(network_type)(n);
+				n->seq_len = MAX_TRAJ_LEN < SIEKNET_MAX_UNROLL_LENGTH ? MAX_TRAJ_LEN : SIEKNET_MAX_UNROLL_LENGTH;
 				#endif
 				env.reset(env);
 				env.seed(env);

@@ -326,12 +326,6 @@ float cpu_rnn_cost(RNN *n, const float *y){
   float *o = mlp->output;
   float *dest = n->cost_gradient;
   float c = cpu_cost(o, y, dest, n->output_dimension, n->cost_fn);
-
-  cpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad);
-  float *grads = mlp->input_gradient;
-
-  for(int i = 0; i < mlp->input_dimension; i++)
-    n->recurrent_gradient[n->t][i] = grads[i];
   return c;
 }
 #else
@@ -342,11 +336,6 @@ float gpu_rnn_cost(RNN *n, const float *y){
   cl_mem dest = n->cost_gradient;
 
   float c = gpu_cost(o, n->output_label, dest, n->output_dimension, n->cost_fn);
-
-  gpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad);
-  
-  check_error(clEnqueueCopyBuffer(get_opencl_queue0(), mlp->input_gradient, n->recurrent_gradient[n->t], 0, 0, sizeof(float) * mlp->input_dimension, 0, NULL, NULL), "copying mlp input grad to rnn grad");
-
   return c;
 }
 #endif
@@ -465,6 +454,16 @@ void gpu_rnn_layer_backward(RNN_layer *l, cl_mem *grad, cl_mem params, cl_mem pa
 
 #ifndef SIEKNET_USE_GPU
 void cpu_rnn_backward(RNN *n){
+	{
+		MLP_layer *mlp = &n->output_layer;
+		cpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad);
+		float *grads = mlp->input_gradient;
+
+		for(int i = 0; i < mlp->input_dimension; i++)
+			n->recurrent_gradient[n->t][i] = grads[i];
+
+		n->t++;
+	}
   if(n->t >= n->seq_len){
     float **grads = n->recurrent_gradient;
     for(int i = n->depth-1; i >= 0; i--){
@@ -478,6 +477,13 @@ void cpu_rnn_backward(RNN *n){
 }
 #else
 void gpu_rnn_backward(RNN *n){
+	{
+		MLP_layer *mlp = &n->output_layer;
+		gpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad);
+		check_error(clEnqueueCopyBuffer(get_opencl_queue0(), mlp->input_gradient, n->recurrent_gradient[n->t], 0, 0, sizeof(float) * mlp->input_dimension, 0, NULL, NULL), "copying mlp input grad to rnn grad");
+
+		n->t++;
+	}
   if(n->t >= n->seq_len){
     cl_mem *grads = n->recurrent_gradient;
     for(int i = n->depth-1; i >= 0; i--){
