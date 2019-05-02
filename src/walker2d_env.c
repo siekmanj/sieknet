@@ -9,6 +9,7 @@
 
 
 #define CTRL_HZ 30.0f
+#define ALIVE_BONUS 0.2f
 
 typedef struct data {
   mjModel *model;
@@ -140,10 +141,9 @@ static float step(Environment env, float *action){
     env.state[i+m->nq] = d->qvel[i];
 
   /* REWARD CALCULATION: Similar to OpenAI's */
-  float alive_bonus = 1.0f; //except this
   
   float reward = (d->qpos[0] - posbefore) / (1.0/CTRL_HZ);
-  reward += alive_bonus;
+  reward += ALIVE_BONUS;
 
   float action_sum = 0;
   for(int i = 0; i < env.action_space; i++)

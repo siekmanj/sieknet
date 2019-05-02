@@ -7,6 +7,8 @@
 #include <ga.h>
 #include <env.h>
 
+#include <omp.h>
+
 #if !defined(USE_MLP) && !defined(USE_RNN) && !defined(USE_LSTM)
 #define USE_LSTM
 #endif
@@ -70,6 +72,14 @@
 #define ENV_NAME hopper
 #endif
 
+#ifndef NUM_THREADS
+#define NUM_THREADS 4
+#endif
+
+#ifndef ROLLOUTS_PER_MEMBER
+#define ROLLOUTS_PER_MEMBER 3
+#endif
+
 #define MAKE_INCLUDE_(envname) <envname ## _env.h>
 #define MAKE_INCLUDE(envname) MAKE_INCLUDE_(envname)
 
@@ -113,6 +123,8 @@
 
 #define LOGFILE_ ./log/POOL_SIZE.ENV_NAME.hidden_size.HIDDEN_LAYER_SIZE.step_size.STEP_SIZE.mutation_rate.MUTATION_RATE.network_type.MUTATION_TYPE.log
 
+Environment envs[NUM_THREADS];
+
 int main(int argc, char** argv){
   if(argc < 4){ printf("%d args needed. Usage: [new/load] [path_to_modelfile] [train/eval]\n", 3); exit(1);}
 
@@ -128,7 +140,14 @@ int main(int argc, char** argv){
   setbuf(stdout, NULL);
   FILE *log = fopen(MACROVAL(LOGFILE_), "wb");
 
-  Environment env = create_env(ENV_NAME)();
+	for(int i = 0; i < NUM_THREADS; i++){
+		envs[i] = create_env(ENV_NAME)();
+	}
+
+#ifdef _OPENMP
+	printf("OpenMP detected! Using multithreading.\n");
+	omp_set_num_threads(NUM_THREADS);
+#endif
 
   int newmodel;
   if(!strcmp(argv[1], "load")) newmodel = 0;
@@ -151,10 +170,10 @@ int main(int argc, char** argv){
   if(newmodel){
     printf("creating '%s'\n", modelfile);
     size_t layersizes[LAYERS];
-    layersizes[0] = env.observation_space;
+    layersizes[0] = envs[0].observation_space;
     for(int i = 1; i < LAYERS-1; i++)
       layersizes[i] = HIDDEN_LAYER_SIZE;
-    layersizes[LAYERS-1] = env.action_space;
+    layersizes[LAYERS-1] = envs[0].action_space;
 
     seed = from_arr(network_type)(layersizes, LAYERS);
   }else{
@@ -163,7 +182,7 @@ int main(int argc, char** argv){
     if(!fp){ printf("Could not open modelfile '%s' - does it exist?\n", modelfile); exit(1);}
     seed = load(network_type)(modelfile);
     fclose(fp);
-    if(seed.input_dimension != env.observation_space || seed.output_dimension != env.action_space){
+    if(seed.input_dimension != envs[0].observation_space || seed.output_dimension != envs[0].action_space){
       printf("ERROR: Policy is not compatible with environment - mismatched observation/action space shapes.\n");
       exit(1);
     }
@@ -180,14 +199,14 @@ int main(int argc, char** argv){
 
   if(eval){
     while(1){
-      env.reset(env);
-      env.seed(env);
+      envs[0].reset(envs[0]);
+      envs[0].seed(envs[0]);
       seed.performance = 0;
       for(int t = 0; t < MAX_TRAJ_LEN; t++){
-        forward(network_type)(&seed, env.state);
-        seed.performance += env.step(env, seed.output);
-        env.render(env);
-        if(*env.done){
+        forward(network_type)(&seed, envs[0].state);
+        seed.performance += envs[0].step(envs[0], seed.output);
+        envs[0].render(envs[0]);
+        if(*envs[0].done){
           break;
         }
       }
@@ -195,6 +214,7 @@ int main(int argc, char** argv){
     }
     exit(0);
   }
+
 
 	Pool p = create_pool(network_type, &seed, POOL_SIZE);
   p.step_size = STEP_SIZE;
@@ -204,41 +224,55 @@ int main(int argc, char** argv){
 
   printf("logging to '%s'\n", MACROVAL(LOGFILE_));
   for(int gen = 0; gen < GENERATIONS; gen++){
+		#ifdef _OPENMP
+		double start = omp_get_wtime();
+		#pragma omp parallel for default(none) shared(p, envs)
+		#endif
+		
     for(int i = 0; i < p.pool_size; i++){
       NETWORK_TYPE *n = p.members[i];
       n->performance = 0;
 
+			int t_num = 0;
+			#ifdef _OPENMP
+			t_num = omp_get_thread_num();
+			#endif
 			/* best of three */ 
-			for(int try = 0; try < 3; try++){
+			for(int try = 0; try < ROLLOUTS_PER_MEMBER; try++){
 				#if defined(USE_LSTM) || defined(USE_RNN)
 				wipe(network_type)(n);
 				n->seq_len = MAX_TRAJ_LEN < SIEKNET_MAX_UNROLL_LENGTH ? MAX_TRAJ_LEN : SIEKNET_MAX_UNROLL_LENGTH;
 				#endif
-				env.reset(env);
-				env.seed(env);
+				envs[t_num].reset(envs[t_num]);
+				envs[t_num].seed(envs[t_num]);
 
 				for(int t = 0; t < MAX_TRAJ_LEN; t++){
-					forward(network_type)(n, env.state);
+					forward(network_type)(n, envs[t_num].state);
 
           if(MUTATION_TYPE == SAFE || MUTATION_TYPE == SAFE_MOMENTUM){
             sensitivity(n);
             backward(network_type)(n);
           }
 
-					n->performance += env.step(env, n->output);
-					if(!i && gen && !(gen % RENDER_EVERY))
-						env.render(env);
-					if(*env.done){
+					n->performance += envs[t_num].step(envs[t_num], n->output);
+					//if(!i && gen && !(gen % RENDER_EVERY))
+					//	envs[0].render(envs[0]);
+					if(*envs[0].done){
 						break;
 					}
 				}
 			}
-      if(!i && gen && !(gen % RENDER_EVERY))
-        env.close(env);
+			n->performance /= ROLLOUTS_PER_MEMBER;
+      //if(!i && gen && !(gen % RENDER_EVERY))
+      //  envs[0].close(envs[0]);
     }
     evolve_pool(&p);
 #ifndef VERBOSE_OUTPUT
+#ifdef _OPENMP
+    printf("%3d %6.4f in %4.3fs\n", gen, ((NETWORK_TYPE*)p.members[0])->performance, omp_get_wtime() - start);
+#else
     printf("%3d %6.4f\n", gen, ((NETWORK_TYPE*)p.members[0])->performance);
+#endif
 #else
     printf("%s %3d %6.4f\n", MACROVAL(LOGFILE_), gen, ((NETWORK_TYPE*)p.members[0])->performance);
 #endif

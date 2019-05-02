@@ -164,7 +164,7 @@ char_nn)
   ;;
 ga)
   MJ_DIR="$HOME/.mujoco/mujoco200"
-  MJ_FLAGS="-I$MJ_DIR/include -L$MJ_DIR/bin"
+  MJ_FLAGS="-I$MJ_DIR/include -L$MJ_DIR/bin -fopenmp"
   MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
 
   SRCFILES="$SRCFILES src/ga.c src/lstm.c src/rnn.c"
