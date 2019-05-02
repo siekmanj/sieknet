@@ -845,7 +845,7 @@ static void gpu_lstm_layer_backward(LSTM_layer *l, cl_mem *grad, cl_mem params, 
 void cpu_lstm_backward(LSTM *n){
 	{
 		MLP_layer *mlp = &n->output_layer;
-		cpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad);
+		cpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad, 0);
 		float *grads = mlp->input_gradient;
 
 		/* copy gradient serially from mlp output layer to lstm network gradient. */
@@ -868,7 +868,7 @@ void cpu_lstm_backward(LSTM *n){
 static void gpu_lstm_backward(LSTM *n){
 	{
 		MLP_layer *mlp = &n->output_layer;
-		gpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad);
+		gpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad, 0);
 
 		check_error(clEnqueueCopyBuffer(get_opencl_queue0(), mlp->input_gradient, n->recurrent_gradient[n->t], 0, 0, sizeof(float) * mlp->input_dimension, 0, NULL, NULL), "copying mlp grads to lstm network grads");
 

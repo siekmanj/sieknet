@@ -97,6 +97,9 @@
 #define backward_(arch) arch ## _backward
 #define backward(arch) backward_(arch)
 
+#define abs_backward_(arch) arch ## _abs_backward
+#define abs_backward(arch) abs_backward_(arch)
+
 #define create_(arch) create_ ## arch
 #define create(arch) create_(arch)
 
@@ -256,7 +259,7 @@ int main(int argc, char** argv){
 
           if(MUTATION_TYPE == SAFE || MUTATION_TYPE == SAFE_MOMENTUM){
             sensitivity(n);
-            backward(network_type)(n);
+            abs_backward(network_type)(n);
           }
 
 					n->performance += envs[t_num].step(envs[t_num], n->output);
