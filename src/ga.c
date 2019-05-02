@@ -87,10 +87,8 @@ LSTM *copy_lstm(LSTM *n){
 
 static float safety(float g){
 	float alpha = ALPHA;
-	if(g < 0)
-		return exp(alpha*g);
-	else
-		return exp(-alpha*g);
+	//return exp(-alpha*g);
+	return 1 / (ALPHA * g);
 	
 }
 

@@ -272,6 +272,7 @@ int main(int argc, char** argv){
 				if(!*envs[0].done)
 					samples += MAX_TRAJ_LEN;
 			}
+			//PRINTLIST(n->param_grad, n->num_params);
 			n->performance /= ROLLOUTS_PER_MEMBER;
 			gen_avg_fitness += n->performance;
     }
