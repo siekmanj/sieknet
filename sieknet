@@ -290,4 +290,7 @@ ga)
   cmd="./bin/genetic $LOADNEW $MODE"
   $cmd
   ;;
+*)
+	printf "Invalid usage.\n./sieknet ga -h\n./sieknet char_nn -h\n"
+	;;
 esac

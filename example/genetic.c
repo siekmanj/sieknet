@@ -210,7 +210,6 @@ int main(int argc, char** argv){
           break;
         }
       }
-      printf("return: %5.4f\n", seed.performance);
     }
     exit(0);
   }
@@ -255,16 +254,12 @@ int main(int argc, char** argv){
           }
 
 					n->performance += envs[t_num].step(envs[t_num], n->output);
-					//if(!i && gen && !(gen % RENDER_EVERY))
-					//	envs[0].render(envs[0]);
 					if(*envs[0].done){
 						break;
 					}
 				}
 			}
 			n->performance /= ROLLOUTS_PER_MEMBER;
-      //if(!i && gen && !(gen % RENDER_EVERY))
-      //  envs[0].close(envs[0]);
     }
     evolve_pool(&p);
 #ifndef VERBOSE_OUTPUT
