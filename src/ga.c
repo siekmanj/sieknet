@@ -5,6 +5,7 @@
 #include <string.h>
 
 #define PI 3.14159
+#define ALPHA 1.0
 
 #ifdef SIEKNET_USE_GPU
 #error "ERROR: Use of genetic algorithms is currently not supported on the GPU."
@@ -85,7 +86,7 @@ LSTM *copy_lstm(LSTM *n){
 }
 
 static float safety(float g){
-	float alpha = 1.0;
+	float alpha = ALPHA;
 	if(g < 0)
 		return exp(alpha*g);
 	else
