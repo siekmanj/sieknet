@@ -151,7 +151,7 @@ static float step(Environment env, float *action){
 
   reward -= 0.001 * action_sum;
 
-  if(d->qpos[1] < 0.6 || d->qpos[1] > 2.0){
+  if(d->qpos[1] < 0.8 || d->qpos[1] > 2.0 || d->qpos[2] < -2.5 || d->qpos[2] > 2.5){
     *env.done = 1;
   }
 

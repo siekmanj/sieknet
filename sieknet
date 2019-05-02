@@ -286,7 +286,6 @@ ga)
     echo "Compilation failed."
     exit
   fi
-
   cmd="./bin/genetic $LOADNEW $MODE"
   $cmd
   ;;
