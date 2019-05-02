@@ -49,7 +49,7 @@
 #endif
 
 #ifndef ELITE_PERCENTILE
-#define ELITE_PERCENTILE 0.750f
+#define ELITE_PERCENTILE 0.9f
 #endif
 
 #ifndef GENERATIONS
@@ -221,13 +221,19 @@ int main(int argc, char** argv){
 	p.mutation_rate = MUTATION_RATE;
 	p.elite_percentile = ELITE_PERCENTILE;
 
+	float peak_fitness = 0;
+	float avg_fitness = 0; 
+	size_t samples = 0;
+
+	int print_every = 10;
+
   printf("logging to '%s'\n", MACROVAL(LOGFILE_));
   for(int gen = 0; gen < GENERATIONS; gen++){
+		float gen_avg_fitness = 0;
 		#ifdef _OPENMP
 		double start = omp_get_wtime();
-		#pragma omp parallel for default(none) shared(p, envs)
+		#pragma omp parallel for default(none) shared(p, envs) reduction(+: gen_avg_fitness, samples)
 		#endif
-		
     for(int i = 0; i < p.pool_size; i++){
       NETWORK_TYPE *n = p.members[i];
       n->performance = 0;
@@ -255,21 +261,29 @@ int main(int argc, char** argv){
 
 					n->performance += envs[t_num].step(envs[t_num], n->output);
 					if(*envs[0].done){
+						samples += t;
 						break;
 					}
 				}
+				if(!*envs[0].done)
+					samples += MAX_TRAJ_LEN;
 			}
 			n->performance /= ROLLOUTS_PER_MEMBER;
+			gen_avg_fitness += n->performance;
     }
     evolve_pool(&p);
-#ifndef VERBOSE_OUTPUT
-#ifdef _OPENMP
-    printf("%3d %6.4f in %4.3fs\n", gen, ((NETWORK_TYPE*)p.members[0])->performance, omp_get_wtime() - start);
+
+#ifndef VISDOM_OUTPUT
+		peak_fitness += ((NETWORK_TYPE*)p.members[0])->performance;
+		avg_fitness += gen_avg_fitness / p.pool_size;
+		if(gen && !(gen % print_every)){
+			peak_fitness = 0;
+			avg_fitness = 0;
+			printf("\n");
+		}
+		printf("gen %3d | avg peak %5.2f | avg %5.2f | %4.3fs per gen | samples %lu      \r", gen+1, peak_fitness / ((gen % print_every)+1), avg_fitness / ((gen % print_every)+1), omp_get_wtime() - start, samples);
 #else
-    printf("%3d %6.4f\n", gen, ((NETWORK_TYPE*)p.members[0])->performance);
-#endif
-#else
-    printf("%s %3d %6.4f\n", MACROVAL(LOGFILE_), gen, ((NETWORK_TYPE*)p.members[0])->performance);
+    printf("%s %3d %6.4f, %6.4f\n", MACROVAL(LOGFILE_), gen, ((NETWORK_TYPE*)p.members[0])->performance, gen_avg_fitness / p.pool_size);
 #endif
     fprintf(log, "%f\n", ((NETWORK_TYPE*)p.members[0])->performance);
     fflush(log);

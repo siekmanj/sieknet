@@ -243,7 +243,7 @@ ga)
           DEFINES="$DEFINES -DHIDDEN_LAYER_SIZE=$1"
           ;;
       -v)
-          DEFINES="$DEFINES -DVERBOSE_OUTPUT"
+          DEFINES="$DEFINES -DVISDOM_OUTPUT"
           ;;
       --)
           shift
