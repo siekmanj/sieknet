@@ -49,7 +49,7 @@
 #endif
 
 #ifndef ELITE_PERCENTILE
-#define ELITE_PERCENTILE 0.9f
+#define ELITE_PERCENTILE 0.95f
 #endif
 
 #ifndef GENERATIONS
@@ -210,6 +210,7 @@ int main(int argc, char** argv){
           break;
         }
       }
+      printf("Return: %f\n", seed.performance);
     }
     exit(0);
   }
@@ -274,14 +275,14 @@ int main(int argc, char** argv){
     evolve_pool(&p);
 
 #ifndef VISDOM_OUTPUT
-		peak_fitness += ((NETWORK_TYPE*)p.members[0])->performance;
-		avg_fitness += gen_avg_fitness / p.pool_size;
 		if(gen && !(gen % print_every)){
 			peak_fitness = 0;
 			avg_fitness = 0;
 			printf("\n");
 		}
-		printf("gen %3d | avg peak %5.2f | avg %5.2f | %4.3fs per gen | samples %lu      \r", gen+1, peak_fitness / ((gen % print_every)+1), avg_fitness / ((gen % print_every)+1), omp_get_wtime() - start, samples);
+		peak_fitness += ((NETWORK_TYPE*)p.members[0])->performance;
+		avg_fitness += gen_avg_fitness / p.pool_size;
+		printf("gen %3d | avg peak %5.2f | avg %5.2f | %4.3fs per gen | samples %lu      \r", gen+1, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), omp_get_wtime() - start, samples);
 #else
     printf("%s %3d %6.4f, %6.4f\n", MACROVAL(LOGFILE_), gen, ((NETWORK_TYPE*)p.members[0])->performance, gen_avg_fitness / p.pool_size);
 #endif
@@ -291,5 +292,6 @@ int main(int argc, char** argv){
     save(network_type)(((NETWORK_TYPE*)p.members[0]), modelfile);
   }
   fclose(log);
+  printf("\nFinished!\n");
   return 0;
 }
