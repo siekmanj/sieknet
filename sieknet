@@ -164,7 +164,7 @@ char_nn)
   ;;
 ga)
   MJ_DIR="$HOME/.mujoco/mujoco200"
-  MJ_FLAGS="-I$MJ_DIR/include -L$MJ_DIR/bin"
+  MJ_FLAGS="-I$MJ_DIR/include -L$MJ_DIR/bin -fopenmp"
   MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
 
   SRCFILES="$SRCFILES src/ga.c src/lstm.c src/rnn.c"
@@ -243,7 +243,7 @@ ga)
           DEFINES="$DEFINES -DHIDDEN_LAYER_SIZE=$1"
           ;;
       -v)
-          DEFINES="$DEFINES -DVERBOSE_OUTPUT"
+          DEFINES="$DEFINES -DVISDOM_OUTPUT"
           ;;
       --)
           shift
@@ -286,8 +286,10 @@ ga)
     echo "Compilation failed."
     exit
   fi
-
   cmd="./bin/genetic $LOADNEW $MODE"
   $cmd
   ;;
+*)
+	printf "Invalid usage.\n./sieknet ga -h\n./sieknet char_nn -h\n"
+	;;
 esac
