@@ -8,7 +8,7 @@
 #include <glfw3.h>
 
 
-#define CTRL_HZ 30.0f
+#define CTRL_HZ 60.0f
 
 typedef struct data {
   mjModel *model;
