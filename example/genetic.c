@@ -288,7 +288,8 @@ int main(int argc, char** argv){
 		avg_fitness += gen_avg_fitness / p.pool_size;
 		printf("gen %3d | avg peak %5.2f | avg %5.2f | %4.3fs per gen | samples %lu      \r", gen+1, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), omp_get_wtime() - start, samples);
 #else
-    printf("%s %3d %6.4f, %6.4f\n", MACROVAL(LOGFILE_), gen, ((NETWORK_TYPE*)p.members[0])->performance, gen_avg_fitness / p.pool_size);
+    //printf("%s %3d %6.4ff\n", MACROVAL(LOGFILE_), gen, ((NETWORK_TYPE*)p.members[0])->performance, gen_avg_fitness / p.pool_size);
+    printf("%s %3d %6.4f\n", MACROVAL(LOGFILE_), gen, ((NETWORK_TYPE*)p.members[0])->performance);
 #endif
     fprintf(log, "%f\n", ((NETWORK_TYPE*)p.members[0])->performance);
     fflush(log);
