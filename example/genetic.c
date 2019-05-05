@@ -29,7 +29,7 @@
 #endif
 
 #ifndef POOL_SIZE
-#define POOL_SIZE 200
+#define POOL_SIZE 500
 #endif
 
 #ifndef LAYERS
@@ -45,11 +45,11 @@
 #endif
 
 #ifndef MUTATION_RATE
-#define MUTATION_RATE 0.01f
+#define MUTATION_RATE 0.05f
 #endif
 
 #ifndef ELITE_PERCENTILE
-#define ELITE_PERCENTILE 0.99f
+#define ELITE_PERCENTILE 0.90f
 #endif
 
 #ifndef GENERATIONS
@@ -57,11 +57,7 @@
 #endif 
 
 #ifndef MAX_TRAJ_LEN
-#define MAX_TRAJ_LEN 300
-#endif
-
-#ifndef RENDER_EVERY
-#define RENDER_EVERY 10
+#define MAX_TRAJ_LEN 400
 #endif
 
 #ifndef MUTATION_TYPE
@@ -73,11 +69,15 @@
 #endif
 
 #ifndef NUM_THREADS
-#define NUM_THREADS 4
+#define NUM_THREADS 1
 #endif
 
 #ifndef ROLLOUTS_PER_MEMBER
 #define ROLLOUTS_PER_MEMBER 2
+#endif
+
+#ifndef CROSSOVER
+#define CROSSOVER 0
 #endif
 
 #define MAKE_INCLUDE_(envname) <envname ## _env.h>
@@ -130,12 +130,12 @@
   #define sensitivity(n) sensitivity_gradient(n->cost_gradient, n->output, n->layers[n->depth-1].logistic, n->output_dimension)
 #endif
 
-#define LOGFILE_ ./log/POOL_SIZE.ENV_NAME.hidden_size.HIDDEN_LAYER_SIZE.step_size.STEP_SIZE.mutation_rate.MUTATION_RATE.network_type.MUTATION_TYPE.log
+#define LOGFILE_ ./log/POOL_SIZE.ENV_NAME.hs.HIDDEN_LAYER_SIZE.lr.STEP_SIZE.mr.MUTATION_RATE.network_type.MUTATION_TYPE.log
 
 Environment envs[NUM_THREADS];
 size_t samples = 0;
 
-float evaluate(Environment *env, NETWORK_TYPE *n, int render){
+float evaluate(Environment *env,/* Normalizer *norm,*/ NETWORK_TYPE *n, int render){
 	float perf = 0;
 	for(int i = 0; i < ROLLOUTS_PER_MEMBER; i++){
 		env->reset(*env);
@@ -156,6 +156,8 @@ float evaluate(Environment *env, NETWORK_TYPE *n, int render){
 			}
 			perf += env->step(*env, n->output);
 
+      /* Normalizing doesn't seem to help very much, so not doing it for now */
+      //normalize(*norm, *env);
 
 			if(render)
 				env->render(*env);
@@ -164,7 +166,18 @@ float evaluate(Environment *env, NETWORK_TYPE *n, int render){
 				break;
 		}
 	}
+  if(render)
+    env->close(*env);
+
 	return perf / ROLLOUTS_PER_MEMBER;
+}
+
+double get_time(){
+#ifdef _OPENMP
+  return omp_get_wtime();
+#else
+  return clock() / CLOCKS_PER_SEC;
+#endif
 }
 
 int main(int argc, char** argv){
@@ -180,7 +193,7 @@ int main(int argc, char** argv){
   printf("																					 \n");
   printf("genetic algorithms for reinforcement learning.\n");
 
-	srand(2);
+	srand(1);
   setbuf(stdout, NULL);
   FILE *log = fopen(MACROVAL(LOGFILE_), "wb");
 
@@ -189,7 +202,7 @@ int main(int argc, char** argv){
 	}
 
 #ifdef _OPENMP
-	printf("OpenMP detected! Using multithreading.\n");
+	printf("OpenMP detected! Using multithreading (%d threads)\n", NUM_THREADS);
 	omp_set_num_threads(NUM_THREADS);
 #endif
 
@@ -220,6 +233,8 @@ int main(int argc, char** argv){
   }
   printf("network has %lu params.\n", seed.num_params);
 
+  //Normalizer normalizer = create_normalizer(envs[0], &seed, forward(network_type), seed.output, 1000);
+
 #if defined(USE_LSTM) || defined(USE_RNN)
   seed.output_layer.logistic = hypertan;
 #else
@@ -228,10 +243,13 @@ int main(int argc, char** argv){
 
   if(!strcmp(argv[3], "eval"))
     while(1)
-			printf("Return over %d rollouts: %f\n", ROLLOUTS_PER_MEMBER, evaluate(&envs[0], &seed, 1));
+			printf("Return over %d rollouts: %f\n", ROLLOUTS_PER_MEMBER, evaluate(&envs[0], /*&normalizer,*/ &seed, 1));
 	else if(!strcmp(argv[3], "train")){
 		
+    /* Create a pool object from the seed neural network */
 		Pool p = create_pool(network_type, &seed, POOL_SIZE);
+
+    p.crossover = CROSSOVER;
 		p.step_size = STEP_SIZE;
 		p.mutation_type = MUTATION_TYPE;
 		p.mutation_rate = MUTATION_RATE;
@@ -254,9 +272,10 @@ int main(int argc, char** argv){
 			float gen_avg_fitness = 0;
 
 			size_t samples_before = samples;
+      double start = get_time();
 			#ifdef _OPENMP
-			double start = omp_get_wtime();
-			#pragma omp parallel for default(none) shared(pool, envs) reduction(+: gen_avg_fitness, samples)
+			//double start = omp_get_wtime();
+			#pragma omp parallel for default(none) shared(pool, envs,/* normalizer*/) reduction(+: gen_avg_fitness, samples)
 			#endif
 
 			for(int i = 0; i < pool_size; i++){
@@ -266,30 +285,25 @@ int main(int argc, char** argv){
 				#endif
 
 				NETWORK_TYPE *n = pool[i]->network;
-				pool[i]->performance = evaluate(&envs[t_num], n, 0);
+				pool[i]->performance = evaluate(&envs[t_num], /*&normalizer,*/ n, 0);
 				gen_avg_fitness += pool[i]->performance;
 			}
 			float testavg = 0;
 			for(int i = 0; i < pool_size; i++){
-				//printf("fitness %d: %f\n", i, pool[i]->performance);
 				testavg += pool[i]->performance;
 			}
-			//printf("\nUNSORTED\navg perf: %f\n", testavg / pool_size);
+
 			evolve_pool(&p);
-			for(int i = 0; i < pool_size; i++){
-				//printf("fitness %d: %f\n", i, pool[i]->performance);
-				testavg += pool[i]->performance;
-			}
-			//printf("best perf: %f\n", p.members[0]->performance);
 
 			peak_fitness += p.members[0]->performance;
 			avg_fitness  += gen_avg_fitness / p.pool_size;
-			float test_return = evaluate(&envs[0], ((NETWORK_TYPE*)p.members[0]->network), 0);
+			float test_return = evaluate(&envs[0], /*&normalizer,*/ ((NETWORK_TYPE*)p.members[0]->network), !(gen % print_every));
 
 #ifndef VISDOM_OUTPUT
-			printf("gen %3d | test %5.2f | 10 gen avg peak %5.2f | avg %5.2f | %4.3fs per 1k env steps | %lu env steps      \r", gen+1, test_return, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*(omp_get_wtime() - start)/(samples - samples_before), samples);
+			//printf("gen %3d | test %5.2f | 10 gen avg peak %5.2f | avg %5.2f | %4.3fs per 1k env steps | %lu env steps      \r", gen+1, test_return, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*(omp_get_wtime() - start)/(samples - samples_before), samples);
+			printf("gen %3d | test %5.2f | 10 gen avg peak %5.2f | avg %5.2f | %4.3fs per 1k env steps | %lu env steps      \r", gen+1, test_return, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*(get_time() - start)/(samples - samples_before), samples);
 #else
-			printf("%s %3d %6.4f %6.4f\n", MACROVAL(LOGFILE_), gen, p.members[0]->performance, gen_avg_fitness / p.pool_size);
+			printf("%s %3d %6.4f %6.4f %6.4f\n", MACROVAL(LOGFILE_), gen, p.members[0]->performance, gen_avg_fitness / p.pool_size, test_return);
 #endif
 			fprintf(log, "%f\n", p.members[0]->performance);
 			fflush(log);

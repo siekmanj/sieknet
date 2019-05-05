@@ -24,5 +24,15 @@ typedef struct env_ {
   
 } Environment;
 
+typedef struct normalize_ {
+  float *env_mean;
+  float *env_std;
+  size_t dimension;
+} Normalizer;
+
+Normalizer create_normalizer(Environment env, void *policy, void (*forward)(void *policy, float *input), float *output, size_t samples);
+
+void normalize(Normalizer, Environment);
+
 
 #endif

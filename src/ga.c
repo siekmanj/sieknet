@@ -122,17 +122,17 @@ float *safe_recombine(const float step_size, const float *a, const float *ag, co
   return ret;
 }
 
-float *momentum_recombine(const float step_size, const float *a, const float *b, const float *momentum, const float mutation_rate, const size_t size){
+float *momentum_recombine(const float step_size, const float *a, const float *b, float *momentum1, float *momentum2, const float mutation_rate, const size_t size){
   //TODO
   return NULL;
 }
 
-float *safe_momentum_recombine(const float step_size, const float *a, const float *ag, const float *b, const float *bg, float *momentum, const float mutation_rate, const size_t size){
+float *safe_momentum_recombine(const float step_size, const float *a, const float *ag, const float *b, const float *bg, float *momentum1, float *momentum2, const float mutation_rate, const size_t size){
   //TODO
   return NULL;
 }
 
-float *recombine(const float step_size, const Mutation_type type, const float *params1, const float *paramgrad1, const float *params2, const float *paramgrad2, float *momentum, const float mutation_rate, const size_t num_params){
+float *recombine(const float step_size, const Mutation_type type, const float *params1, const float *paramgrad1, const float *params2, const float *paramgrad2, float *momentum1, float *momentum2, const float mutation_rate, const size_t num_params){
   switch(type){
     case NONE:
       return baseline_recombine(step_size, params1, params2, 0.0, num_params);
@@ -141,13 +141,13 @@ float *recombine(const float step_size, const Mutation_type type, const float *p
       return baseline_recombine(step_size, params1, params2, mutation_rate, num_params);
       break;
     case MOMENTUM:
-      return momentum_recombine(step_size, params1, params2, momentum, mutation_rate, num_params);
+      return momentum_recombine(step_size, params1, params2, momentum1, momentum2, mutation_rate, num_params);
       break;
     case SAFE:
       return safe_recombine(step_size, params1, paramgrad1, params2, paramgrad2, mutation_rate, num_params);
       break;
     case SAFE_MOMENTUM:
-      return safe_momentum_recombine(step_size, params1, paramgrad1, params2, paramgrad2, momentum, mutation_rate, num_params);
+      return safe_momentum_recombine(step_size, params1, paramgrad1, params2, paramgrad2, momentum1, momentum2, mutation_rate, num_params);
       break;
   }
   return NULL;
@@ -170,6 +170,7 @@ Pool create_pool(Network_type type, void *seed, size_t pool_size){
 	p.mutation_rate = 0.01;
 	p.step_size = 0.01;
 	p.elite_percentile = 0.95;
+  p.crossover = 1;
 	p.members = ALLOC(Member*, pool_size);
 	switch(type){
 		case mlp:
@@ -249,38 +250,48 @@ void cull_pool(Pool *p){
 
 void breed_pool(Pool *p){
 	size_t size = p->pool_size;
-	switch(p->network_type){
-		case mlp:
-			for(int i = size - (int)((p->elite_percentile)*size); i < size; i++){
-				MLP *a = (MLP*)p->members[rand() % (size - (int)((p->elite_percentile)*size))]->network;
-				MLP *b = (MLP*)p->members[rand() % (size - (int)((p->elite_percentile)*size))]->network;
+  for(int i = size - (int)((p->elite_percentile)*size); i < size; i++){
+    int parent1_idx = rand() % (size - (int)((p->elite_percentile)*size));
+    int parent2_idx = rand() % (size - (int)((p->elite_percentile)*size));
+    Member *parent1 = p->members[parent1_idx];
+    Member *parent2 = p->crossover ? p->members[parent2_idx] : parent1;
 
-				MLP *child = copy_mlp(a);
-				child->params = recombine(p->step_size, p->mutation_type, a->params, a->param_grad, b->params, b->param_grad, p->momentum, p->mutation_rate, a->num_params);
-				p->members[i]->network = (void*)child;
-			}
-			break;
-		case rnn:
-			for(int i = size - (int)((p->elite_percentile)*size); i < size; i++){
-				RNN *a = (RNN*)p->members[rand() % (size - (int)((p->elite_percentile)*size))]->network;
-				RNN *b = (RNN*)p->members[rand() % (size - (int)((p->elite_percentile)*size))]->network;
+    //printf("parent 1: %p, parent 2: %p\n", parent1, parent2);
 
-				RNN *child = copy_rnn(a);
-				child->params = recombine(p->step_size, p->mutation_type, a->params, a->param_grad, b->params, b->param_grad, p->momentum, p->mutation_rate, a->num_params);
-				p->members[i]->network = (void*)child;
-			}
-			break;
-		case lstm:
-			for(int i = size - (int)((p->elite_percentile)*size); i < size; i++){
-				LSTM *a = (LSTM*)p->members[rand() % (size - (int)((p->elite_percentile)*size))]->network;
-				LSTM *b = (LSTM*)p->members[rand() % (size - (int)((p->elite_percentile)*size))]->network;
+    //printf("\nMaking new child from parents %d and %d! rand() %% (%d - %d)\n", parent1_idx, parent2_idx, (int)size, (int)((p->elite_percentile)*size));
+    switch(p->network_type){
+      case mlp:
+        {
+          MLP *a = (MLP*)parent1->network;
+          MLP *b = (MLP*)parent2->network;
 
-				LSTM *child = copy_lstm(a);
-				child->params = recombine(p->step_size, p->mutation_type, a->params, a->param_grad, b->params, b->param_grad, p->momentum, p->mutation_rate, a->num_params);
-				p->members[i]->network = (void*)child;
-			}
-			break;
-	}
+          MLP *child = copy_mlp(a);
+          child->params = recombine(p->step_size, p->mutation_type, a->params, a->param_grad, b->params, b->param_grad, parent1->momentum, parent2->momentum, p->mutation_rate, a->num_params);
+          p->members[i]->network = (void*)child;
+        }
+        break;
+      case rnn:
+        {
+          RNN *a = (RNN*)p->members[parent1_idx]->network;
+          RNN *b = (RNN*)p->members[parent2_idx]->network;
+
+          RNN *child = copy_rnn(a);
+          child->params = recombine(p->step_size, p->mutation_type, a->params, a->param_grad, b->params, b->param_grad, parent1->momentum, parent2->momentum, p->mutation_rate, a->num_params);
+          p->members[i]->network = (void*)child;
+        }
+        break;
+      case lstm:
+        {
+          LSTM *a = (LSTM*)p->members[parent1_idx]->network;
+          LSTM *b = (LSTM*)p->members[parent2_idx]->network;
+
+          LSTM *child = copy_lstm(a);
+          child->params = recombine(p->step_size, p->mutation_type, a->params, a->param_grad, b->params, b->param_grad, parent1->momentum, parent2->momentum, p->mutation_rate, a->num_params);
+          p->members[i]->network = (void*)child;
+        }
+        break;
+    }
+  }
 	// If we use SAFE or SAFE_MOMENTUM, clear the parameter gradients of the elites 
 	if(p->mutation_type == SAFE || p->mutation_type == SAFE_MOMENTUM){
 		for(int i = 0; i < size - (int)((p->elite_percentile)*size); i++){

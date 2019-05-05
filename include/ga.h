@@ -19,6 +19,7 @@ typedef struct member_{
 typedef struct pool_{
   Network_type network_type;
   Mutation_type mutation_type;
+  int crossover;
 
 	float mutation_rate;
 	float step_size;

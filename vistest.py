@@ -33,10 +33,18 @@ print("LOGGING DATA TO VISDOM!")
 print("executing ", sys.argv[1:])
 for path in execute(sys.argv[1:]):
   tokens = path.split()
+  print("got", tokens)
   if len(tokens) != 0 and tokens[0] != 'WARNING:':
     try:
-      plot('fitness', 'fitness', tokens[0], int(tokens[1]), float(tokens[2]))
+      #print("attempting to convert token 1 to int", tokens[1])
+      int(tokens[1])
+      #print("attempting to convert token 2 to float", tokens[2])
+      float(tokens[2])
+      plot('fitness', 'peak', tokens[0], int(tokens[1]), float(tokens[2]))
+      plot('fitness', 'mean', tokens[0], int(tokens[1]), float(tokens[3]))
+      plot('fitness', 'test', tokens[0], int(tokens[1]), float(tokens[4]))
     except ValueError:
+      print("got value error")
       continue
       
 print("DONE LOGGING.")

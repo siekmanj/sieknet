@@ -7,8 +7,8 @@
 #include <mujoco.h>
 #include <glfw3.h>
 
-
-#define CTRL_HZ 60.0f
+#define ALIVE_BONUS 0.2f
+#define FRAMESKIP 10
 
 typedef struct data {
   mjModel *model;
@@ -113,10 +113,8 @@ static void render(Environment env){
 static void close(Environment env){
   Data *tmp = ((Data*)env.data);
   glfwDestroyWindow(tmp->window);
-  //glfwTerminate();
 
   tmp->render_setup = 0;
-
 }
 
 static float step(Environment env, float *action){
@@ -130,19 +128,19 @@ static float step(Environment env, float *action){
   for(int i = 0; i < env.action_space; i++)
     d->ctrl[i] = action[i];
   
-  while(d->time - simstart < 1.0/CTRL_HZ)
+  for(int i = 0; i < FRAMESKIP; i++)
     mj_step(m, d);
 
-  for(int i = 0; i < m->nq; i++)
-    env.state[i] = d->qpos[i];
+  for(int i = 1; i < m->nq; i++)
+    env.state[i-1] = d->qpos[i];
 
   for(int i = 0; i < m->nv; i++)
-    env.state[i+m->nq] = d->qvel[i];
+    env.state[i + m->nq - 1] = d->qvel[i];
 
   /* REWARD CALCULATION: Identical to OpenAI's */
   float alive_bonus = 0.2f;
   
-  float reward = (d->qpos[0] - posbefore) / (1.0/CTRL_HZ);
+  float reward = (d->qpos[0] - posbefore) / (d->time - simstart);
   reward += alive_bonus;
 
   float action_sum = 0;
@@ -151,7 +149,7 @@ static float step(Environment env, float *action){
 
   reward -= 0.001 * action_sum;
 
-  if(d->qpos[1] < 0.7 || d->qpos[2] < -1.5 || d->qpos[2] > 1.5){
+  if(d->qpos[1] < 0.7 || d->qpos[2] < -1 || d->qpos[2] > 1){
     *env.done = 1;
   }
 
@@ -181,7 +179,7 @@ Environment create_hopper_env(){
   d->data = mj_makeData(d->model);
   d->render_setup = 0;
 
-  env.observation_space = d->model->nq + d->model->nv;
+  env.observation_space = d->model->nq + d->model->nv - 1;
   env.action_space = d->model->nu;
 
   env.data = d;
