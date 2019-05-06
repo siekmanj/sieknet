@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <locale.h>
 
 #include <lstm.h>
 #include <rnn.h>
@@ -182,6 +183,8 @@ double get_time(){
 
 int main(int argc, char** argv){
   if(argc < 4){ printf("%d args needed. Usage: [new/load] [path_to_modelfile] [train/eval]\n", 3); exit(1);}
+  setlocale(LC_ALL,"");
+
 
   char *modelfile = argv[2];
 
@@ -300,8 +303,7 @@ int main(int argc, char** argv){
 			float test_return = evaluate(&envs[0], /*&normalizer,*/ ((NETWORK_TYPE*)p.members[0]->network), !(gen % print_every));
 
 #ifndef VISDOM_OUTPUT
-			//printf("gen %3d | test %5.2f | 10 gen avg peak %5.2f | avg %5.2f | %4.3fs per 1k env steps | %lu env steps      \r", gen+1, test_return, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*(omp_get_wtime() - start)/(samples - samples_before), samples);
-			printf("gen %3d | test %5.2f | 10 gen avg peak %5.2f | avg %5.2f | %4.3fs per 1k env steps | %lu env steps      \r", gen+1, test_return, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*(get_time() - start)/(samples - samples_before), samples);
+			printf("gen %3d | test %5.2f | 10 gen avg peak %5.2f | avg %5.2f | %4.3fs per 1k env steps | %'lu env steps      \r", gen+1, test_return, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*(get_time() - start)/(samples - samples_before), samples);
 #else
 			printf("%s %3d %6.4f %6.4f %6.4f\n", MACROVAL(LOGFILE_), gen, p.members[0]->performance, gen_avg_fitness / p.pool_size, test_return);
 #endif
