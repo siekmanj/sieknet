@@ -48,6 +48,11 @@ Options:
      --env  [env name]       Set the environment
      --gens [num gens]       Set the number of generations to run the pool forward
      --mutation_type [type]  Set the mutation type (default is BASELINE)
+     --elite_percentile [p]  Set the proportion of population to be culled (default 0.9)
+     --threads [num]         Enable OpenMP, and use {num} threads in parallel
+     --layers [num_layers]   The number of hidden layers
+     --hidden_size [size]    The size of each hidden layer
+     --crossover             Enable sexual reproduction
 -e,  --eval                  Evaluate a single model
 -t,  --train                 Evolve a pool of models
 -d,  --debug                 Enable debugging messages
@@ -55,8 +60,6 @@ Options:
      --mlp                   Use a multilayer perceptron
      --rnn                   Use a recurrent neural network
      --lstm                  Use an lstm
-     --layers [num_layers]   The number of hidden layers
-     --hidden_size [size]    The size of each hidden layer
 EOF
 }
 
@@ -164,12 +167,12 @@ char_nn)
   ;;
 ga)
   MJ_DIR="$HOME/.mujoco/mujoco200"
-  MJ_FLAGS="-I$MJ_DIR/include -L$MJ_DIR/bin -fopenmp"
+  MJ_FLAGS="-I$MJ_DIR/include -L$MJ_DIR/bin"
   MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
 
-  SRCFILES="$SRCFILES src/ga.c src/lstm.c src/rnn.c"
+  SRCFILES="$SRCFILES src/ga.c src/env.c src/lstm.c src/rnn.c"
 
-  options=$(getopt -l "help,eval,train,load:,new:,lr:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:,mutation_type:" -o "h,e:,t:,L:,n:l:,d,v" -a -- "$@")
+  options=$(getopt -l "help,eval,train,load:,new:,lr:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:,mutation_type:,elite_percentile:,threads:,crossover" -o "h,e:,t:,L:,n:l:,d,v" -a -- "$@")
   eval set -- "$options"
   while true
   do
@@ -241,6 +244,18 @@ ga)
       --hidden_size)
           shift
           DEFINES="$DEFINES -DHIDDEN_LAYER_SIZE=$1"
+          ;;
+      --elite_percentile)
+          shift
+          DEFINES="$DEFINES -DELITE_PERCENTILE=$1"
+          ;;
+      --threads)
+          shift
+          DEFINES="$DEFINES -DNUM_THREADS=$1"
+          COMMON="$COMMON -fopenmp"
+          ;;
+      --crossover)
+          DEFINES="$DEFINES -DCROSSOVER=1"
           ;;
       -v)
           DEFINES="$DEFINES -DVISDOM_OUTPUT"

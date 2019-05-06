@@ -10,20 +10,28 @@
 typedef enum mutation_t {NONE, BASELINE, SAFE, MOMENTUM, SAFE_MOMENTUM} Mutation_type;
 typedef enum network_t {mlp, rnn, lstm} Network_type;
 
+typedef struct member_{
+	float performance;
+	float *momentum;
+	void *network;
+} Member;
+
 typedef struct pool_{
   Network_type network_type;
   Mutation_type mutation_type;
+  int crossover;
 
 	float mutation_rate;
 	float step_size;
   float elite_percentile;
 
-	void **members;
+	Member **members;
 
   size_t pool_size;
   size_t num_params;
   float *momentum;
 } Pool;
+
 
 LSTM *copy_lstm(LSTM *);
 RNN *copy_rnn(RNN *);

@@ -49,7 +49,8 @@ __kernel void mlp_parameter_gradient_kernel(__global float *grads,
                                             const Nonlinearity nonlinearity_type,
                                             const int layer_param_idx,
                                             const int size,
-                                            const int dim){
+                                            const int dim,
+                                            const int abs_grad){
   const int i = get_global_id(0); //ith neuron of current layer
   /*
   float d = differentiate(output[i], nonlinearity_type);
@@ -63,7 +64,7 @@ __kernel void mlp_parameter_gradient_kernel(__global float *grads,
     param_grad[w_idx+j+1] += x * d * g; //weight grads
   }
   */
-  agnostic_mlp_parameter_gradient_kernel(grads, output, input, param_grad, nonlinearity_type, layer_param_idx, size, dim, i);
+  agnostic_mlp_parameter_gradient_kernel(grads, output, input, param_grad, nonlinearity_type, layer_param_idx, size, dim, abs_grad, i);
 }
 
 /*<<KERNEL END>>*/
