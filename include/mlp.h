@@ -130,10 +130,10 @@ void mlp_kernel_setup();
 static void agnostic_mlp_forward_kernel(__mem_ro float *x,
                                         __mem_rw float *z,
                                         __mem_ro float *params,
-                                        int dim,
-                                        int layer_param_idx,
-                                        int skiplength,
-                                        int i){
+                                        const int dim,
+                                        const int layer_param_idx,
+                                        const int skiplength,
+                                        const int i){
 	z[i] = 0.0f;                                          
 	const int w_idx = layer_param_idx + (skiplength * i); 
 	float sum = 0.0f;                                     
@@ -146,11 +146,11 @@ static void agnostic_mlp_input_gradient_kernel(__mem_ro float *grads,
                                                __mem_ro float *output,
                                                __mem_ro float *params,
                                                __mem_rw float *dest,
-                                               Nonlinearity nonlinearity_type,
-                                               int layer_param_idx,
-                                               int size,
-                                               int dim, 
-                                               int i){
+                                               const Nonlinearity nonlinearity_type,
+                                               const int layer_param_idx,
+                                               const int size,
+                                               const int dim, 
+                                               const int i){
 	dest[i] = 0.0f;                                            
 	for(int j = 0; j < size; j++){                             
 		const int w_idx = layer_param_idx + ((dim + 1) * j) + i;
@@ -165,14 +165,14 @@ static void agnostic_mlp_parameter_gradient_kernel(__mem_ro float *grads,
                                                    __mem_ro float *output,
                                                    __mem_ro float *input,
                                                    __mem_rw float *param_grad,
-                                                   Nonlinearity nonlinearity_type,
-                                                   int layer_param_idx,
-                                                   int size,
-                                                   int dim,
-																									 int abs_grad,
-                                                   int i){
-	float d = differentiate(output[i], nonlinearity_type);
-	float g = grads[i];
+                                                   const Nonlinearity nonlinearity_type,
+                                                   const int layer_param_idx,
+                                                   const int size,
+                                                   const int dim,
+																									 const int abs_grad,
+                                                   const int i){
+	const float d = differentiate(output[i], nonlinearity_type);
+	const float g = grads[i];
 	const int w_idx = layer_param_idx + ((dim + 1) * i);
 
 	for(int j = 0; j < dim; j++){

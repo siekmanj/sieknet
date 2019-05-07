@@ -74,8 +74,10 @@ int main(){
     float x[] = {0.33, 1.00, 0.00, 0.50, 0.25, 0.90};
     float y[] = {0.00, 1.00, 0.00, 0.00, 0.00, 0.00};
 
+    printf("creating rnn.\n");
     RNN n = create_rnn(6, 5, 6);
     n.seq_len = 3;
+
     int correct = 1;
     float epsilon = 0.001;
     float threshold = 0.005;
@@ -86,8 +88,8 @@ int main(){
       for(int t = 0; t < n.seq_len; t++){
         rnn_forward(&n, x);
         c += rnn_cost(&n, y);
+        rnn_backward(&n);
       }
-      rnn_backward(&n);
 
       float p_grad = n.param_grad[i];
 
@@ -96,8 +98,8 @@ int main(){
       for(int t = 0; t < n.seq_len; t++){
         rnn_forward(&n, x);
         c1 += rnn_cost(&n, y);
+        rnn_backward(&n);
       }
-      rnn_backward(&n);
       memset(n.param_grad, '\0', n.num_params*sizeof(float));
 
       float c2 = 0;
@@ -105,8 +107,8 @@ int main(){
       for(int t = 0; t < n.seq_len; t++){
         rnn_forward(&n, x);
         c2 += rnn_cost(&n, y);
+        rnn_backward(&n);
       }
-      rnn_backward(&n);
       memset(n.param_grad, '\0', n.num_params*sizeof(float));
 
       float diff = (p_grad - ((c1 - c2)/(2*epsilon)))/n.seq_len;
