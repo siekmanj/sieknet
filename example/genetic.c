@@ -41,8 +41,8 @@
 #define HIDDEN_LAYER_SIZE 10
 #endif
 
-#ifndef STEP_SIZE
-#define STEP_SIZE 0.05f
+#ifndef NOISE_STD
+#define NOISE_STD 0.05f
 #endif
 
 #ifndef MUTATION_RATE
@@ -131,7 +131,7 @@
   #define sensitivity(n) sensitivity_gradient(n->cost_gradient, n->output, n->layers[n->depth-1].logistic, n->output_dimension)
 #endif
 
-#define LOGFILE_ ./log/POOL_SIZE.ENV_NAME.hs.HIDDEN_LAYER_SIZE.lr.STEP_SIZE.mr.MUTATION_RATE.network_type.MUTATION_TYPE.log
+#define LOGFILE_ ./log/POOL_SIZE.ENV_NAME.hs.HIDDEN_LAYER_SIZE.std.NOISE_STD.mr.MUTATION_RATE.network_type.MUTATION_TYPE.log
 
 Environment envs[NUM_THREADS];
 size_t samples = 0;
@@ -253,7 +253,7 @@ int main(int argc, char** argv){
 		Pool p = create_pool(network_type, &seed, POOL_SIZE);
 
     p.crossover = CROSSOVER;
-		p.step_size = STEP_SIZE;
+		p.noise_std = NOISE_STD;
 		p.mutation_type = MUTATION_TYPE;
 		p.mutation_rate = MUTATION_RATE;
 		p.elite_percentile = ELITE_PERCENTILE;
@@ -303,7 +303,7 @@ int main(int argc, char** argv){
 			float test_return = evaluate(&envs[0], /*&normalizer,*/ ((NETWORK_TYPE*)p.members[0]->network), !(gen % print_every));
 
 #ifndef VISDOM_OUTPUT
-			printf("gen %3d | test %5.2f | 10 gen avg peak %5.2f | avg %5.2f | %4.3fs per 1k env steps | %'lu env steps      \r", gen+1, test_return, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*(get_time() - start)/(samples - samples_before), samples);
+			printf("gen %3d | test %6.2f | %2d gen avg peak %6.2f | avg %6.2f | %4.3fs per 1k env steps | %'9lu env steps      \r", gen+1, test_return, (gen % print_every)+1, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*(get_time() - start)/(samples - samples_before), samples);
 #else
 			printf("%s %3d %6.4f %6.4f %6.4f\n", MACROVAL(LOGFILE_), gen, p.members[0]->performance, gen_avg_fitness / p.pool_size, test_return);
 #endif

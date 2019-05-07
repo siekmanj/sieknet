@@ -22,7 +22,7 @@ typedef struct pool_{
   int crossover;
 
 	float mutation_rate;
-	float step_size;
+	float noise_std;
   float elite_percentile;
 
 	Member **members;
