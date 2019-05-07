@@ -213,9 +213,10 @@ Pool create_pool(Network_type type, void *seed, size_t pool_size){
 	p.members = ALLOC(Member*, pool_size);
 	switch(type){
 		case mlp:
+			p.num_params = ((MLP*)seed)->num_params;
 			p.members[0] = ALLOC(Member, 1);
 			p.members[0]->network = copy_mlp((MLP*)seed);
-			p.momentum = calloc(((MLP*)seed)->num_params, sizeof(float));
+			p.members[0]->momentum= calloc(((MLP*)seed)->num_params, sizeof(float));
 
 			for(int i = 1; i < pool_size; i++){
 				p.members[i] = ALLOC(Member, 1);
@@ -227,28 +228,30 @@ Pool create_pool(Network_type type, void *seed, size_t pool_size){
 			break;
 
 		case rnn:
+			p.num_params = ((RNN*)seed)->num_params;
 			p.members[0] = ALLOC(Member, 1);
 			p.members[0]->network = copy_rnn((RNN*)seed);
-			p.momentum = ALLOC(float, ((RNN*)seed)->num_params);
+			p.members[0]->momentum= calloc(((MLP*)seed)->num_params, sizeof(float));
 
 			for(int i = 1; i < pool_size; i++){
 				p.members[i] = ALLOC(Member, 1);
 				p.members[i]->network = copy_rnn((RNN*)seed);
-        p.members[i]->momentum = ALLOC(float, ((MLP*)seed)->num_params);
+        p.members[i]->momentum = calloc(((RNN*)seed)->num_params, sizeof(float));
 				for(int j = 0; j < ((RNN*)seed)->num_params; j++)
 					((RNN*)p.members[i]->network)->params[j] = normal(0, 0.5);
 			}
 			break;
 
 		case lstm:
+			p.num_params = ((LSTM*)seed)->num_params;
 			p.members[0] = ALLOC(Member, 1);
 			p.members[0]->network = copy_lstm((LSTM*)seed);
-			p.momentum = ALLOC(float, ((LSTM*)seed)->num_params);
+			p.members[0]->momentum= calloc(((MLP*)seed)->num_params, sizeof(float));
 
 			for(int i = 1; i < pool_size; i++){
 				p.members[i] = ALLOC(Member, 1);
 				p.members[i]->network = copy_lstm((LSTM*)seed);
-        p.members[i]->momentum = ALLOC(float, ((MLP*)seed)->num_params);
+        p.members[i]->momentum = calloc(((LSTM*)seed)->num_params, sizeof(float));
 				for(int j = 0; j < ((LSTM*)seed)->num_params; j++)
 					((LSTM*)p.members[i]->network)->params[j] = normal(0, 0.5);
 			}
@@ -290,7 +293,6 @@ void cull_pool(Pool *p){
 				break;
 		}
 		p->members[i]->performance = 0;
-		//free(p->members[i]->momentum);
 	}
 }
 
@@ -302,9 +304,6 @@ void breed_pool(Pool *p){
     Member *parent1 = p->members[parent1_idx];
     Member *parent2 = p->crossover ? p->members[parent2_idx] : parent1;
 
-    //printf("parent 1: %p, parent 2: %p\n", parent1, parent2);
-
-    //printf("\nMaking new child from parents %d and %d! rand() %% (%d - %d)\n", parent1_idx, parent2_idx, (int)size, (int)((p->elite_percentile)*size));
     switch(p->network_type){
       case mlp:
         {

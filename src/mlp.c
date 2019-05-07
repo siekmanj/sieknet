@@ -585,7 +585,6 @@ void mlp_abs_backward(MLP *n){
 
 static int getWord(FILE *fp, char* dest){
   memset(dest, '\0', strlen(dest));
-  //printf("bytes read: %lu\n", fread(dest, 1024, 1, fp));
   return fscanf(fp, " %1023s", dest);
 }
 /* 
@@ -679,8 +678,6 @@ MLP load_mlp(const char *filename){
   check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n.params, 1, 0, sizeof(float)*n.num_params, tmp, 0, NULL, NULL), "could not enqueue layer params");
   check_error(err, "could not write params into gpu");
   free(tmp);
-  //printf("n.layers[2].input_dimension: %d\n", n.layers[2].input_dimension);
-  //printf("tf: %d\n", assert_equal(tmp, g2, n.layers[2].input_dimension));
 #endif
   return n;
 }
