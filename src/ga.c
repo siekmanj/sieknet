@@ -86,7 +86,10 @@ LSTM *copy_lstm(LSTM *n){
 }
 
 static float safety(float g){
-	return 1 / (ALPHA * g);
+  if(ALPHA * g < 1.0)
+    return 1.0;
+  else
+    return 1 / (ALPHA * g);
 }
 
 
@@ -98,8 +101,9 @@ float *baseline_recombine(const float step_size, const float *a, const float *b,
 		else
 			ret[i] = b[i];
 		
-		if(uniform(0, 1) < mutation_rate)
+		if(uniform(0, 1) < mutation_rate){
 			ret[i] += normal(0, step_size);
+    }
 	}
   return ret;
 }
@@ -109,30 +113,65 @@ float *safe_recombine(const float step_size, const float *a, const float *ag, co
 	for(int i = 0; i < size; i++){
 		if(rand()&1){
 			ret[i] = a[i];
-			if(uniform(0, 1) < mutation_rate)
+			if(uniform(0, 1) < mutation_rate){
 				ret[i] += safety(ag[i]) * normal(0, step_size);
+      }
 		}else{
 			ret[i] = b[i];
-			if(uniform(0, 1) < mutation_rate)
+			if(uniform(0, 1) < mutation_rate){
 				ret[i] += safety(bg[i]) * normal(0, step_size);
+      }
 		}
-		if(isnan(ret[i]))
-			printf("got nan!\n");
 	}
   return ret;
 }
 
-float *momentum_recombine(const float step_size, const float *a, const float *b, float *momentum1, float *momentum2, const float mutation_rate, const size_t size){
-  //TODO
-  return NULL;
+#define BETA 0.99f
+float *momentum_recombine(const float step_size, const float *a, const float *b, const float *momentum1, const float *momentum2, float *momentum, const float mutation_rate, const size_t size){
+  float *ret = ALLOC(float, size);
+  for(int i = 0; i < size; i++){
+    if(rand()&1){
+      ret[i] = a[i];
+			if(uniform(0, 1) < mutation_rate){
+        float noise = normal(0, step_size);
+        ret[i] += noise + momentum1[i];
+        momentum[i] = BETA * momentum1[i] + noise;
+      }
+    }else{
+      ret[i] = b[i];
+			if(uniform(0, 1) < mutation_rate){
+        float noise = normal(0, step_size);
+        ret[i] += noise + momentum2[i];
+        momentum[i] = BETA * momentum2[i] + noise;
+      }
+    }
+  }
+  return ret;
 }
 
-float *safe_momentum_recombine(const float step_size, const float *a, const float *ag, const float *b, const float *bg, float *momentum1, float *momentum2, const float mutation_rate, const size_t size){
-  //TODO
-  return NULL;
+float *safe_momentum_recombine(const float step_size, const float *a, const float *ag, const float *b, const float *bg, float *momentum1, float *momentum2, float *momentum, const float mutation_rate, const size_t size){
+  float *ret = ALLOC(float, size);
+  for(int i = 0; i < size; i++){
+    if(rand()&1){
+      ret[i] = a[i];
+			if(uniform(0, 1) < mutation_rate){
+        float noise = safety(ag[i]) * normal(0, step_size);
+        ret[i] += noise + momentum1[i];
+        momentum[i] = BETA * momentum1[i] + noise;
+      }
+    }else{
+      ret[i] = b[i];
+			if(uniform(0, 1) < mutation_rate){
+        float noise = safety(bg[i]) * normal(0, step_size);
+        ret[i] += noise + momentum2[i];
+        momentum[i] = BETA * momentum1[i] + noise;
+      }
+    }
+  }
+  return ret;
 }
 
-float *recombine(const float step_size, const Mutation_type type, const float *params1, const float *paramgrad1, const float *params2, const float *paramgrad2, float *momentum1, float *momentum2, const float mutation_rate, const size_t num_params){
+float *recombine(const float step_size, const Mutation_type type, const float *params1, const float *paramgrad1, const float *params2, const float *paramgrad2, float *momentum1, float *momentum2, float *momentum, const float mutation_rate, const size_t num_params){
   switch(type){
     case NONE:
       return baseline_recombine(step_size, params1, params2, 0.0, num_params);
@@ -141,13 +180,13 @@ float *recombine(const float step_size, const Mutation_type type, const float *p
       return baseline_recombine(step_size, params1, params2, mutation_rate, num_params);
       break;
     case MOMENTUM:
-      return momentum_recombine(step_size, params1, params2, momentum1, momentum2, mutation_rate, num_params);
+      return momentum_recombine(step_size, params1, params2, momentum1, momentum2, momentum, mutation_rate, num_params);
       break;
     case SAFE:
       return safe_recombine(step_size, params1, paramgrad1, params2, paramgrad2, mutation_rate, num_params);
       break;
     case SAFE_MOMENTUM:
-      return safe_momentum_recombine(step_size, params1, paramgrad1, params2, paramgrad2, momentum1, momentum2, mutation_rate, num_params);
+      return safe_momentum_recombine(step_size, params1, paramgrad1, params2, paramgrad2, momentum1, momentum2, momentum, mutation_rate, num_params);
       break;
   }
   return NULL;
@@ -176,33 +215,40 @@ Pool create_pool(Network_type type, void *seed, size_t pool_size){
 		case mlp:
 			p.members[0] = ALLOC(Member, 1);
 			p.members[0]->network = copy_mlp((MLP*)seed);
-			p.momentum = ALLOC(float, ((MLP*)seed)->num_params);
+			p.momentum = calloc(((MLP*)seed)->num_params, sizeof(float));
 
 			for(int i = 1; i < pool_size; i++){
 				p.members[i] = ALLOC(Member, 1);
 				p.members[i]->network = copy_mlp((MLP*)seed);
+        p.members[i]->momentum = calloc(((MLP*)seed)->num_params, sizeof(float));
 				for(int j = 0; j < ((MLP*)seed)->num_params; j++)
 					((MLP*)p.members[i]->network)->params[j] = normal(0, 0.5);
 			}
 			break;
 
 		case rnn:
+			p.members[0] = ALLOC(Member, 1);
 			p.members[0]->network = copy_rnn((RNN*)seed);
 			p.momentum = ALLOC(float, ((RNN*)seed)->num_params);
 
 			for(int i = 1; i < pool_size; i++){
+				p.members[i] = ALLOC(Member, 1);
 				p.members[i]->network = copy_rnn((RNN*)seed);
+        p.members[i]->momentum = ALLOC(float, ((MLP*)seed)->num_params);
 				for(int j = 0; j < ((RNN*)seed)->num_params; j++)
 					((RNN*)p.members[i]->network)->params[j] = normal(0, 0.5);
 			}
 			break;
 
 		case lstm:
+			p.members[0] = ALLOC(Member, 1);
 			p.members[0]->network = copy_lstm((LSTM*)seed);
 			p.momentum = ALLOC(float, ((LSTM*)seed)->num_params);
 
 			for(int i = 1; i < pool_size; i++){
+				p.members[i] = ALLOC(Member, 1);
 				p.members[i]->network = copy_lstm((LSTM*)seed);
+        p.members[i]->momentum = ALLOC(float, ((MLP*)seed)->num_params);
 				for(int j = 0; j < ((LSTM*)seed)->num_params; j++)
 					((LSTM*)p.members[i]->network)->params[j] = normal(0, 0.5);
 			}
@@ -266,7 +312,7 @@ void breed_pool(Pool *p){
           MLP *b = (MLP*)parent2->network;
 
           MLP *child = copy_mlp(a);
-          child->params = recombine(p->step_size, p->mutation_type, a->params, a->param_grad, b->params, b->param_grad, parent1->momentum, parent2->momentum, p->mutation_rate, a->num_params);
+          child->params = recombine(p->step_size, p->mutation_type, a->params, a->param_grad, b->params, b->param_grad, parent1->momentum, parent2->momentum, p->members[i]->momentum, p->mutation_rate, a->num_params);
           p->members[i]->network = (void*)child;
         }
         break;
@@ -276,7 +322,7 @@ void breed_pool(Pool *p){
           RNN *b = (RNN*)p->members[parent2_idx]->network;
 
           RNN *child = copy_rnn(a);
-          child->params = recombine(p->step_size, p->mutation_type, a->params, a->param_grad, b->params, b->param_grad, parent1->momentum, parent2->momentum, p->mutation_rate, a->num_params);
+          child->params = recombine(p->step_size, p->mutation_type, a->params, a->param_grad, b->params, b->param_grad, parent1->momentum, parent2->momentum, p->members[i]->momentum, p->mutation_rate, a->num_params);
           p->members[i]->network = (void*)child;
         }
         break;
@@ -286,7 +332,7 @@ void breed_pool(Pool *p){
           LSTM *b = (LSTM*)p->members[parent2_idx]->network;
 
           LSTM *child = copy_lstm(a);
-          child->params = recombine(p->step_size, p->mutation_type, a->params, a->param_grad, b->params, b->param_grad, parent1->momentum, parent2->momentum, p->mutation_rate, a->num_params);
+          child->params = recombine(p->step_size, p->mutation_type, a->params, a->param_grad, b->params, b->param_grad, parent1->momentum, parent2->momentum, p->members[i]->momentum, p->mutation_rate, a->num_params);
           p->members[i]->network = (void*)child;
         }
         break;

@@ -1,6 +1,5 @@
 /*<<KERNEL START>>*/
 
-
 __kernel void lstm_forward_kernel(__mem_ro float *input_nonl, 
                                   __mem_ro float *input_gate, 
                                   __mem_ro float *forget_gate, 
@@ -125,7 +124,8 @@ __kernel void lstm_parameter_gradient_kernel(__mem_ro float *input_nonl_grad,
                                              const int size,
                                              const int input_dimension,
                                              const int layer_param_offset,
-                                             const int skipdist){
+                                             const int skipdist,
+                                             const int abs_grad){
   agnostic_lstm_parameter_gradient_kernel(input_nonl_grad,
                                           input_gate_grad,
                                           forget_gate_grad,
@@ -142,6 +142,7 @@ __kernel void lstm_parameter_gradient_kernel(__mem_ro float *input_nonl_grad,
                                           input_dimension,
                                           layer_param_offset,
                                           skipdist,
+                                          abs_grad,
                                           get_global_id(0));
 }
 

@@ -508,7 +508,6 @@ RNN rnn_from_arr(const size_t *arr, const size_t depth){
 }
 
 void rnn_forward(RNN *n, const float *x){
-  //printf("rnn forw\n");
 #ifndef SIEKNET_USE_GPU
   cpu_rnn_forward(n, x);
 #else
@@ -521,25 +520,20 @@ void rnn_forward(RNN *n, const float *x){
 }
 
 float rnn_cost(RNN *n, const float *y){
-  //printf("rnn cost\n");
 #ifndef SIEKNET_USE_GPU
   float c = cpu_rnn_cost(n, y);
 #else
   float c = gpu_rnn_cost(n, y);
 #endif
-  n->t++;
-  //printf("rnn cost done\n");
   return c;
 }
 
 void rnn_backward(RNN *n){
-  //printf("rnn backward\n");
 #ifndef SIEKNET_USE_GPU
   cpu_rnn_backward(n);
 #else
   gpu_rnn_backward(n);
 #endif
-  //printf("rnn backward done\n");
 }
 
 void rnn_wipe(RNN *n){

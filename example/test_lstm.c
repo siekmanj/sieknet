@@ -107,7 +107,6 @@ int main(){
 				lstm_backward(&n);
       }
 
-
       float p_grad = n.param_grad[i];
 
       float c1 = 0;
@@ -291,7 +290,7 @@ int main(){
 
     printf("\n");
     lstm_forward(&n, x1);
-    float c1 = lstm_cost(&n, y1) - 3.361277;
+    lstm_cost(&n, y1);
     lstm_backward(&n);
     //float c0 = lstm_cost(&n, y1) - 3.361277;
     //printf("successuflly got cost %f\n", c0);
@@ -377,7 +376,7 @@ int main(){
     }
 
     printf("\n");
-    float c2 = lstm_cost(&n, y2) - 3.155137;
+    lstm_cost(&n, y2);
     lstm_backward(&n);
 
     tmp = retrieve_array(n.cost_gradient, n.output_dimension);
@@ -430,7 +429,7 @@ int main(){
     }
 
     printf("\n");
-    float c3 = lstm_cost(&n, y3) - 3.286844;
+    lstm_cost(&n, y3);
     lstm_backward(&n);
 
     tmp = retrieve_array(n.cost_gradient, n.output_dimension);
