@@ -53,9 +53,9 @@
 #define ELITE_PERCENTILE 0.90f
 #endif
 
-#ifndef GENERATIONS
-#define GENERATIONS 200
-#endif 
+#ifndef TIMESTEPS
+#define TIMESTEPS 4e6
+#endif
 
 #ifndef MAX_TRAJ_LEN
 #define MAX_TRAJ_LEN 400
@@ -267,8 +267,7 @@ int main(int argc, char** argv){
 		printf("logging to '%s'\n", MACROVAL(LOGFILE_));
 		fprintf(log, "%s %s %s %s\n", "gen", "samples", "fitness", "avgfitness");
 		int gen = 0;
-		//for(int gen = 0; gen < GENERATIONS; gen++){
-		while(samples < 4e6){
+		while(samples < TIMESTEPS){
 			if(!(gen % print_every)){
 				peak_fitness = 0;
 				avg_fitness = 0;
@@ -304,7 +303,7 @@ int main(int argc, char** argv){
 
 			peak_fitness += p.members[0]->performance;
 			avg_fitness  += gen_avg_fitness / p.pool_size;
-			float test_return = evaluate(&envs[0], /*&normalizer,*/ ((NETWORK_TYPE*)p.members[0]->network), !(gen % print_every));
+			float test_return = evaluate(&envs[0], /*&normalizer,*/ ((NETWORK_TYPE*)p.members[0]->network), 0 /*!(gen % print_every)*/);
 
 #ifndef VISDOM_OUTPUT
 			printf("gen %3d | test %6.2f | %2d gen avg peak %6.2f | avg %6.2f | %4.3fs per 1k env steps | %'9lu env steps      \r", gen+1, test_return, (gen % print_every)+1, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*(get_time() - start)/(samples - samples_before), samples);

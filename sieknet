@@ -56,7 +56,8 @@ Options:
 -e,  --eval                  Evaluate a single model
 -t,  --train                 Evolve a pool of models
 -d,  --debug                 Enable debugging messages
-     --timesteps [t]         Number of timesteps per rollout
+     --timesteps [t]         Total number of timesteps
+		 --traj_len [t]          Number of timesteps per rollout
      --mlp                   Use a multilayer perceptron
      --rnn                   Use a recurrent neural network
      --lstm                  Use an lstm
@@ -209,10 +210,6 @@ ga)
 					ENV_NAME="$1"
           SRCFILES="$SRCFILES src/$1_env.c"
           ;;
-      --gens)
-          shift
-          DEFINES="$DEFINES -DGENERATIONS=$1"
-          ;;
       --mutation_type)
           shift
           DEFINES="$DEFINES -DMUTATION_TYPE=$1"
@@ -222,8 +219,12 @@ ga)
           ;;
       --timesteps)
           shift
-          DEFINES="$DEFINES -DMAX_TRAJ_LEN=$1"
+          DEFINES="$DEFINES -DTIMESTEPS=$1"
           ;;
+			--traj_len)
+					shift
+					DEFINES="$DEFINES -DMAX_TRAJ_LEN=$1"
+					;;
       --pool_size)
           shift
           DEFINES="$DEFINES -DPOOL_SIZE=$1"
