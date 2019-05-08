@@ -196,7 +196,8 @@ int main(int argc, char** argv){
   printf("																					 \n");
   printf("genetic algorithms for reinforcement learning.\n");
 
-	srand(1);
+	//srand(1);
+	srand(time(NULL));
   setbuf(stdout, NULL);
   FILE *log = fopen(MACROVAL(LOGFILE_), "wb");
 
