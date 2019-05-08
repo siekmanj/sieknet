@@ -845,7 +845,7 @@ static void gpu_lstm_layer_backward(LSTM_layer *l, cl_mem *grad, cl_mem params, 
  * Performs parameter gradient calculation for all LSTM layers
  */
 #ifndef SIEKNET_USE_GPU
-void cpu_lstm_backward(LSTM *n){
+void cpu_lstm_backward(LSTM *n, int abs_grad){
 	{
 		MLP_layer *mlp = &n->output_layer;
 		cpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad, 0);
@@ -860,7 +860,7 @@ void cpu_lstm_backward(LSTM *n){
   if(n->t >= n->seq_len){
     float **grads = n->recurrent_gradient;
     for(int i = n->depth-1; i >= 0; i--){
-      cpu_lstm_layer_backward(&n->layers[i], grads, n->params, n->param_grad, 0, n->t-1);
+      cpu_lstm_layer_backward(&n->layers[i], grads, n->params, n->param_grad, abs_grad, n->t-1);
       grads = n->layers[i].input_gradient;
     }
     if(!n->stateful) cpu_lstm_wipe(n);
@@ -868,7 +868,7 @@ void cpu_lstm_backward(LSTM *n){
   }
 }
 #else
-static void gpu_lstm_backward(LSTM *n){
+static void gpu_lstm_backward(LSTM *n, int abs_grad){
 	{
 		MLP_layer *mlp = &n->output_layer;
 		gpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad, 0);
@@ -882,7 +882,7 @@ static void gpu_lstm_backward(LSTM *n){
     cl_mem *grads = n->recurrent_gradient;
     for(int i = n->depth-1; i >= 0; i--){
       LSTM_layer *l = &n->layers[i];
-      gpu_lstm_layer_backward(l, grads, n->params, n->param_grad, 0, n->t-1);
+      gpu_lstm_layer_backward(l, grads, n->params, n->param_grad, abs_grad, n->t-1);
       grads = n->layers[i].input_gradient;
     }
     if(!n->stateful) gpu_lstm_wipe(n);
@@ -935,9 +935,17 @@ float lstm_cost(LSTM *n, float *y){
 
 void lstm_backward(LSTM *n){
 #ifdef SIEKNET_USE_GPU
-  gpu_lstm_backward(n);
+  gpu_lstm_backward(n, 0);
 #else
-  cpu_lstm_backward(n);
+  cpu_lstm_backward(n, 0);
+#endif
+}
+
+void lstm_abs_backward(LSTM *n){
+#ifdef SIEKNET_USE_GPU
+  gpu_lstm_backward(n, 1);
+#else
+  cpu_lstm_backward(n, 1);
 #endif
 }
 

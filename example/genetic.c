@@ -131,7 +131,7 @@
   #define sensitivity(n) sensitivity_gradient(n->cost_gradient, n->output, n->layers[n->depth-1].logistic, n->output_dimension)
 #endif
 
-#define LOGFILE_ ./log/POOL_SIZE.ENV_NAME.hs.HIDDEN_LAYER_SIZE.std.NOISE_STD.mr.MUTATION_RATE.network_type.MUTATION_TYPE.log
+#define LOGFILE_ ./log/POOL_SIZE.ENV_NAME.hs.HIDDEN_LAYER_SIZE.std.NOISE_STD.mr.MUTATION_RATE.network_type.MUTATION_TYPE.crossover.CROSSOVER.log
 
 Environment envs[NUM_THREADS];
 size_t samples = 0;
@@ -264,7 +264,10 @@ int main(int argc, char** argv){
 		int print_every = 10;
 
 		printf("logging to '%s'\n", MACROVAL(LOGFILE_));
-		for(int gen = 0; gen < GENERATIONS; gen++){
+		fprintf(log, "%s %s %s %s\n", "gen", "samples", "fitness", "avgfitness");
+		int gen = 0;
+		//for(int gen = 0; gen < GENERATIONS; gen++){
+		while(samples < 4e6){
 			if(!(gen % print_every)){
 				peak_fitness = 0;
 				avg_fitness = 0;
@@ -307,10 +310,11 @@ int main(int argc, char** argv){
 #else
 			printf("%s %3d %6.4f %6.4f %6.4f\n", MACROVAL(LOGFILE_), gen, p.members[0]->performance, gen_avg_fitness / p.pool_size, test_return);
 #endif
-			fprintf(log, "%f\n", p.members[0]->performance);
+			fprintf(log, "%d %lu %f %f\n", gen, samples, p.members[0]->performance, gen_avg_fitness / p.pool_size);
 			fflush(log);
 			fflush(stdout);
 			save(network_type)(((NETWORK_TYPE*)p.members[0]->network), modelfile);
+			gen++;
 		}
 		fclose(log);
 		printf("\nFinished!\n");
