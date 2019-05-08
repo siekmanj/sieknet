@@ -172,7 +172,7 @@ ga)
 
   SRCFILES="$SRCFILES src/ga.c src/env.c src/lstm.c src/rnn.c"
 
-  options=$(getopt -l "help,eval,train,load:,new:,lr:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:,mutation_type:,elite_percentile:,threads:,crossover" -o "h,e:,t:,L:,n:l:,d,v" -a -- "$@")
+  options=$(getopt -l "help,eval,train,load:,new:,std:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:,mutation_type:,elite_percentile:,threads:,crossover" -o "h,e:,t:,L:,n:,s:,d,v" -a -- "$@")
   eval set -- "$options"
   while true
   do
@@ -195,9 +195,9 @@ ga)
           shift
           LOADNEW="new $1"
           ;;
-      -l|--lr)
+      -s|--std)
           shift
-          DEFINES="$DEFINES -DSTEP_SIZE=$1"
+          DEFINES="$DEFINES -DNOISE_STD=$1"
           ;;
       --mr)
           shift
