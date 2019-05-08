@@ -53,9 +53,9 @@
 #define ELITE_PERCENTILE 0.90f
 #endif
 
-#ifndef GENERATIONS
-#define GENERATIONS 200
-#endif 
+#ifndef TIMESTEPS
+#define TIMESTEPS 4e6
+#endif
 
 #ifndef MAX_TRAJ_LEN
 #define MAX_TRAJ_LEN 400
@@ -267,8 +267,7 @@ int main(int argc, char** argv){
 		printf("logging to '%s'\n", MACROVAL(LOGFILE_));
 		fprintf(log, "%s %s %s %s\n", "gen", "samples", "fitness", "avgfitness");
 		int gen = 0;
-		//for(int gen = 0; gen < GENERATIONS; gen++){
-		while(samples < 2e7){
+		while(samples < TIMESTEPS){
 			if(!(gen % print_every)){
 				peak_fitness = 0;
 				avg_fitness = 0;
