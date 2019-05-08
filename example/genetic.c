@@ -11,7 +11,7 @@
 #include <omp.h>
 
 #if !defined(USE_MLP) && !defined(USE_RNN) && !defined(USE_LSTM)
-#define USE_LSTM
+#define USE_MLP
 #endif
 
 #ifdef USE_MLP
@@ -30,7 +30,7 @@
 #endif
 
 #ifndef POOL_SIZE
-#define POOL_SIZE 500
+#define POOL_SIZE 100
 #endif
 
 #ifndef LAYERS
@@ -62,7 +62,7 @@
 #endif
 
 #ifndef MUTATION_TYPE
-#define MUTATION_TYPE BASELINE
+#define MUTATION_TYPE MOMENTUM
 #endif
 
 #ifndef ENV_NAME
