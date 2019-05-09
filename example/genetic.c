@@ -11,7 +11,7 @@
 #include <omp.h>
 
 #if !defined(USE_MLP) && !defined(USE_RNN) && !defined(USE_LSTM)
-#define USE_LSTM
+#define USE_MLP
 #endif
 
 #ifdef USE_MLP
@@ -30,7 +30,7 @@
 #endif
 
 #ifndef POOL_SIZE
-#define POOL_SIZE 500
+#define POOL_SIZE 100
 #endif
 
 #ifndef LAYERS
@@ -53,16 +53,16 @@
 #define ELITE_PERCENTILE 0.90f
 #endif
 
-#ifndef GENERATIONS
-#define GENERATIONS 200
-#endif 
+#ifndef TIMESTEPS
+#define TIMESTEPS 4e6
+#endif
 
 #ifndef MAX_TRAJ_LEN
 #define MAX_TRAJ_LEN 400
 #endif
 
 #ifndef MUTATION_TYPE
-#define MUTATION_TYPE BASELINE
+#define MUTATION_TYPE MOMENTUM
 #endif
 
 #ifndef ENV_NAME
@@ -131,7 +131,7 @@
   #define sensitivity(n) sensitivity_gradient(n->cost_gradient, n->output, n->layers[n->depth-1].logistic, n->output_dimension)
 #endif
 
-#define LOGFILE_ ./log/POOL_SIZE.ENV_NAME.hs.HIDDEN_LAYER_SIZE.std.NOISE_STD.mr.MUTATION_RATE.network_type.MUTATION_TYPE.log
+#define LOGFILE_ ./log/POOL_SIZE.ENV_NAME.hs.HIDDEN_LAYER_SIZE.std.NOISE_STD.mr.MUTATION_RATE.network_type.MUTATION_TYPE.crossover.CROSSOVER.log
 
 Environment envs[NUM_THREADS];
 size_t samples = 0;
@@ -196,7 +196,8 @@ int main(int argc, char** argv){
   printf("																					 \n");
   printf("genetic algorithms for reinforcement learning.\n");
 
-	srand(1);
+	//srand(1);
+	srand(time(NULL));
   setbuf(stdout, NULL);
   FILE *log = fopen(MACROVAL(LOGFILE_), "wb");
 
@@ -264,7 +265,9 @@ int main(int argc, char** argv){
 		int print_every = 10;
 
 		printf("logging to '%s'\n", MACROVAL(LOGFILE_));
-		for(int gen = 0; gen < GENERATIONS; gen++){
+		fprintf(log, "%s %s %s %s\n", "gen", "samples", "fitness", "avgfitness");
+		int gen = 0;
+		while(samples < TIMESTEPS){
 			if(!(gen % print_every)){
 				peak_fitness = 0;
 				avg_fitness = 0;
@@ -300,17 +303,18 @@ int main(int argc, char** argv){
 
 			peak_fitness += p.members[0]->performance;
 			avg_fitness  += gen_avg_fitness / p.pool_size;
-			float test_return = evaluate(&envs[0], /*&normalizer,*/ ((NETWORK_TYPE*)p.members[0]->network), !(gen % print_every));
+			float test_return = evaluate(&envs[0], /*&normalizer,*/ ((NETWORK_TYPE*)p.members[0]->network), 0 /*!(gen % print_every)*/);
 
 #ifndef VISDOM_OUTPUT
 			printf("gen %3d | test %6.2f | %2d gen avg peak %6.2f | avg %6.2f | %4.3fs per 1k env steps | %'9lu env steps      \r", gen+1, test_return, (gen % print_every)+1, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*(get_time() - start)/(samples - samples_before), samples);
 #else
 			printf("%s %3d %6.4f %6.4f %6.4f\n", MACROVAL(LOGFILE_), gen, p.members[0]->performance, gen_avg_fitness / p.pool_size, test_return);
 #endif
-			fprintf(log, "%f\n", p.members[0]->performance);
+			fprintf(log, "%d %lu %f %f\n", gen, samples, p.members[0]->performance, gen_avg_fitness / p.pool_size);
 			fflush(log);
 			fflush(stdout);
 			save(network_type)(((NETWORK_TYPE*)p.members[0]->network), modelfile);
+			gen++;
 		}
 		fclose(log);
 		printf("\nFinished!\n");
