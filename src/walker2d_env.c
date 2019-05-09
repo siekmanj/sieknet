@@ -130,8 +130,6 @@ static float step(Environment env, float *action){
   for(int i = 0; i < env.action_space; i++)
     d->ctrl[i] = action[i];
   
-  //while(d->time - simstart < 1.0/CTRL_HZ)
-  //  mj_step(m, d);
   for(int i = 0; i < FRAMESKIP; i++)
     mj_step(m, d);
 
@@ -143,7 +141,7 @@ static float step(Environment env, float *action){
 
   /* REWARD CALCULATION: Similar to OpenAI's */
   
-  float reward = (d->qpos[0] - posbefore) / (d->time - tbefore);
+  float reward = (d->qpos[0] - posbefore) / (d->time - simstart);
   reward += ALIVE_BONUS;
 
   float action_sum = 0;
