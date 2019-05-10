@@ -56,6 +56,7 @@ Options:
 -e,  --eval                  Evaluate a single model
 -t,  --train                 Evolve a pool of models
 -d,  --debug                 Enable debugging messages
+     --seed [seed]           Seed srand() with a specific number (time(NULL)) if not specified
      --timesteps [t]         Total number of timesteps
 		 --traj_len [t]          Number of timesteps per rollout
      --mlp                   Use a multilayer perceptron
@@ -173,7 +174,7 @@ ga)
 
   SRCFILES="$SRCFILES src/ga.c src/env.c src/lstm.c src/rnn.c"
 
-  options=$(getopt -l "help,eval,train,load:,new:,std:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:,mutation_type:,elite_percentile:,threads:,crossover" -o "h,e:,t:,L:,n:,s:,d,v" -a -- "$@")
+  options=$(getopt -l "help,eval,train,load:,new:,std:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:,mutation_type:,elite_percentile:,threads:,crossover,seed:" -o "h,e:,t:,L:,n:,s:,d,v" -a -- "$@")
   eval set -- "$options"
   while true
   do
@@ -228,6 +229,10 @@ ga)
       --pool_size)
           shift
           DEFINES="$DEFINES -DPOOL_SIZE=$1"
+          ;;
+      --seed)
+          shift
+          DEFINES="$DEFINES -DRANDOM_SEED=$1"
           ;;
       --mlp)
           ARCH="-DUSE_MLP"

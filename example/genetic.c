@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <locale.h>
+#include <time.h>
 
 #include <lstm.h>
 #include <rnn.h>
@@ -81,6 +82,10 @@
 #define CROSSOVER 0
 #endif
 
+#ifndef RANDOM_SEED
+#define RANDOM_SEED time(0)
+#endif
+
 #define MAKE_INCLUDE_(envname) <envname ## _env.h>
 #define MAKE_INCLUDE(envname) MAKE_INCLUDE_(envname)
 
@@ -119,6 +124,9 @@
 #define save_(arch) save_ ## arch
 #define save(arch) save_(arch)
 
+#define copy_(arch) copy_ ## arch
+#define copy(arch) copy_(arch)
+
 #define create_env_(envname) create_ ## envname ## _env
 #define create_env(envname) create_env_(envname)
 
@@ -131,12 +139,13 @@
   #define sensitivity(n) sensitivity_gradient(n->cost_gradient, n->output, n->layers[n->depth-1].logistic, n->output_dimension)
 #endif
 
-#define LOGFILE_ ./log/POOL_SIZE.ENV_NAME.hs.HIDDEN_LAYER_SIZE.std.NOISE_STD.mr.MUTATION_RATE.network_type.MUTATION_TYPE.crossover.CROSSOVER.log
+#define LOGFILE_ ./log/POOL_SIZE.ENV_NAME.hs.HIDDEN_LAYER_SIZE.std.NOISE_STD.mr.MUTATION_RATE.network_type.MUTATION_TYPE.crossover.CROSSOVER.seed.RANDOM_SEED.log
 
-Environment envs[NUM_THREADS];
+Environment ENVS[NUM_THREADS];
+NETWORK_TYPE POLICIES[NUM_THREADS];
 size_t samples = 0;
 
-float evaluate(Environment *env,/* Normalizer *norm,*/ NETWORK_TYPE *n, int render){
+float evaluate(Environment *env, NETWORK_TYPE *n, int render){
 	float perf = 0;
 	for(int i = 0; i < ROLLOUTS_PER_MEMBER; i++){
 		env->reset(*env);
@@ -156,9 +165,6 @@ float evaluate(Environment *env,/* Normalizer *norm,*/ NETWORK_TYPE *n, int rend
 				abs_backward(network_type)(n);
 			}
 			perf += env->step(*env, n->output);
-
-      /* Normalizing doesn't seem to help very much, so not doing it for now */
-      //normalize(*norm, *env);
 
 			if(render)
 				env->render(*env);
@@ -196,23 +202,18 @@ int main(int argc, char** argv){
   printf("																					 \n");
   printf("genetic algorithms for reinforcement learning.\n");
 
-	//srand(1);
-	srand(time(NULL));
   setbuf(stdout, NULL);
   FILE *log = fopen(MACROVAL(LOGFILE_), "wb");
 
 	for(int i = 0; i < NUM_THREADS; i++){
-		envs[i] = create_env(ENV_NAME)();
+		ENVS[i] = create_env(ENV_NAME)();
 	}
+	srand(RANDOM_SEED);
 
-  MLP test = create_mlp(envs[0].observation_space, 10, envs[0].action_space);
-  PRINTLIST(test.params, test.num_params);
-#if 0
 #ifdef _OPENMP
 	printf("OpenMP detected! Using multithreading (%d threads)\n", NUM_THREADS);
 	omp_set_num_threads(NUM_THREADS);
 #endif
-
   NETWORK_TYPE seed;
   if(!strcmp(argv[1], "load")){
     printf("loading '%s'\n", modelfile);
@@ -221,17 +222,18 @@ int main(int argc, char** argv){
     fclose(fp);
 
     seed = load(network_type)(modelfile);
-    if(seed.input_dimension != envs[0].observation_space || seed.output_dimension != envs[0].action_space){
+    if(seed.input_dimension != ENVS[0].observation_space || seed.output_dimension != ENVS[0].action_space){
       printf("ERROR: Policy is not compatible with environment - mismatched observation/action space shapes.\n");
       exit(1);
     }
 	}else if(!strcmp(argv[1], "new")){
     printf("creating '%s'\n", modelfile);
+
     size_t layersizes[LAYERS];
-    layersizes[0] = envs[0].observation_space;
+    layersizes[0] = ENVS[0].observation_space;
     for(int i = 1; i < LAYERS-1; i++)
       layersizes[i] = HIDDEN_LAYER_SIZE;
-    layersizes[LAYERS-1] = envs[0].action_space;
+    layersizes[LAYERS-1] = ENVS[0].action_space;
 
     seed = from_arr(network_type)(layersizes, LAYERS);
 	}else{
@@ -240,21 +242,27 @@ int main(int argc, char** argv){
   }
   printf("network has %lu params.\n", seed.num_params);
 
-  //Normalizer normalizer = create_normalizer(envs[0], &seed, forward(network_type), seed.output, 1000);
-
 #if defined(USE_LSTM) || defined(USE_RNN)
   seed.output_layer.logistic = hypertan;
 #else
   seed.layers[seed.depth-1].logistic = hypertan;
 #endif
+  for(int i = 0; i < NUM_THREADS; i++){
+    POLICIES[i] = *copy(network_type)(&seed);
+    free(POLICIES[i].params);
+    free(POLICIES[i].param_grad);
+    POLICIES[i].params = NULL;
+    POLICIES[i].param_grad = NULL;
+  }
 
+  evaluate(&ENVS[0], &seed, 0);
   if(!strcmp(argv[3], "eval"))
     while(1)
-			printf("Return over %d rollouts: %f\n", ROLLOUTS_PER_MEMBER, evaluate(&envs[0], /*&normalizer,*/ &seed, 1));
+			printf("Return over %d rollouts: %f\n", ROLLOUTS_PER_MEMBER, evaluate(&ENVS[0], &seed, 1));
 	else if(!strcmp(argv[3], "train")){
 		
     /* Create a pool object from the seed neural network */
-		Pool p = create_pool(network_type, &seed, POOL_SIZE);
+		Pool p = create_pool(NULL, seed.num_params, POOL_SIZE);
 
     p.crossover = CROSSOVER;
 		p.noise_std = NOISE_STD;
@@ -280,10 +288,12 @@ int main(int argc, char** argv){
 			const size_t pool_size = p.pool_size;
 			float gen_avg_fitness = 0;
 
+      #ifndef VISDOM_OUTPUT
 			size_t samples_before = samples;
       double start = get_time();
+      #endif
 			#ifdef _OPENMP
-			#pragma omp parallel for default(none) shared(pool, envs,/* normalizer*/) reduction(+: gen_avg_fitness, samples)
+			#pragma omp parallel for default(none) shared(pool, ENVS, POLICIES) reduction(+: gen_avg_fitness, samples)
 			#endif
 
 			for(int i = 0; i < pool_size; i++){
@@ -292,35 +302,44 @@ int main(int argc, char** argv){
 				t_num = omp_get_thread_num();
 				#endif
 
-				NETWORK_TYPE *n = pool[i]->network;
-				pool[i]->performance = evaluate(&envs[t_num], /*&normalizer,*/ n, 0);
+				//NETWORK_TYPE *n = pool[i]->network;
+
+        NETWORK_TYPE *n  = &POLICIES[t_num];
+        Environment *env = &ENVS[t_num];
+
+        n->params = pool[i]->params;
+        n->param_grad = pool[i]->param_grad;
+
+				pool[i]->performance = evaluate(env, n, 0);
 				gen_avg_fitness += pool[i]->performance;
 			}
-			float testavg = 0;
-			for(int i = 0; i < pool_size; i++){
-				testavg += pool[i]->performance;
-			}
-
 			evolve_pool(&p);
+
+			float test_return;
+      {
+        NETWORK_TYPE *n = &POLICIES[0];
+        n->params = p.members[0]->params;
+        save(network_type)(n, modelfile);
+        test_return = evaluate(&ENVS[0], n, 0);
+      }
 
 			peak_fitness += p.members[0]->performance;
 			avg_fitness  += gen_avg_fitness / p.pool_size;
-			float test_return = evaluate(&envs[0], /*&normalizer,*/ ((NETWORK_TYPE*)p.members[0]->network), 0 /*!(gen % print_every)*/);
 
+
+#ifndef VISDOM_OUTPUT
       float completion = (double)samples / (double)TIMESTEPS;
       float samples_per_sec = (get_time() - start)/(samples - samples_before);
       float time_left = ((1 - completion) * TIMESTEPS) * samples_per_sec;
       int hrs_left = (int)(time_left / (60*60));
       int min_left = ((int)(time_left - (hrs_left * 60 * 60))) / 60;
-#ifndef VISDOM_OUTPUT
 			printf("gen %3d | test %6.2f | %2d gen avg peak %6.2f | avg %6.2f | %4.3fs per 1k env steps | est. %3dh %2dm left | %'9lu env steps      \r", gen+1, test_return, (gen % print_every)+1, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*samples_per_sec, hrs_left, min_left, samples);
 #else
-			printf("%s %3d %6.4f %6.4f %6.4f\n", MACROVAL(LOGFILE_), gen, p.members[0]->performance, gen_avg_fitness / p.pool_size, test_return);
+			printf("%s %3d %6lu %6.4f %6.4f %6.4f\n", MACROVAL(LOGFILE_), gen, samples, p.members[0]->performance, gen_avg_fitness / p.pool_size, test_return);
 #endif
 			fprintf(log, "%d %lu %f %f\n", gen, samples, p.members[0]->performance, gen_avg_fitness / p.pool_size);
 			fflush(log);
 			fflush(stdout);
-			save(network_type)(((NETWORK_TYPE*)p.members[0]->network), modelfile);
 			gen++;
 		}
 		fclose(log);
@@ -329,7 +348,5 @@ int main(int argc, char** argv){
     printf("Invalid arg: '%s'\n", argv[3]);
     exit(1);
 	}
-
-#endif
   return 0;
 }

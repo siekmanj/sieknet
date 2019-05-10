@@ -156,12 +156,12 @@ static float step(Environment env, float *action){
 }
 
 Environment create_hopper_env(){
+  Environment env;
   glfwInit();
 
   // activate software
   mj_activate(SIEKNET_MJKEYPATH);
 
-  Environment env;
   env.dispose = dispose;
   env.reset = reset;
   env.seed = seed;
@@ -185,6 +185,5 @@ Environment create_hopper_env(){
   env.state = (float*)calloc(env.observation_space, sizeof(float));
 
   env.done = calloc(1, sizeof(int));
-
   return env;
 }

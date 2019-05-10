@@ -949,6 +949,28 @@ void lstm_abs_backward(LSTM *n){
 #endif
 }
 
+/*
+ * Make a deep-copy of an LSTM.
+ */
+LSTM *copy_lstm(LSTM *n){
+	size_t arr[n->depth+2];
+	arr[0] = n->input_dimension;
+	for(int i = 0; i < n->depth; i++){
+		arr[i+1] = n->layers[i].size;
+	}
+	arr[n->depth+1] = n->output_layer.size;
+
+	LSTM *ret = ALLOC(LSTM, 1);
+	*ret = lstm_from_arr(arr, n->depth+2);
+
+	ret->output_layer.logistic = n->output_layer.logistic;
+
+	for(int i = 0; i < n->num_params; i++)
+		ret->params[i] = n->params[i];
+  ret->performance = 0;
+
+  return ret;
+}
 
 void dealloc_lstm(LSTM *n){
 #ifndef SIEKNET_USE_GPU

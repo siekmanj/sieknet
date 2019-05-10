@@ -112,6 +112,7 @@ typedef struct lstm{
 
 LSTM lstm_from_arr(size_t *, size_t);
 LSTM load_lstm(const char *);
+LSTM *copy_lstm(LSTM *n);
 void save_lstm(LSTM *n, const char *);
 
 void lstm_forward(LSTM *, float *);
