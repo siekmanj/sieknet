@@ -508,6 +508,29 @@ void gpu_mlp_backward(MLP *n, int abs_grad){
 #endif
 
 /*
+ * Does a deep-copy of an MLP.
+ */
+MLP *copy_mlp(MLP *n){
+	size_t arr[n->depth+1];
+	arr[0] = n->input_dimension;
+	for(int i = 0; i < n->depth; i++){
+		arr[i+1] = n->layers[i].size;
+	}
+	MLP *ret = ALLOC(MLP, 1);
+	*ret = mlp_from_arr(arr, n->depth+1);
+
+	for(int i = 0; i < n->depth; i++){
+		ret->layers[i].logistic = n->layers[i].logistic;
+	}
+
+	for(int i = 0; i < n->num_params; i++)
+		ret->params[i] = n->params[i];
+  ret->performance = 0;
+
+  return ret;
+}
+
+/*
  * Deallocates a network's memory from the heap
  */
 void dealloc_mlp(MLP *n){
