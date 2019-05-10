@@ -204,7 +204,6 @@ int main(int argc, char** argv){
   printf("genetic algorithms for reinforcement learning.\n");
 
 
-	srand(time(NULL));
   printf("rand: %d\n", rand());
   setbuf(stdout, NULL);
   FILE *log = fopen(MACROVAL(LOGFILE_), "wb");
@@ -212,16 +211,13 @@ int main(int argc, char** argv){
 	for(int i = 0; i < NUM_THREADS; i++){
 		ENVS[i] = create_env(ENV_NAME)();
 	}
+	//srand(time(NULL));
+	srand(1);
 
 #ifdef _OPENMP
 	printf("OpenMP detected! Using multithreading (%d threads)\n", NUM_THREADS);
 	omp_set_num_threads(NUM_THREADS);
 #endif
-
-  MLP test = create_mlp(ENVS[0].observation_space, 10, ENVS[0].action_space);
-  PRINTLIST(test.params, test.num_params);
-
-#if 0
   NETWORK_TYPE seed;
   if(!strcmp(argv[1], "load")){
     printf("loading '%s'\n", modelfile);
@@ -250,6 +246,11 @@ int main(int argc, char** argv){
   }
   printf("network has %lu params.\n", seed.num_params);
 
+#if defined(USE_LSTM) || defined(USE_RNN)
+  seed.output_layer.logistic = hypertan;
+#else
+  seed.layers[seed.depth-1].logistic = hypertan;
+#endif
   for(int i = 0; i < NUM_THREADS; i++){
     POLICIES[i] = *copy(network_type)(&seed);
     //free(POLICIES[i].params);
@@ -258,11 +259,6 @@ int main(int argc, char** argv){
     //POLICIES[i].param_grad = NULL;
   }
 
-#if defined(USE_LSTM) || defined(USE_RNN)
-  seed.output_layer.logistic = hypertan;
-#else
-  seed.layers[seed.depth-1].logistic = hypertan;
-#endif
   PRINTLIST(seed.params, seed.num_params);
   evaluate(&ENVS[0], &seed, 1);
   if(!strcmp(argv[3], "eval"))
@@ -356,6 +352,5 @@ int main(int argc, char** argv){
     printf("Invalid arg: '%s'\n", argv[3]);
     exit(1);
 	}
- #endif
   return 0;
 }
