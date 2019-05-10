@@ -177,7 +177,7 @@ double get_time(){
 #ifdef _OPENMP
   return omp_get_wtime();
 #else
-  return clock() / CLOCKS_PER_SEC;
+  return (double)clock() / CLOCKS_PER_SEC;
 #endif
 }
 
@@ -205,6 +205,9 @@ int main(int argc, char** argv){
 		envs[i] = create_env(ENV_NAME)();
 	}
 
+  MLP test = create_mlp(envs[0].observation_space, 10, envs[0].action_space);
+  PRINTLIST(test.params, test.num_params);
+#if 0
 #ifdef _OPENMP
 	printf("OpenMP detected! Using multithreading (%d threads)\n", NUM_THREADS);
 	omp_set_num_threads(NUM_THREADS);
@@ -305,8 +308,13 @@ int main(int argc, char** argv){
 			avg_fitness  += gen_avg_fitness / p.pool_size;
 			float test_return = evaluate(&envs[0], /*&normalizer,*/ ((NETWORK_TYPE*)p.members[0]->network), 0 /*!(gen % print_every)*/);
 
+      float completion = (double)samples / (double)TIMESTEPS;
+      float samples_per_sec = (get_time() - start)/(samples - samples_before);
+      float time_left = ((1 - completion) * TIMESTEPS) * samples_per_sec;
+      int hrs_left = (int)(time_left / (60*60));
+      int min_left = ((int)(time_left - (hrs_left * 60 * 60))) / 60;
 #ifndef VISDOM_OUTPUT
-			printf("gen %3d | test %6.2f | %2d gen avg peak %6.2f | avg %6.2f | %4.3fs per 1k env steps | %'9lu env steps      \r", gen+1, test_return, (gen % print_every)+1, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*(get_time() - start)/(samples - samples_before), samples);
+			printf("gen %3d | test %6.2f | %2d gen avg peak %6.2f | avg %6.2f | %4.3fs per 1k env steps | est. %3dh %2dm left | %'9lu env steps      \r", gen+1, test_return, (gen % print_every)+1, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*samples_per_sec, hrs_left, min_left, samples);
 #else
 			printf("%s %3d %6.4f %6.4f %6.4f\n", MACROVAL(LOGFILE_), gen, p.members[0]->performance, gen_avg_fitness / p.pool_size, test_return);
 #endif
@@ -323,5 +331,6 @@ int main(int argc, char** argv){
     exit(1);
 	}
 
+#endif
   return 0;
 }
