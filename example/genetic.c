@@ -197,13 +197,14 @@ int main(int argc, char** argv){
   printf("genetic algorithms for reinforcement learning.\n");
 
 	//srand(1);
-	srand(time(NULL));
   setbuf(stdout, NULL);
   FILE *log = fopen(MACROVAL(LOGFILE_), "wb");
 
 	for(int i = 0; i < NUM_THREADS; i++){
 		envs[i] = create_env(ENV_NAME)();
 	}
+
+	srand(time(NULL));
 
 #ifdef _OPENMP
 	printf("OpenMP detected! Using multithreading (%d threads)\n", NUM_THREADS);
@@ -322,6 +323,5 @@ int main(int argc, char** argv){
     printf("Invalid arg: '%s'\n", argv[3]);
     exit(1);
 	}
-
   return 0;
 }
