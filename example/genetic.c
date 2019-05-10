@@ -184,7 +184,7 @@ double get_time(){
 #ifdef _OPENMP
   return omp_get_wtime();
 #else
-  return (double)(clock()) / CLOCKS_PER_SEC;
+  return (double)clock() / CLOCKS_PER_SEC;
 #endif
 }
 
@@ -203,7 +203,6 @@ int main(int argc, char** argv){
   printf("																					 \n");
   printf("genetic algorithms for reinforcement learning.\n");
 
-
   setbuf(stdout, NULL);
   FILE *log = fopen(MACROVAL(LOGFILE_), "wb");
 
@@ -211,6 +210,9 @@ int main(int argc, char** argv){
 		ENVS[i] = create_env(ENV_NAME)();
 	}
 	srand(time(NULL));
+
+	//srand(time(NULL));
+	srand(1);
 
 #ifdef _OPENMP
 	printf("OpenMP detected! Using multithreading (%d threads)\n", NUM_THREADS);
@@ -315,16 +317,16 @@ int main(int argc, char** argv){
 			}
 			evolve_pool(&p);
 
+			float test_return;
       {
         NETWORK_TYPE *n = &POLICIES[0];
         n->params = p.members[0]->params;
         save(network_type)(n, modelfile);
-        evaluate(&ENVS[0], n, !(gen % 10));
+        test_return = evaluate(&ENVS[0], n, 0);
       }
 
 			peak_fitness += p.members[0]->performance;
 			avg_fitness  += gen_avg_fitness / p.pool_size;
-			//float test_return = evaluate(&ENVS[0], /*&normalizer,*/ ((NETWORK_TYPE*)p.members[0]->network), 0 /*!(gen % print_every)*/);
 
       float completion = (double)samples / (double)TIMESTEPS;
       float samples_per_sec = (get_time() - start)/(samples - samples_before);
@@ -333,7 +335,7 @@ int main(int argc, char** argv){
       int min_left = ((int)(time_left - (hrs_left * 60 * 60))) / 60;
 
 #ifndef VISDOM_OUTPUT
-			printf("gen %3d | %2d gen avg peak %6.2f | avg %6.2f | %4.3fs per 1k env steps | est. %dh %dm remaining | %'9lu env steps      \r", gen+1, (gen % print_every)+1, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*samples_per_sec, hrs_left, min_left, samples);
+			printf("gen %3d | test %6.2f | %2d gen avg peak %6.2f | avg %6.2f | %4.3fs per 1k env steps | est. %3dh %2dm left | %'9lu env steps      \r", gen+1, test_return, (gen % print_every)+1, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*samples_per_sec, hrs_left, min_left, samples);
 #else
 			printf("%s %3d %6.4f %6.4f %6.4f\n", MACROVAL(LOGFILE_), gen, p.members[0]->performance, gen_avg_fitness / p.pool_size, test_return);
 #endif
