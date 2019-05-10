@@ -203,7 +203,9 @@ int main(int argc, char** argv){
   printf("																					 \n");
   printf("genetic algorithms for reinforcement learning.\n");
 
-	srand(2);//time(NULL));
+
+	srand(time(NULL));
+  printf("rand: %d\n", rand());
   setbuf(stdout, NULL);
   FILE *log = fopen(MACROVAL(LOGFILE_), "wb");
 
@@ -216,6 +218,10 @@ int main(int argc, char** argv){
 	omp_set_num_threads(NUM_THREADS);
 #endif
 
+  MLP test = create_mlp(ENVS[0].observation_space, 10, ENVS[0].action_space);
+  PRINTLIST(test.params, test.num_params);
+
+#if 0
   NETWORK_TYPE seed;
   if(!strcmp(argv[1], "load")){
     printf("loading '%s'\n", modelfile);
@@ -257,7 +263,8 @@ int main(int argc, char** argv){
 #else
   seed.layers[seed.depth-1].logistic = hypertan;
 #endif
-
+  PRINTLIST(seed.params, seed.num_params);
+  evaluate(&ENVS[0], &seed, 1);
   if(!strcmp(argv[3], "eval"))
     while(1)
 			printf("Return over %d rollouts: %f\n", ROLLOUTS_PER_MEMBER, evaluate(&ENVS[0], &seed, 1));
@@ -349,6 +356,6 @@ int main(int argc, char** argv){
     printf("Invalid arg: '%s'\n", argv[3]);
     exit(1);
 	}
-
+ #endif
   return 0;
 }
