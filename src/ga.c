@@ -128,7 +128,6 @@ void sensitivity_gradient(float *gradient, const float *output, Nonlinearity non
 
 
 Pool create_pool(float *seed, size_t num_params, size_t pool_size){
-  printf("got %p, %lu, %lu\n", seed, num_params, rand());
 	Pool p;
 
 	p.mutation_type = BASELINE;

@@ -204,15 +204,13 @@ int main(int argc, char** argv){
   printf("genetic algorithms for reinforcement learning.\n");
 
 
-  printf("rand: %d\n", rand());
   setbuf(stdout, NULL);
   FILE *log = fopen(MACROVAL(LOGFILE_), "wb");
 
 	for(int i = 0; i < NUM_THREADS; i++){
 		ENVS[i] = create_env(ENV_NAME)();
 	}
-	//srand(time(NULL));
-	srand(1);
+	srand(time(NULL));
 
 #ifdef _OPENMP
 	printf("OpenMP detected! Using multithreading (%d threads)\n", NUM_THREADS);
@@ -253,21 +251,19 @@ int main(int argc, char** argv){
 #endif
   for(int i = 0; i < NUM_THREADS; i++){
     POLICIES[i] = *copy(network_type)(&seed);
-    //free(POLICIES[i].params);
-    //free(POLICIES[i].param_grad);
-    //POLICIES[i].params = NULL;
-    //POLICIES[i].param_grad = NULL;
+    free(POLICIES[i].params);
+    free(POLICIES[i].param_grad);
+    POLICIES[i].params = NULL;
+    POLICIES[i].param_grad = NULL;
   }
 
-  PRINTLIST(seed.params, seed.num_params);
-  evaluate(&ENVS[0], &seed, 1);
+  evaluate(&ENVS[0], &seed, 0);
   if(!strcmp(argv[3], "eval"))
     while(1)
 			printf("Return over %d rollouts: %f\n", ROLLOUTS_PER_MEMBER, evaluate(&ENVS[0], &seed, 1));
 	else if(!strcmp(argv[3], "train")){
 		
     /* Create a pool object from the seed neural network */
-    PRINTLIST(seed.params, seed.num_params);
 		Pool p = create_pool(NULL, seed.num_params, POOL_SIZE);
 
     p.crossover = CROSSOVER;
