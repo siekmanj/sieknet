@@ -43,7 +43,7 @@ for trial in range(10):
         for mutation_type in types:
           counter += 1
           total_experiments = len(stds) * len(mrs) * len(types) * 10 * 2
-          print("executing experiment ", counter, " of ", total_experiments, ": ", cmd_str)
+          print("executing experiment ", counter, " of ", total_experiments)
           cmd_str = cmd_base + \
                     mutation_type + "_" + \
                     env + "_std" + str(std) + \
@@ -54,8 +54,8 @@ for trial in range(10):
                     " --mutation_type " + mutation_type + \
                     " --seed " + str(trial) + \
                     " --timesteps " + \
-                    " --" + arch + \
                     str(timesteps) + \
+                    " --" + arch + \
                     " -v"
 
           if crossover:
@@ -74,8 +74,8 @@ for trial in range(10):
 
                 plotwin = 'Fixed seed ' + str(trial) + ' std ' + str(std) + ' mr ' + str(mr) + ' crossover ' + str(crossover)
 
-                plot('fitness', mutation_type + ' peak', plotwin, samples, peak)
-                plot('fitness', mutation_type + ' mean', plotwin, samples, avg)
+                plot('fitness', mutation_type, plotwin + ' peak', samples, peak)
+                plot('fitness', mutation_type, plotwin + ' mean', samples, avg)
 
               except ValueError:
                 continue

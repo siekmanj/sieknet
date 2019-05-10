@@ -182,9 +182,6 @@ void breed_pool(Pool *p){
     Member *b = p->crossover ? p->members[parent2_idx] : a;
 
     Member *child = p->members[i];
-    //recombine(child->params, p->noise_std, p->mutation_type, a->params, a->param_grad, b->params, b->param_grad, a->momentum, b->momentum, child->momentum, p->mutation_rate, a->num_params);
-    //printf("after:\n");
-    //PRINTLIST(child->params, child->num_params);
     switch(p->mutation_type){
       case NONE:
         baseline_recombine(child->params, p->noise_std, a->params, b->params, 0.0, a->num_params);

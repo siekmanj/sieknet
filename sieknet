@@ -1,6 +1,6 @@
 #!/bin/bash
 
-COMMON="-Iinclude -O0 -Wall -Wno-unused-function"
+COMMON="-Iinclude -O3 -Wall -Wno-unused-function"
 SRCFILES="src/mlp.c"
 LIBS="-lm"
 
