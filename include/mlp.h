@@ -63,8 +63,9 @@ typedef struct mlp{
 	Costfn cost_fn;
 } MLP;
 
-MLP mlp_from_arr(size_t arr[], size_t size);
-MLP load_mlp(const char *filename);
+MLP mlp_from_arr(size_t[], size_t);
+MLP load_mlp(const char *);
+MLP *copy_mlp(MLP *);
 
 #ifndef SIEKNET_USE_GPU
 MLP_layer cpu_create_MLP_layer(const size_t, const size_t, float *, const int, const Nonlinearity);

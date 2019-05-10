@@ -78,6 +78,7 @@ typedef struct rnn {
 
 RNN rnn_from_arr(const size_t *, const size_t);
 RNN load_rnn(const char *);
+RNN *copy_rnn(RNN *n);
 void save_rnn(RNN *n, const char *);
 
 void rnn_forward(RNN *, const float *);

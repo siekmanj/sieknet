@@ -554,6 +554,32 @@ void rnn_wipe(RNN *n){
 #endif
 }
 
+/*
+ * Does a deep-copy of an RNN.
+ */
+RNN *copy_rnn(RNN *n){
+	size_t arr[n->depth+2];
+	arr[0] = n->input_dimension;
+	for(int i = 0; i < n->depth; i++){
+		arr[i+1] = n->layers[i].size;
+	}
+	arr[n->depth+1] = n->output_layer.size;
+
+	RNN *ret = ALLOC(RNN, 1);
+	*ret = rnn_from_arr(arr, n->depth+2);
+
+	for(int i = 0; i < n->depth; i++){
+		ret->layers[i].logistic = n->layers[i].logistic;
+	}
+	ret->output_layer.logistic = n->output_layer.logistic;
+
+	for(int i = 0; i < n->num_params; i++)
+		ret->params[i] = n->params[i];
+  ret->performance = 0;
+
+  return ret;
+}
+
 void dealloc_rnn(RNN *n){
 #ifndef SIEKNET_USE_GPU
   free(n->params);
