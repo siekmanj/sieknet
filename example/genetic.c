@@ -280,7 +280,6 @@ int main(int argc, char** argv){
 			size_t samples_before = samples;
       double start = get_time();
 			#ifdef _OPENMP
-			//double start = omp_get_wtime();
 			#pragma omp parallel for default(none) shared(pool, envs,/* normalizer*/) reduction(+: gen_avg_fitness, samples)
 			#endif
 
