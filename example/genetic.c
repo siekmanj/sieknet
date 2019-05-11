@@ -211,9 +211,6 @@ int main(int argc, char** argv){
 	}
 	srand(time(NULL));
 
-	//srand(time(NULL));
-	srand(1);
-
 #ifdef _OPENMP
 	printf("OpenMP detected! Using multithreading (%d threads)\n", NUM_THREADS);
 	omp_set_num_threads(NUM_THREADS);

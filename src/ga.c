@@ -150,13 +150,8 @@ Pool create_pool(float *seed, size_t num_params, size_t pool_size){
         p.members[i]->params[j] = seed[j];
       else
         p.members[i]->params[j] = normal(0, 0.5);
-      //printf("p[%d][%d]: %f???\n", i, j, p.members[i]->params[j]);
     }
-    //for(int j = 0; j < num_params && i && seed; j++)
-      //p.members[i]->params[j] += normal(0, 0.5);
   }
-  //printf("FUCK random:\n");
-  //PRINTLIST(p.members[3]->params, p.members[3]->num_params);
 	return p;
 }
 
