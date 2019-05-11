@@ -82,6 +82,10 @@
 #define CROSSOVER 0
 #endif
 
+#ifndef RANDOM_SEED
+#define RANDOM_SEED time(0)
+#endif
+
 #define MAKE_INCLUDE_(envname) <envname ## _env.h>
 #define MAKE_INCLUDE(envname) MAKE_INCLUDE_(envname)
 
@@ -135,13 +139,13 @@
   #define sensitivity(n) sensitivity_gradient(n->cost_gradient, n->output, n->layers[n->depth-1].logistic, n->output_dimension)
 #endif
 
-#define LOGFILE_ ./log/POOL_SIZE.ENV_NAME.hs.HIDDEN_LAYER_SIZE.std.NOISE_STD.mr.MUTATION_RATE.network_type.MUTATION_TYPE.crossover.CROSSOVER.log
+#define LOGFILE_ ./log/POOL_SIZE.ENV_NAME.hs.HIDDEN_LAYER_SIZE.std.NOISE_STD.mr.MUTATION_RATE.network_type.MUTATION_TYPE.crossover.CROSSOVER.seed.RANDOM_SEED.log
 
 Environment ENVS[NUM_THREADS];
 NETWORK_TYPE POLICIES[NUM_THREADS];
 size_t samples = 0;
 
-float evaluate(Environment *env,/* Normalizer *norm,*/ NETWORK_TYPE *n, int render){
+float evaluate(Environment *env, NETWORK_TYPE *n, int render){
 	float perf = 0;
 	for(int i = 0; i < ROLLOUTS_PER_MEMBER; i++){
 		env->reset(*env);
@@ -155,13 +159,8 @@ float evaluate(Environment *env,/* Normalizer *norm,*/ NETWORK_TYPE *n, int rend
 		for(int t = 0; t < MAX_TRAJ_LEN; t++){
 			samples++;
 			forward(network_type)(n, env->state);
-      //printf("network %d:\n", i);
-      //for(int j = 0; j < n->output_dimension; j++){
-      //  printf("output %d: %f\n", j, n->output[j]);
-      //}
 
-
-			if(MUTATION_TYPE == SAFE || MUTATION_TYPE == SAFE_MOMENTUM){
+			if(MUTATION_TYPE == SAFE || MUTATION_TYPE == SAFE_MOMENTUM || MUTATION_TYPE == AGGRESSIVE){
 				sensitivity(n);
 				abs_backward(network_type)(n);
 			}
@@ -209,7 +208,7 @@ int main(int argc, char** argv){
 	for(int i = 0; i < NUM_THREADS; i++){
 		ENVS[i] = create_env(ENV_NAME)();
 	}
-	srand(time(NULL));
+	srand(RANDOM_SEED);
 
 #ifdef _OPENMP
 	printf("OpenMP detected! Using multithreading (%d threads)\n", NUM_THREADS);
@@ -289,8 +288,10 @@ int main(int argc, char** argv){
 			const size_t pool_size = p.pool_size;
 			float gen_avg_fitness = 0;
 
+      #ifndef VISDOM_OUTPUT
 			size_t samples_before = samples;
       double start = get_time();
+      #endif
 			#ifdef _OPENMP
 			#pragma omp parallel for default(none) shared(pool, ENVS, POLICIES) reduction(+: gen_avg_fitness, samples)
 			#endif
@@ -325,16 +326,16 @@ int main(int argc, char** argv){
 			peak_fitness += p.members[0]->performance;
 			avg_fitness  += gen_avg_fitness / p.pool_size;
 
+
+#ifndef VISDOM_OUTPUT
       float completion = (double)samples / (double)TIMESTEPS;
       float samples_per_sec = (get_time() - start)/(samples - samples_before);
       float time_left = ((1 - completion) * TIMESTEPS) * samples_per_sec;
       int hrs_left = (int)(time_left / (60*60));
       int min_left = ((int)(time_left - (hrs_left * 60 * 60))) / 60;
-
-#ifndef VISDOM_OUTPUT
 			printf("gen %3d | test %6.2f | %2d gen avg peak %6.2f | avg %6.2f | %4.3fs per 1k env steps | est. %3dh %2dm left | %'9lu env steps      \r", gen+1, test_return, (gen % print_every)+1, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*samples_per_sec, hrs_left, min_left, samples);
 #else
-			printf("%s %3d %6.4f %6.4f %6.4f\n", MACROVAL(LOGFILE_), gen, p.members[0]->performance, gen_avg_fitness / p.pool_size, test_return);
+			printf("%s %3d %6lu %6.4f %6.4f %6.4f\n", MACROVAL(LOGFILE_), gen, samples, p.members[0]->performance, gen_avg_fitness / p.pool_size, test_return);
 #endif
 			fprintf(log, "%d %lu %f %f\n", gen, samples, p.members[0]->performance, gen_avg_fitness / p.pool_size);
 			fflush(log);
