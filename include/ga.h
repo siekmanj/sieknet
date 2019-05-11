@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <conf.h>
 
-typedef enum mutation_t {NONE, BASELINE, SAFE, MOMENTUM, SAFE_MOMENTUM} Mutation_type;
+typedef enum mutation_t {NONE, BASELINE, SAFE, MOMENTUM, SAFE_MOMENTUM, AGGRESSIVE} Mutation_type;
 typedef enum network_t {mlp, rnn, lstm} Network_type;
 
 typedef struct member_{

@@ -4,19 +4,20 @@ import subprocess
 import numpy as np
 
 env = "hopper"
+arch = 'rnn'
 viz = visdom.Visdom()
 plots = {}
 
 def plot(var_name, split_name, title_name, x, y):
   if title_name not in plots:
-    plots[title_name] = viz.line(X=np.array([x,x]), Y=np.array([y,y]), env=env, opts=dict(
+    plots[title_name] = viz.line(X=np.array([x,x]), Y=np.array([y,y]), env=env+arch, opts=dict(
         legend=[split_name],
         title=title_name,
         xlabel='Samples',
         ylabel=var_name
     ))
   else:
-    viz.line(X=np.array([x]), Y=np.array([y]), env=env, win=plots[title_name], name=split_name, update = 'append')
+    viz.line(X=np.array([x]), Y=np.array([y]), env=(env+arch), win=plots[title_name], name=split_name, update = 'append')
 
 def execute(cmd):
   popen = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
@@ -28,11 +29,10 @@ def execute(cmd):
   if return_code:
     raise subprocess.CalledProcessError(return_code, cmd)
 
-timesteps = 4e6
-arch = 'mlp'
-stds  = [0.25, 0.5, 1.0]
-mrs   = [0.01, 0.05, 0.1]
-types = ['BASELINE', 'SAFE', 'MOMENTUM', 'SAFE_MOMENTUM']
+timesteps = 3e6
+stds  = [0.5, 1.0]
+mrs   = [0.05, 0.1]
+types = ['BASELINE', 'SAFE', 'MOMENTUM', 'SAFE_MOMENTUM', 'AGGRESSIVE']
 
 cmd_base = './sieknet ga --train --new ./model/'
 counter = 0
@@ -49,7 +49,8 @@ for trial in range(10):
                     env + "_std" + str(std) + \
                     "_mr" + str(mr) \
                     + "_t" + str(trial) + \
-                    ".mlp --std " + str(std) + \
+                    "." + arch + " " + \
+                    " --std "+ str(std) + \
                     " --mr " + str(mr) + \
                     " --mutation_type " + mutation_type + \
                     " --seed " + str(trial) + \
@@ -75,7 +76,7 @@ for trial in range(10):
                 plotwin = 'Fixed seed ' + str(trial) + ' std ' + str(std) + ' mr ' + str(mr) + ' crossover ' + str(crossover)
 
                 plot('fitness', mutation_type, plotwin + ' peak', samples, peak)
-                plot('fitness', mutation_type, plotwin + ' mean', samples, avg)
+                #plot('fitness', mutation_type, plotwin + ' mean', samples, avg)
 
               except ValueError:
                 continue

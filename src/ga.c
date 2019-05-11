@@ -58,6 +58,22 @@ void safe_recombine(float *dest, const float noise_std, const float *a, const fl
 	}
 }
 
+void aggressive_recombine(float *dest, const float noise_std, const float *a, const float *ag, const float *b, const float *bg, const float mutation_rate, const size_t size){
+  for(int i = 0; i < size; i++){
+    if(rand()&1){
+      dest[i] = a[i];
+      if(uniform(0, 1) < mutation_rate){
+        dest[i] += log2(ag[i] + 1) * normal(0, noise_std);
+      }
+    }else{
+      dest[i] = b[i];
+      if(uniform(0, 1) < mutation_rate){
+        dest[i] += log2(bg[i] + 1) * normal(0, noise_std);
+      }
+    }
+  }
+}
+
 #define BETA 0.99f
 void momentum_recombine(float *dest, const float noise_std, const float *a, const float *b, const float *momentum1, const float *momentum2, float *momentum, const float mutation_rate, const size_t size){
   for(int i = 0; i < size; i++){
@@ -99,26 +115,6 @@ void safe_momentum_recombine(float *dest, const float noise_std, const float *a,
   }
 }
 
-void recombine(float *dest, const float noise_std, const Mutation_type type, const float *params1, const float *paramgrad1, const float *params2, const float *paramgrad2, float *momentum1, float *momentum2, float *momentum, const float mutation_rate, const size_t num_params){
-  switch(type){
-    case NONE:
-      return baseline_recombine(dest, noise_std, params1, params2, 0.0, num_params);
-      break;
-    case BASELINE:
-      return baseline_recombine(dest, noise_std, params1, params2, mutation_rate, num_params);
-      break;
-    case MOMENTUM:
-      return momentum_recombine(dest, noise_std, params1, params2, momentum1, momentum2, momentum, mutation_rate, num_params);
-      break;
-    case SAFE:
-      return safe_recombine(dest, noise_std, params1, paramgrad1, params2, paramgrad2, mutation_rate, num_params);
-      break;
-    case SAFE_MOMENTUM:
-      return safe_momentum_recombine(dest, noise_std, params1, paramgrad1, params2, paramgrad2, momentum1, momentum2, momentum, mutation_rate, num_params);
-      break;
-  }
-}
-
 void sensitivity_gradient(float *gradient, const float *output, Nonlinearity nonl, size_t dim){
   for(int i = 0; i < dim; i++){
     gradient[i] = differentiate(output[i], nonl);
@@ -150,13 +146,8 @@ Pool create_pool(float *seed, size_t num_params, size_t pool_size){
         p.members[i]->params[j] = seed[j];
       else
         p.members[i]->params[j] = normal(0, 0.5);
-      //printf("p[%d][%d]: %f???\n", i, j, p.members[i]->params[j]);
     }
-    //for(int j = 0; j < num_params && i && seed; j++)
-      //p.members[i]->params[j] += normal(0, 0.5);
   }
-  //printf("FUCK random:\n");
-  //PRINTLIST(p.members[3]->params, p.members[3]->num_params);
 	return p;
 }
 
@@ -194,6 +185,9 @@ void breed_pool(Pool *p){
         break;
       case SAFE:
         safe_recombine(child->params, p->noise_std, a->params, a->param_grad, b->params, b->param_grad, p->mutation_rate, a->num_params);
+        break;
+      case AGGRESSIVE:
+        aggressive_recombine(child->params, p->noise_std, a->params, a->param_grad, b->params, b->param_grad, p->mutation_rate, a->num_params);
         break;
       case SAFE_MOMENTUM:
         safe_momentum_recombine(child->params, p->noise_std, a->params, a->param_grad, b->params, b->param_grad, a->momentum, b->momentum, child->momentum, p->mutation_rate, a->num_params);

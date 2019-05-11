@@ -160,7 +160,7 @@ float evaluate(Environment *env, NETWORK_TYPE *n, int render){
 			samples++;
 			forward(network_type)(n, env->state);
 
-			if(MUTATION_TYPE == SAFE || MUTATION_TYPE == SAFE_MOMENTUM){
+			if(MUTATION_TYPE == SAFE || MUTATION_TYPE == SAFE_MOMENTUM || MUTATION_TYPE == AGGRESSIVE){
 				sensitivity(n);
 				abs_backward(network_type)(n);
 			}
