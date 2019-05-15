@@ -22,11 +22,19 @@ static float normal(float mean, float std){
 	return mean + norm * std;
 }
 
+#define SHARP_SAFETY
 static float safety(float g){
+  #ifdef SHARP_SAFETY
   if(ALPHA * g < 1.0)
     return 1.0;
   else
     return 1 / (ALPHA * g);
+  #else
+  if(ALPHA * g < 0)
+    return exp(ALPHA * g);
+  else
+    return exp(-ALPHA * g);
+  #endif
 }
 
 void baseline_recombine(float *dest, const float noise_std, const float *a, const float *b, const float mutation_rate, const size_t size){
@@ -63,12 +71,12 @@ void aggressive_recombine(float *dest, const float noise_std, const float *a, co
     if(rand()&1){
       dest[i] = a[i];
       if(uniform(0, 1) < mutation_rate){
-        dest[i] += log2(ag[i] + 1) * normal(0, noise_std);
+        dest[i] += (-safety(ag[i]) + 1) * normal(0, noise_std);
       }
     }else{
       dest[i] = b[i];
       if(uniform(0, 1) < mutation_rate){
-        dest[i] += log2(bg[i] + 1) * normal(0, noise_std);
+        dest[i] += (-safety(bg[i]) + 1) * normal(0, noise_std);
       }
     }
   }
