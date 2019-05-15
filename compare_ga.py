@@ -8,10 +8,10 @@ arch = 'rnn'
 viz = visdom.Visdom()
 plots = {}
 
-deterministic = True
-timesteps = 3e6
+deterministic = False
+timesteps = 5e6
 layers = 3
-hidden_sizes = [48]
+hidden_sizes = [32]
 pool_sizes = [200]
 stds	= [1.0]
 mrs		= [0.07]
@@ -73,6 +73,7 @@ for crossover in crossovers:
 												" --pool_size " + str(pool_size) + \
 												" --hidden_size " + str(hidden_size) + \
 												" --timesteps " +  str(timesteps) + \
+												" --env " + env + \
 												" --" + arch + \
 												" -v"
 							if not deterministic:
@@ -82,7 +83,6 @@ for crossover in crossovers:
 								cmd_str += " --crossover"
 							for path in execute(cmd_str.split()):
 								tokens = path.split()
-								print(tokens)
 								if len(tokens) > 0 and tokens[0] == 'Finished!':
 									continue
 								if len(tokens) != 0 and tokens[0] != 'WARNING:':
@@ -93,9 +93,9 @@ for crossover in crossovers:
 										avg = float(tokens[4])
 										test = float(tokens[5])
 
-										plotwin = 'Fixed seed ' + str(trial) + ' std ' + str(std) + ' mr ' + str(mr) + ' crossover ' + str(crossover)
+										plotwin = 'Fixed seed {}, std: {:3.2f}, mr {:3.2f}, crossover: {}, pool_size: {:3d}, hidden_size: {:3d} '.format(trial, std, mr, crossover, pool_size, hidden_size)
 
-										plot('fitness', mutation_type, plotwin + ' peak', samples, peak)
+										plot('fitness', mutation_type, plotwin, samples, peak)
 									except ValueError:
 										continue
 
