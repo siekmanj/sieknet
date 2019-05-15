@@ -74,7 +74,7 @@ void aggressive_recombine(float *dest, const float noise_std, const float *a, co
   }
 }
 
-#define BETA 0.99f
+#define BETA 0.9f
 void momentum_recombine(float *dest, const float noise_std, const float *a, const float *b, const float *momentum1, const float *momentum2, float *momentum, const float mutation_rate, const size_t size){
   for(int i = 0; i < size; i++){
     if(rand()&1){
