@@ -7,7 +7,7 @@
 #include <mujoco.h>
 #include <glfw3.h>
 
-#define ALIVE_BONUS 0.2f
+#define ALIVE_BONUS 0.0f
 #define FRAMESKIP 10
 
 typedef struct data {

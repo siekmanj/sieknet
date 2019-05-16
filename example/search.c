@@ -6,9 +6,10 @@
 #include <rs.h>
 #include <hopper_env.h>
 #include <string.h>
+#include <locale.h>
 
 #define NETWORK_TYPE MLP
-#define ROLLOUTS_PER_MEMBER 2
+#define ROLLOUTS_PER_MEMBER 5
 #define MAX_TRAJ_LEN 300
 
 size_t samples = 0;
@@ -23,8 +24,10 @@ float evaluate(Environment *env, NETWORK_TYPE *n, int render){
 			samples++;
 			mlp_forward(n, env->state);
 
-				//sensitivity(n);
-				//abs_backward(network_type)(n);
+			//sensitivity(n);
+			//abs_backward(network_type)(n);
+			//for(int a = 0; a < env->action_space; a++)
+			//	printf("%f\n", n->output[a]);
 			perf += env->step(*env, n->output);
 
 			if(render)
@@ -41,6 +44,8 @@ float evaluate(Environment *env, NETWORK_TYPE *n, int render){
 }
 
 int main(int argc, char **argv){
+  setlocale(LC_ALL,"");
+
 	Environment env = create_hopper_env();
 	MLP seed = create_mlp(env.observation_space, 16, env.action_space);
 	for(int i = 0; i < seed.depth; i++)
@@ -49,41 +54,30 @@ int main(int argc, char **argv){
 	for(int j = 0; j < seed.num_params; j++)
 		seed.params[j] = 0;
 
-	RS r = create_rs(seed.params, seed.num_params, 230);
-	r.std = 0.0075;
+	RS r = create_rs(seed.params, seed.num_params, 100);
+	r.cutoff = 0.9;
+	r.algo = V1;
 	
-	float *update = ALLOC(float, seed.num_params);
-
-	SGD o = cpu_init_SGD(seed.params, update, seed.num_params);
-	o.learning_rate = 0.1;
-
-	while(samples < 1e8){
-		memset(update, '\0', sizeof(float)*seed.num_params);
+	while(samples < 1e7){
 
 		for(int i = 0; i < r.directions; i++){
 			for(int j = 0; j < seed.num_params; j++)
-				seed.params[j] += 1*r.perturbances[i][j];
-			r.r_pos[i] = evaluate(&env, &seed, 0);
+				seed.params[j] += 1*r.deltas[i]->p[j];
+			r.deltas[i]->r_pos = evaluate(&env, &seed, 0);
 
 			for(int j = 0; j < seed.num_params; j++)
-				seed.params[j] -= 2*r.perturbances[i][j];
-			r.r_neg[i] = evaluate(&env, &seed, 0);
+				seed.params[j] -= 2*r.deltas[i]->p[j];
+			r.deltas[i]->r_neg = evaluate(&env, &seed, 0);
 		
 			for(int j = 0; j < seed.num_params; j++)
-				seed.params[j] += 1*r.perturbances[i][j];
-			
+				seed.params[j] += 1*r.deltas[i]->p[j];
 		}
-		for(int i = 0; i < r.directions; i++){
-			float weight = -(r.step_size / r.directions) * (r.r_pos[i] - r.r_neg[i]);
-			for(int j = 0; j < seed.num_params; j++)
-				update[j] += weight * r.perturbances[i][j];
-			
-		}
-		//PRINTLIST(update, seed.num_params);
-		printf("reward: %f, samples %lu\n", evaluate(&env, &seed,1), samples);
-		o.step(o);
-		PRINTLIST(seed.params, seed.num_params);
+		printf("reward: %f, samples %'lu\n", evaluate(&env, &seed, 0), samples);
 		rs_step(r);
+		//PRINTLIST(update, seed.num_params);
+		//PRINTLIST(seed.params, seed.num_params);
+
+		save_mlp(&seed, "./model/search.mlp");
 	}
 	return 0;
 }
