@@ -43,7 +43,7 @@
 #endif
 
 #ifndef NOISE_STD
-#define NOISE_STD 0.05f
+#define NOISE_STD 0.5f
 #endif
 
 #ifndef MUTATION_RATE
@@ -75,7 +75,7 @@
 #endif
 
 #ifndef ROLLOUTS_PER_MEMBER
-#define ROLLOUTS_PER_MEMBER 2
+#define ROLLOUTS_PER_MEMBER 3
 #endif
 
 #ifndef CROSSOVER
@@ -139,10 +139,7 @@
   #define sensitivity(n) sensitivity_gradient(n->cost_gradient, n->output, n->layers[n->depth-1].logistic, n->output_dimension)
 #endif
 
-#define LOGFILE_ ./log/POOL_SIZE.ENV_NAME.hs.HIDDEN_LAYER_SIZE.std.NOISE_STD.mr.MUTATION_RATE.network_type.MUTATION_TYPE.crossover.CROSSOVER.seed.RANDOM_SEED.log
 
-Environment ENVS[NUM_THREADS];
-NETWORK_TYPE POLICIES[NUM_THREADS];
 size_t samples = 0;
 
 float evaluate(Environment *env, NETWORK_TYPE *n, int render){
@@ -187,10 +184,49 @@ double get_time(){
 #endif
 }
 
+NETWORK_TYPE load_policy(char *modelfile){
+  printf("loading '%s'\n", modelfile);
+  FILE *fp = fopen(modelfile, "rb");
+  if(!fp){ printf("Could not open modelfile '%s' - does it exist?\n", modelfile); exit(1);}
+  fclose(fp);
+
+  return load(network_type)(modelfile);
+}
+
+NETWORK_TYPE new_policy(char *modelfile, size_t obs_space, size_t act_space){
+  printf("creating '%s'\n", modelfile);
+  size_t layersizes[LAYERS];
+  layersizes[0] = obs_space;
+  for(int i = 1; i < LAYERS-1; i++)
+    layersizes[i] = HIDDEN_LAYER_SIZE;
+  layersizes[LAYERS-1] = act_space;
+
+  return from_arr(network_type)(layersizes, LAYERS);
+}
+
+char *create_logfile_name(size_t hidden_size, size_t random_seed){
+  char *ret = malloc(1000*sizeof(char));
+  snprintf(ret + strlen(ret), 50, "%s", "./log/");
+  snprintf(ret + strlen(ret), 50, "%d.", POOL_SIZE);
+  snprintf(ret + strlen(ret), 50, "%s.", MACROVAL(network_type));
+  snprintf(ret + strlen(ret), 50, "%s.", MACROVAL(ENV_NAME));
+  snprintf(ret + strlen(ret), 50, "hs.%lu.", hidden_size);
+  snprintf(ret + strlen(ret), 50, "std.%f.", NOISE_STD);
+  snprintf(ret + strlen(ret), 50, "mr.%3.2f.", MUTATION_RATE);
+  snprintf(ret + strlen(ret), 50, "co.%d.", CROSSOVER);
+  snprintf(ret + strlen(ret), 50, "seed.%lu.", random_seed);
+  if(NUM_THREADS > 1)
+    snprintf(ret + strlen(ret), 50, "nd");
+  return ret;
+
+}
+
+Environment ENVS[NUM_THREADS];
+NETWORK_TYPE POLICIES[NUM_THREADS];
+
 int main(int argc, char** argv){
   if(argc < 4){ printf("%d args needed. Usage: [new/load] [path_to_modelfile] [train/eval]\n", 3); exit(1);}
   setlocale(LC_ALL,"");
-
 
   char *modelfile = argv[2];
 
@@ -203,7 +239,6 @@ int main(int argc, char** argv){
   printf("genetic algorithms for reinforcement learning.\n");
 
   setbuf(stdout, NULL);
-  FILE *log = fopen(MACROVAL(LOGFILE_), "wb");
 
 	for(int i = 0; i < NUM_THREADS; i++){
 		ENVS[i] = create_env(ENV_NAME)();
@@ -214,52 +249,57 @@ int main(int argc, char** argv){
 	printf("OpenMP detected! Using multithreading (%d threads)\n", NUM_THREADS);
 	omp_set_num_threads(NUM_THREADS);
 #endif
+
+  /* Load a policy from a file or create a new policy */
   NETWORK_TYPE seed;
-  if(!strcmp(argv[1], "load")){
-    printf("loading '%s'\n", modelfile);
-    FILE *fp = fopen(modelfile, "rb");
-    if(!fp){ printf("Could not open modelfile '%s' - does it exist?\n", modelfile); exit(1);}
-    fclose(fp);
+  if(!strcmp(argv[1], "load"))
+    seed = load_policy(modelfile);
 
-    seed = load(network_type)(modelfile);
-    if(seed.input_dimension != ENVS[0].observation_space || seed.output_dimension != ENVS[0].action_space){
-      printf("ERROR: Policy is not compatible with environment - mismatched observation/action space shapes.\n");
-      exit(1);
-    }
-	}else if(!strcmp(argv[1], "new")){
-    printf("creating '%s'\n", modelfile);
+	else if(!strcmp(argv[1], "new"))
+    seed = new_policy(modelfile, ENVS[0].observation_space, ENVS[0].action_space);
+	
+  else{ printf("Invalid arg: '%s'\n", argv[1]); exit(1); }
 
-    size_t layersizes[LAYERS];
-    layersizes[0] = ENVS[0].observation_space;
-    for(int i = 1; i < LAYERS-1; i++)
-      layersizes[i] = HIDDEN_LAYER_SIZE;
-    layersizes[LAYERS-1] = ENVS[0].action_space;
-
-    seed = from_arr(network_type)(layersizes, LAYERS);
-	}else{
-    printf("Invalid arg: '%s'\n", argv[1]);
+  /* Make sure that the policy is compatible with the environment */
+  if(seed.input_dimension != ENVS[0].observation_space || seed.output_dimension != ENVS[0].action_space){
+    printf("ERROR: Policy '%s' is not compatible with environment '%s'.\n", modelfile, MACROVAL(ENV_NAME));
     exit(1);
   }
+  size_t rand_seed = RANDOM_SEED;
+
   printf("network has %lu params.\n", seed.num_params);
 
+  /* Probably want full dynamic range (-1, 1), set it just in case */
 #if defined(USE_LSTM) || defined(USE_RNN)
   seed.output_layer.logistic = hypertan;
 #else
   seed.layers[seed.depth-1].logistic = hypertan;
 #endif
+
+  /* Copy policies so can use a fresh one in every thread */
   for(int i = 0; i < NUM_THREADS; i++){
     POLICIES[i] = *copy(network_type)(&seed);
-    free(POLICIES[i].params);
-    free(POLICIES[i].param_grad);
+
+    free(POLICIES[i].params);     /* We don't need each policy to have a parameter vector - that's inserted by the algo */
+    free(POLICIES[i].param_grad); /* Likewise don't need a parameter gradient, also inserted by algo */
     POLICIES[i].params = NULL;
     POLICIES[i].param_grad = NULL;
   }
 
-  evaluate(&ENVS[0], &seed, 0);
+  //evaluate(&ENVS[0], &seed, 0);
+  /* If we're evaluating a policy */
   if(!strcmp(argv[3], "eval"))
     while(1)
 			printf("Return over %d rollouts: %f\n", ROLLOUTS_PER_MEMBER, evaluate(&ENVS[0], &seed, 1));
+
+  /* If we're training a policy */
 	else if(!strcmp(argv[3], "train")){
+
+    /* Create a logfile */
+    char *logfile = create_logfile_name(seed.layers[0].size, rand_seed);
+    printf("logging to '%s'\n", logfile);
+    FILE *log = fopen(logfile, "wb");
+    if(!log) { printf("unable to open '%s' for write - aborting\n", logfile); exit(1); }
 		
     /* Create a pool object from the seed neural network */
 		Pool p = create_pool(NULL, seed.num_params, POOL_SIZE);
@@ -275,7 +315,6 @@ int main(int argc, char** argv){
 
 		int print_every = 10;
 
-		printf("logging to '%s'\n", MACROVAL(LOGFILE_));
 		fprintf(log, "%s %s %s %s\n", "gen", "samples", "fitness", "avgfitness");
 		int gen = 0;
 		while(samples < TIMESTEPS){
@@ -301,8 +340,6 @@ int main(int argc, char** argv){
 				#ifdef _OPENMP
 				t_num = omp_get_thread_num();
 				#endif
-
-				//NETWORK_TYPE *n = pool[i]->network;
 
         NETWORK_TYPE *n  = &POLICIES[t_num];
         Environment *env = &ENVS[t_num];
