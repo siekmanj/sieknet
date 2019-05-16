@@ -169,7 +169,7 @@ Features include:
  - stochastic gradient descent with momentum
  - neuroevolution
    - safe mutations w/ gradients (UberAI)
-   - momentum (rediscovered but originally described [here](https://www.researchgate.net/publication/220935617_Accelerating_Real-Valued_Genetic_Algorithms_Using_Mutation-with-Momentum)
+   - momentum (originally described [here](https://www.researchgate.net/publication/220935617_Accelerating_Real-Valued_Genetic_Algorithms_Using_Mutation-with-Momentum))
  - backpropagation through time (BPTT)
  - GPU support (via OpenCL)
  - platform agnosticism
