@@ -301,8 +301,8 @@ int main(int argc, char** argv){
     FILE *log = fopen(logfile, "wb");
     if(!log) { printf("unable to open '%s' for write - aborting\n", logfile); exit(1); }
 		
-    /* Create a pool object from the seed neural network */
-		Pool p = create_pool(NULL, seed.num_params, POOL_SIZE);
+    /* Create a GA pool object from the seed neural network */
+		GA p = create_ga(NULL, seed.num_params, POOL_SIZE);
 
     p.crossover = CROSSOVER;
 		p.noise_std = NOISE_STD;
@@ -324,7 +324,7 @@ int main(int argc, char** argv){
 				printf("\n");
 			}
 			Member **pool = p.members;
-			const size_t pool_size = p.pool_size;
+			const size_t pool_size = p.size;
 			float gen_avg_fitness = 0;
 
       #ifndef VISDOM_OUTPUT
@@ -350,7 +350,7 @@ int main(int argc, char** argv){
 				pool[i]->performance = evaluate(env, n, 0);
 				gen_avg_fitness += pool[i]->performance;
 			}
-			evolve_pool(&p);
+			ga_evolve(&p);
 
 			float test_return;
       {
@@ -361,7 +361,7 @@ int main(int argc, char** argv){
       }
 
 			peak_fitness += p.members[0]->performance;
-			avg_fitness  += gen_avg_fitness / p.pool_size;
+			avg_fitness  += gen_avg_fitness / p.size;
 
 
 #ifndef VISDOM_OUTPUT
@@ -372,9 +372,9 @@ int main(int argc, char** argv){
       int min_left = ((int)(time_left - (hrs_left * 60 * 60))) / 60;
 			printf("gen %3d | test %6.2f | %2d gen avg peak %6.2f | avg %6.2f | %4.3fs per 1k env steps | est. %3dh %2dm left | %'9lu env steps      \r", gen+1, test_return, (gen % print_every)+1, peak_fitness / (((gen) % print_every)+1), avg_fitness / (((gen) % print_every)+1), 1000*samples_per_sec, hrs_left, min_left, samples);
 #else
-			printf("%s %3d %6lu %6.4f %6.4f %6.4f\n", MACROVAL(LOGFILE_), gen, samples, p.members[0]->performance, gen_avg_fitness / p.pool_size, test_return);
+			printf("%s %3d %6lu %6.4f %6.4f %6.4f\n", MACROVAL(LOGFILE_), gen, samples, p.members[0]->performance, gen_avg_fitness / p.size, test_return);
 #endif
-			fprintf(log, "%d %lu %f %f\n", gen, samples, p.members[0]->performance, gen_avg_fitness / p.pool_size);
+			fprintf(log, "%d %lu %f %f\n", gen, samples, p.members[0]->performance, gen_avg_fitness / p.size);
 			fflush(log);
 			fflush(stdout);
 			gen++;

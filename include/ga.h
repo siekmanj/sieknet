@@ -16,7 +16,7 @@ typedef struct member_{
   size_t num_params;
 } Member;
 
-typedef struct pool_{
+typedef struct ga_{
   Network_type network_type;
   Mutation_type mutation_type;
 
@@ -27,17 +27,13 @@ typedef struct pool_{
 	Member **members;
 
   int crossover;
-  size_t pool_size;
-} Pool;
+  size_t size;
+} GA;
 
-Pool create_pool(float *, size_t, size_t);
+GA create_ga(float *, size_t, size_t);
 
-void evolve_pool(Pool *p);
+void ga_evolve(GA *);
 
 void sensitivity_gradient(float *, const float *, Nonlinearity, size_t);
-
-void sort_pool(Pool *p);
-void cull_pool(Pool *p);
-void breed_pool(Pool *p);
 
 #endif

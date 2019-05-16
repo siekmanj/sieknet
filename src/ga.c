@@ -131,18 +131,18 @@ void sensitivity_gradient(float *gradient, const float *output, Nonlinearity non
 
 
 
-Pool create_pool(float *seed, size_t num_params, size_t pool_size){
-	Pool p;
+GA create_ga(float *seed, size_t num_params, size_t size){
+	GA p;
 
 	p.mutation_type = BASELINE;
-	p.pool_size = pool_size;
+	p.size = size;
 
 	p.mutation_rate = 0.01;
 	p.noise_std = 0.01;
 	p.elite_percentile = 0.95;
   p.crossover = 1;
-	p.members = ALLOC(Member*, pool_size);
-  for(int i = 0; i < pool_size; i++){
+	p.members = ALLOC(Member*, size);
+  for(int i = 0; i < size; i++){
     p.members[i] = ALLOC(Member, 1);
     p.members[i]->num_params = num_params;
     p.members[i]->params     = ALLOC(float, num_params);
@@ -167,13 +167,13 @@ int member_comparator(const void *a, const void *b){
   return 0;
 }
 
-void sort_pool(Pool *p){
-	qsort(p->members, p->pool_size, sizeof(Member*), member_comparator);
+void ga_sort(GA *p){
+	qsort(p->members, p->size, sizeof(Member*), member_comparator);
 	return;
 }
 
-void breed_pool(Pool *p){
-	size_t size = p->pool_size;
+void ga_breed(GA *p){
+	size_t size = p->size;
   for(int i = size - (int)((p->elite_percentile)*size); i < size; i++){
     int parent1_idx = rand() % (size - (int)((p->elite_percentile)*size));
     int parent2_idx = rand() % (size - (int)((p->elite_percentile)*size));
@@ -208,8 +208,8 @@ void breed_pool(Pool *p){
   }
 }
 
-void evolve_pool(Pool *p){
-  sort_pool(p);
-  breed_pool(p);
+void ga_evolve(GA *p){
+  ga_sort(p);
+  ga_breed(p);
 }
 
