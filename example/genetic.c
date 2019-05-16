@@ -206,7 +206,7 @@ NETWORK_TYPE new_policy(char *modelfile, size_t obs_space, size_t act_space){
 
 char *create_logfile_name(size_t hidden_size, size_t random_seed){
   char *ret = malloc(1000*sizeof(char));
-  snprintf(ret + strlen(ret), 50, "%s", "./log/");
+  snprintf(ret, 50, "%s", "./log/");
   snprintf(ret + strlen(ret), 50, "%d.", POOL_SIZE);
   snprintf(ret + strlen(ret), 50, "%s.", MACROVAL(network_type));
   snprintf(ret + strlen(ret), 50, "%s.", MACROVAL(ENV_NAME));
