@@ -133,11 +133,11 @@ static float step(Environment env, float *action){
   for(int i = 0; i < FRAMESKIP; i++)
     mj_step(m, d);
 
-  for(int i = 0; i < m->nq; i++)
-    env.state[i] = d->qpos[i];
+  for(int i = 1; i < m->nq; i++)
+    env.state[i-1] = d->qpos[i];
 
   for(int i = 0; i < m->nv; i++)
-    env.state[i+m->nq] = d->qvel[i];
+    env.state[i + m->nq - 1] = d->qvel[i];
 
   /* REWARD CALCULATION: Similar to OpenAI's */
   
@@ -180,7 +180,7 @@ Environment create_walker2d_env(){
   d->data = mj_makeData(d->model);
   d->render_setup = 0;
 
-  env.observation_space = d->model->nq + d->model->nv;
+  env.observation_space = d->model->nq + d->model->nv - 1;
   env.action_space = d->model->nu;
 
   env.data = d;
