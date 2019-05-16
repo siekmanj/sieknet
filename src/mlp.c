@@ -15,6 +15,17 @@
 
 #define ARR_FROM_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue0(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_SIEKNET_USE_GPU)");
 
+float uniform(float lowerbound, float upperbound){
+	return lowerbound + (upperbound - lowerbound) * ((float)rand()/RAND_MAX);
+}
+
+float normal(float mean, float std){
+	float u1 = uniform(0, 1);
+	float u2 = uniform(0, 1);
+	float norm = sqrt(-2 * log(u1)) * cos(2 * M_PI * u2);
+	return mean + norm * std;
+}
+
 #ifdef SIEKNET_USE_GPU
 static cl_kernel mlp_forward_kernel;
 static cl_kernel mlp_input_gradient_kernel, mlp_parameter_gradient_kernel;
@@ -71,6 +82,7 @@ float **alloc_2d_array(size_t num, size_t depth){
     ret[i] = ALLOC(float, depth);
   return ret;
 }
+
 
 /*
  * Handy function for zeroing out a 2d array

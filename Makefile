@@ -27,6 +27,7 @@ MNIST_SRC=$(SRC_DIR)/mnist.c
 OPTIM_SRC=$(SRC_DIR)/optimizer.c
 CL_SRC=$(SRC_DIR)/opencl_utils.c
 GA_SRC=$(SRC_DIR)/ga.c
+RS_SRC=$(SRC_DIR)/rs.c
 HOPPER_SRC=$(SRC_DIR)/hopper_env.c
 
 CPU_SRC=$(MLP_SRC) $(OPTIM_SRC)
@@ -65,6 +66,9 @@ sequence_gpu:
 
 genetic:
 	$(CC) $(MUJOCOFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(GA_SRC) $(HOPPER_SRC) example/$@.c $(MJLIBS) -o $(BIN)/$@ $(LIBS)
+
+search:
+	$(CC) $(MUJOCOFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(RS_SRC) $(HOPPER_SRC) example/$@.c $(MJLIBS) -o $(BIN)/$@ $(LIBS)
 
 test_lstm:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) example/test_lstm.c -o $(BIN)/$@ $(LIBS)
