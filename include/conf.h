@@ -13,7 +13,7 @@
  * updates. SIEKNET_MAX_GRAD will bound the maximum gradient wrt any parameter to the below
  * value.
  */
-#define SIEKNET_MAX_GRAD 13.0f //the max gradient of any parameter across all network types
+#define SIEKNET_MAX_GRAD 1.0f //the max gradient of any parameter across all network types
 
 /*
  * LSTM's can sometimes suffer from the exploding gradient problem. In my experience,
@@ -31,7 +31,7 @@
  * through time. The seq_len attribute of the network must be strictly less
  * than SIEKNET_MAX_UNROLL_LENGTH.
  */
-#define SIEKNET_MAX_UNROLL_LENGTH    200
+#define SIEKNET_MAX_UNROLL_LENGTH    400
 
 /*
  * Buffers that are not written to are passed in as __constant, significantly 
@@ -72,14 +72,20 @@
  */
 #define SIEKNET_USE_DEVICE   0
 
+/*
+ * The path to your mujoco key file.
+ */
+#define SIEKNET_MJKEYPATH "/home/jonah/.mujoco/mjkey.txt"
 
 /*
  * If enabled, stops execution upon encountering a NaN in network output. Not guaranteed
  * to work on GPU.
+ * Currently not implented.
  */
 //#define SIEKNET_STOP_ON_NAN //stop execution if any nan's are found
 
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
+
 
 /*<<KERNEL END>>*/
 #define throw_err(s) printf("%s\n", s); exit(1);

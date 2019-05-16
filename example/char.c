@@ -7,27 +7,82 @@
 #include <string.h>
 
 #include <lstm.h>
+#include <rnn.h>
 #include <optimizer.h>
-
 
 #define CREATEONEHOT(name, size, index) float name[size]; memset(name, '\0', size*sizeof(float)); name[index] = 1.0;
 
 #define USE_MOMENTUM 
 
+#if !defined(USE_RNN) && !defined(USE_LSTM)
+#define USE_LSTM
+#endif
+
+#ifndef HIDDEN_LAYER_SIZE
+#define HIDDEN_LAYER_SIZE 256
+#endif
+
+#ifndef LAYERS
+#define LAYERS 3
+#endif
+
+#ifndef NUM_EPOCHS
+#define NUM_EPOCHS 3
+#endif
+
+#ifndef SAMPLE_CHARS
+#define SAMPLE_CHARS 1000
+#endif
+
+#ifndef LR
+#define LR 5e-4
+#endif
+
+#ifdef USE_RNN
+#define network_type rnn
+#define NETWORK_TYPE RNN
+#endif
+
+#ifdef USE_LSTM
+#define network_type lstm
+#define NETWORK_TYPE LSTM
+#endif
+
+#define forward_(arch) arch ## _forward
+#define forward(arch) forward_(arch)
+
+#define cost_(arch) arch ## _cost
+#define cost(arch) cost_(arch)
+
+#define backward_(arch) arch ## _backward
+#define backward(arch) backward_(arch)
+
+#define wipe_(arch) arch ## _wipe
+#define wipe(arch) wipe_(arch)
+
+#define create_(arch) create_ ## arch
+#define create(arch) create_(arch)
+
+#define from_arr_(arch) arch ## _from_arr
+#define from_arr(arch) from_arr_(arch)
+
+#define save_(arch) save_ ## arch
+#define save(arch) save_(arch)
+
+#define load_(arch) load_ ## arch
+#define load(arch) load_(arch)
+
 typedef uint8_t bool;
 
-size_t HIDDEN_LAYER_SIZE = 512;
-size_t NUM_EPOCHS				 = 10;
 size_t SEQ_LEN					 = 150;
 size_t ASCII_RANGE			 = 96; //96 useful characters in ascii: A-Z, a-z, 0-9, !@#$%...etc
 size_t SAMPLE_EVERY			 = 100;
-size_t SAMPLE_CHARS			 = 1000;
 
-float LEARNING_RATE			 = 0.0001;
+float LEARNING_RATE			 = LR;
 float MOMENTUM					 = 0.99;
 
 /*
- * This file is for training an LSTM character-by-character on any text (ascii) file provided.
+ * This file is for training an rnn character-by-character on any text (ascii) file provided.
  */
 
 static inline char int2char(int i){
@@ -72,23 +127,20 @@ struct timespec diff(struct timespec start, struct timespec end){
   return temp;
 }
 
-void sample(LSTM *n, size_t chars, char seed){
-  lstm_wipe(n);
+void sample(NETWORK_TYPE *n, size_t chars, char seed){
+  wipe(network_type)(n);
   int input = char2int(seed);
   for(int i = 0; i < chars; i++){
     CREATEONEHOT(tmp, ASCII_RANGE, input);
-    lstm_forward(n, tmp);
+    forward(network_type)(n, tmp);
     printf("%c", int2char(n->guess));
     input = n->guess;
   }
   printf("\n");
 }
 
-void train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float learning_rate){
+void train(NETWORK_TYPE *n, char *modelfile, char *datafile, size_t num_epochs, float learning_rate){
   /* Begin training */
-
-  //SGD o = create_optimizer(SGD, *n);
-  //o.learning_rate = learning_rate;
   Momentum o = create_optimizer(Momentum, *n);
   o.alpha = learning_rate;
   o.beta = MOMENTUM;
@@ -118,7 +170,6 @@ void train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float le
     n->seq_len	= SEQ_LEN;
     n->stateful = 1;
     o.alpha = learning_schedule[i];
-    //o.learning_rate = learning_schedule[i];
 
     FILE *fp = fopen(datafile, "rb");
     fseek(fp, 0, SEEK_SET);
@@ -133,7 +184,7 @@ void train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float le
     float seq_time = 0;
     float avg_seq_time = 0;
 
-    lstm_wipe(n);
+    wipe(network_type)(n);
 
     char *seq = get_sequence(fp, &n->seq_len);
     char input_char = '\n';
@@ -146,8 +197,7 @@ void train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float le
         float time_left = (1-completion) * (datafilelen / n->seq_len) * ((avg_seq_time / ((sequence_counter % training_iterations))));
         int hrs_left = (int)(time_left / (60*60));
         int min_left = ((int)(time_left - (hrs_left * 60 * 60))) / 60;
-        printf("seqlen %3lu | (%3lu)/(%3lu) | (%5.4f s, appr. %2dh %2dmin left) | epoch %2d %4.2f%% | last %3lu seqs: %4.3f | epoch cost: %5.4f | previous epoch: %5.4f | lr: %7.6f\r",
-            n->seq_len, 
+        printf("%3lu/%3lu | (%5.4f s, appr. %2dh %2dmin left) | epoch %2d %4.2f%% of %2ld| last %3lu seqs: %4.3f | epoch cost: %5.4f | previous epoch: %5.4f | lr: %7.6f\r",
             sequence_counter % training_iterations, 
             training_iterations,
             seq_time,
@@ -155,11 +205,11 @@ void train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float le
             min_left,
             i,
             100 * completion, 
+            num_epochs,
             sequence_counter % training_iterations, 
             avg_seq_cost / (sequence_counter % training_iterations), 
             avg_cost/sequence_counter, 
             last_epoch_cost,
-            //o.learning_rate
             o.alpha
             );
       }
@@ -170,9 +220,9 @@ void train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float le
         CREATEONEHOT(x, ASCII_RANGE, char2int(input_char));
         CREATEONEHOT(y, ASCII_RANGE, char2int(label));
 
-        lstm_forward(n, x);
-        float c = lstm_cost(n, y);
-        lstm_backward(n);
+        forward(network_type)(n, x);
+        float c = cost(network_type)(n, y);
+        backward(network_type)(n);
 
         if(!n->t){
           o.step(o);
@@ -193,9 +243,9 @@ void train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float le
       avg_seq_time += seq_time;
       if(!(sequence_counter % (training_iterations))){
         printf("\n");
-        lstm_wipe(n);
+        wipe(network_type)(n);
         for(int i = 3; i > 0; i--){
-          printf("Sampling from lstm in %d\r", i);
+          printf("Sampling from model in %d\r", i);
           sleep(1);
         }
         sample(n, SAMPLE_CHARS, '\n');
@@ -203,12 +253,12 @@ void train(LSTM *n, char *modelfile, char *datafile, size_t num_epochs, float le
           printf("\nWARNING: average sequence cost was HIGHER than epoch average - something is probably wrong!\n");
         }else{
           printf("\nautosaving '%s'\n", modelfile);
-          save_lstm(n, modelfile);
+          save(network_type)(n, modelfile);
         }
         printf("\n***\nResuming training...\n");
         avg_seq_cost = 0;
         avg_seq_time = 0;
-        lstm_wipe(n);
+        wipe(network_type)(n);
       }
       free(seq);
       seq = get_sequence(fp, &n->seq_len);
@@ -235,28 +285,34 @@ int main(int argc, char** argv){
   //srand(1);
   setbuf(stdout, NULL);
 
-  bool newlstm;
-  if(!strcmp(argv[1], "load")) newlstm = 0;
-  else if(!strcmp(argv[1], "new")) newlstm = 1;
+  size_t layersizes[LAYERS];
+  layersizes[0] = ASCII_RANGE;
+  for(int i = 1; i < LAYERS-1; i++)
+    layersizes[i] = HIDDEN_LAYER_SIZE;
+  layersizes[LAYERS-1] = ASCII_RANGE;
+
+  bool newmodel;
+  if(!strcmp(argv[1], "load")) newmodel = 0;
+  else if(!strcmp(argv[1], "new")) newmodel = 1;
   else bad_args(argv[1], 0);
 
   char *modelfile = argv[2];
   char *datafile = argv[3];
   FILE *fp;
 
-  LSTM n;
-  if(newlstm){
-    n = create_lstm(ASCII_RANGE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, HIDDEN_LAYER_SIZE, ASCII_RANGE);
+  NETWORK_TYPE n;
+  if(newmodel){
+    n = from_arr(network_type)(layersizes, LAYERS);
     printf("creating '%s'\n", modelfile);
   }else{
     printf("loading '%s'\n", modelfile);
     fp = fopen(modelfile, "rb");
     if(!fp){ printf("Could not open modelfile '%s' - does it exist?\n", modelfile); exit(1);}
-    n = load_lstm(modelfile);
+    n = load(network_type)(modelfile);
     fclose(fp);
   }
   printf("network has %lu params.\n", n.num_params);
-  save_lstm(&n, modelfile);
+  save(network_type)(&n, modelfile);
 
   if(!strcmp(datafile, "sample")){
     printf("Sampling from model '%s' below:\n", modelfile);
@@ -269,6 +325,6 @@ int main(int argc, char** argv){
   fclose(fp);
 
   train(&n, modelfile, datafile, NUM_EPOCHS, LEARNING_RATE);
-  printf("training finished! LSTM saved to '%s'\n", modelfile);
+  printf("\ntraining finished! Saved to '%s'\n", modelfile);
 
 }

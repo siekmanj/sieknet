@@ -92,6 +92,7 @@ typedef struct lstm{
   cl_mem output_label;
 #endif
   float *output;
+  float performance;
 
   int stateful;
   int guess;
@@ -111,10 +112,12 @@ typedef struct lstm{
 
 LSTM lstm_from_arr(size_t *, size_t);
 LSTM load_lstm(const char *);
+LSTM *copy_lstm(LSTM *n);
 void save_lstm(LSTM *n, const char *);
 
 void lstm_forward(LSTM *, float *);
 void lstm_backward(LSTM *);
+void lstm_abs_backward(LSTM *);
 float lstm_cost(LSTM *, float *);
 
 void lstm_wipe(LSTM *);
@@ -271,27 +274,65 @@ static void agnostic_lstm_parameter_gradient_kernel(__mem_ro float *input_nonl_g
     const int input_dimension,
     const int layer_param_offset,
     const int skipdist,
+    const int abs_grad,
     const int i){
+
   const int recurrent_offset = input_dimension - size;
   const int params_per_gate = input_dimension+1; 
   const int w_idx = layer_param_offset + (skipdist * i); //cell param offset
+
   for(int j = 0; j < input_dimension; j++){
     const int aw_idx = w_idx + 0 * params_per_gate + 1 + j;
     const int iw_idx = w_idx + 1 * params_per_gate + 1 + j;
     const int fw_idx = w_idx + 2 * params_per_gate + 1 + j;
     const int ow_idx = w_idx + 3 * params_per_gate + 1 + j;
 
+    float input_nonl_update  = 0;
+    float input_gate_update  = 0;
+    float forget_gate_update = 0;
+    float output_gate_update = 0;
+
     if(j < recurrent_offset){
-      param_grad[aw_idx] += input_nonl_grad[i]  * input[j];
-      param_grad[iw_idx] += input_gate_grad[i]  * input[j];
-      param_grad[fw_idx] += forget_gate_grad[i] * input[j];
-      param_grad[ow_idx] += output_gate_grad[i] * input[j];
+      input_nonl_update  = input_nonl_grad[i]  * input[j];
+      input_gate_update  = input_gate_grad[i]  * input[j];
+      forget_gate_update = forget_gate_grad[i] * input[j];
+      output_gate_update = output_gate_grad[i] * input[j];
 
     }else if(use_future_grads){
-      param_grad[aw_idx] += future_input_nonl_grad[i]  * output[j - recurrent_offset];
-      param_grad[iw_idx] += future_input_gate_grad[i]  * output[j - recurrent_offset];
-      param_grad[fw_idx] += future_forget_gate_grad[i] * output[j - recurrent_offset];
-      param_grad[ow_idx] += future_output_gate_grad[i] * output[j - recurrent_offset];
+      input_nonl_update  = future_input_nonl_grad[i]  * output[j - recurrent_offset];
+      input_gate_update  = future_input_gate_grad[i]  * output[j - recurrent_offset];
+      forget_gate_update = future_forget_gate_grad[i] * output[j - recurrent_offset];
+      output_gate_update = future_output_gate_grad[i] * output[j - recurrent_offset];
+    }
+    if(abs_grad){
+
+      if(input_nonl_update < 0)
+        param_grad[aw_idx] -= input_nonl_update;
+      else
+        param_grad[aw_idx] += input_nonl_update;
+
+      if(input_gate_update < 0)
+        param_grad[iw_idx] -= input_gate_update;
+      else
+        param_grad[iw_idx] += input_gate_update;
+
+      if(forget_gate_update < 0)
+        param_grad[fw_idx] -= forget_gate_update;
+      else
+        param_grad[fw_idx] += forget_gate_update;
+      
+      if(output_gate_update < 0)
+        param_grad[ow_idx] -= output_gate_update;
+      else
+        param_grad[ow_idx] += output_gate_update;
+
+    }else{
+
+        param_grad[aw_idx] += input_nonl_update;
+        param_grad[iw_idx] += input_gate_update;
+        param_grad[fw_idx] += forget_gate_update;
+        param_grad[ow_idx] += output_gate_update;
+
     }
 #ifdef SIEKNET_MAX_GRAD
     if(param_grad[aw_idx] >  SIEKNET_MAX_GRAD) param_grad[aw_idx] =  SIEKNET_MAX_GRAD;
@@ -309,10 +350,34 @@ static void agnostic_lstm_parameter_gradient_kernel(__mem_ro float *input_nonl_g
   const int fb_idx = w_idx + 2 * params_per_gate;
   const int ob_idx = w_idx + 3 * params_per_gate;
 
-  param_grad[ab_idx] += input_nonl_grad[i];
-  param_grad[ib_idx] += input_gate_grad[i];
-  param_grad[fb_idx] += forget_gate_grad[i];
-  param_grad[ob_idx] += output_gate_grad[i];
+  if(abs_grad){
+
+    if(input_nonl_grad[i] < 0)
+      param_grad[ab_idx] -= input_nonl_grad[i];
+    else
+      param_grad[ab_idx] += input_nonl_grad[i];
+
+    if(input_gate_grad[i] < 0)
+      param_grad[ib_idx] -= input_gate_grad[i];
+    else
+      param_grad[ib_idx] += input_gate_grad[i];
+
+    if(forget_gate_grad[i] < 0)
+      param_grad[fb_idx] -= forget_gate_grad[i];
+    else
+      param_grad[fb_idx] += forget_gate_grad[i];
+
+    if(output_gate_grad[i] < 0)
+      param_grad[ob_idx] -= output_gate_grad[i];
+    else
+      param_grad[ob_idx] += output_gate_grad[i];
+
+  }else{
+    param_grad[ab_idx] += input_nonl_grad[i];
+    param_grad[ib_idx] += input_gate_grad[i];
+    param_grad[fb_idx] += forget_gate_grad[i];
+    param_grad[ob_idx] += output_gate_grad[i];
+  }
 #ifdef SIEKNET_MAX_GRAD
   if(param_grad[ab_idx] >  SIEKNET_MAX_GRAD) param_grad[ab_idx] =  SIEKNET_MAX_GRAD;
   if(param_grad[ab_idx] < -SIEKNET_MAX_GRAD) param_grad[ab_idx] = -SIEKNET_MAX_GRAD;

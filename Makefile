@@ -9,13 +9,16 @@ BIN=bin
 
 SRC_DIR=src
 DAT_DIR=data
+MJ_DIR=$(HOME)/.mujoco/mujoco200
 
 INCLUDE=-Iinclude
 LIBS=-lm 
 GPULIBS=$(LIBS) -lOpenCL
+MJLIBS=-lmujoco200 -lGL -lglew $(MJ_DIR)/bin/libglfw.so.3
 
 CFLAGS=-O3 -Wall -Wno-unused-function
 GPUFLAGS=$(CFLAGS) -DSIEKNET_USE_GPU
+MUJOCOFLAGS=$(CFLAGS) -I$(MJ_DIR)/include -L$(MJ_DIR)/bin
 
 LSTM_SRC=$(SRC_DIR)/lstm.c
 RNN_SRC=$(SRC_DIR)/rnn.c
@@ -23,6 +26,8 @@ MLP_SRC=$(SRC_DIR)/mlp.c
 MNIST_SRC=$(SRC_DIR)/mnist.c
 OPTIM_SRC=$(SRC_DIR)/optimizer.c
 CL_SRC=$(SRC_DIR)/opencl_utils.c
+GA_SRC=$(SRC_DIR)/ga.c
+HOPPER_SRC=$(SRC_DIR)/hopper_env.c
 
 CPU_SRC=$(MLP_SRC) $(OPTIM_SRC)
 GPU_SRC=$(MLP_SRC) $(OPTIM_SRC) $(CL_SRC)
@@ -34,9 +39,9 @@ libgpu: src/*.c
 	gcc -shared -o $(BIN)/$(GPULIBOUT) -fPIC $(GPUFLAGS) $(GPU_SRC) $(INCLUDE) $(GPULIBS) -Wl,-rpath /home/jonah/sieknet/bin
 
 char:
-	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
+	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(RNN_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
 char_gpu:
-	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) $(CL_SRC) example/char.c -o $(BIN)/$@ $(GPULIBS)
+	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(RNN_SRC) $(MLP_SRC) $(CL_SRC) example/char.c -o $(BIN)/$@ $(GPULIBS)
 
 mlp_mnist:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MNIST_SRC) $(MLP_SRC) $(CL_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
@@ -57,6 +62,9 @@ sequence:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
 sequence_gpu:
 	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(CL_SRC) example/sequence.c -o $(BIN)/$@ $(GPULIBS)
+
+genetic:
+	$(CC) $(MUJOCOFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(GA_SRC) $(HOPPER_SRC) example/$@.c $(MJLIBS) -o $(BIN)/$@ $(LIBS)
 
 test_lstm:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) example/test_lstm.c -o $(BIN)/$@ $(LIBS)

@@ -551,14 +551,6 @@ float cpu_lstm_cost(LSTM *n, float *y){
   MLP_layer *mlp = &n->output_layer;
   float *o = mlp->output;
   float c = cpu_cost(o, y, n->cost_gradient, n->output_dimension, n->cost_fn);
-
-  cpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad);
-  float *grads = mlp->input_gradient;
-
-  /* copy gradient serially from mlp output layer to lstm network gradient. */
-  for(int i = 0; i < mlp->input_dimension; i++)
-    n->recurrent_gradient[n->t][i] = grads[i];
-
   return c;
 }
 #else
@@ -575,18 +567,13 @@ float gpu_lstm_cost(LSTM *n, float *y){
 #endif
 
   float c = gpu_cost(o, n->output_label, n->cost_gradient, n->output_dimension, n->cost_fn);
-
-  gpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad);
-
-  check_error(clEnqueueCopyBuffer(get_opencl_queue0(), mlp->input_gradient, n->recurrent_gradient[n->t], 0, 0, sizeof(float) * mlp->input_dimension, 0, NULL, NULL), "copying mlp grads to lstm network grads");
-
   return c;
 
 }
 #endif
 
 #ifndef SIEKNET_USE_GPU
-void cpu_lstm_layer_backward(LSTM_layer *l, float **grads, float *params, float *param_grad, size_t MAX_TIME){
+void cpu_lstm_layer_backward(LSTM_layer *l, float **grads, float *params, float *param_grad, const int abs_grad, size_t MAX_TIME){
 
   int recurrent_offset = l->input_dimension - l->size;
 
@@ -683,6 +670,7 @@ void cpu_lstm_layer_backward(LSTM_layer *l, float **grads, float *params, float 
                                                 l->input_dimension,
                                                 l->param_offset,
                                                 params_per_cell,
+                                                abs_grad,
                                                 i);
 
       }else{
@@ -711,6 +699,7 @@ void cpu_lstm_layer_backward(LSTM_layer *l, float **grads, float *params, float 
                                                 l->input_dimension,
                                                 l->param_offset,
                                                 params_per_cell,
+                                                abs_grad,
                                                 i);
       }
     }
@@ -730,7 +719,7 @@ void cpu_lstm_layer_backward(LSTM_layer *l, float **grads, float *params, float 
   }
 }
 #else
-static void gpu_lstm_layer_backward(LSTM_layer *l, cl_mem *grad, cl_mem params, cl_mem param_grad, size_t MAX_TIME){
+static void gpu_lstm_layer_backward(LSTM_layer *l, cl_mem *grad, cl_mem params, cl_mem param_grad, const int abs_grad, size_t MAX_TIME){
 
   int recurrent_offset = l->input_dimension - l->size;
 
@@ -844,6 +833,7 @@ static void gpu_lstm_layer_backward(LSTM_layer *l, cl_mem *grad, cl_mem params, 
     check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 13, sizeof(int), &l->input_dimension), "lstm input grad arg 13");
     check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 14, sizeof(int), &l->param_offset), "lstm input grad arg 14");
     check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 15, sizeof(int), &params_per_cell), "lstm input grad arg 15");
+    check_error(clSetKernelArg(lstm_parameter_gradient_kernel, 16, sizeof(int), &abs_grad), "lstm input grad arg 15");
     check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), lstm_parameter_gradient_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't use parameter gradient kernel");
 
   }
@@ -855,11 +845,22 @@ static void gpu_lstm_layer_backward(LSTM_layer *l, cl_mem *grad, cl_mem params, 
  * Performs parameter gradient calculation for all LSTM layers
  */
 #ifndef SIEKNET_USE_GPU
-void cpu_lstm_backward(LSTM *n){
+void cpu_lstm_backward(LSTM *n, int abs_grad){
+	{
+		MLP_layer *mlp = &n->output_layer;
+		cpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad, 0);
+		float *grads = mlp->input_gradient;
+
+		/* copy gradient serially from mlp output layer to lstm network gradient. */
+		for(int i = 0; i < mlp->input_dimension; i++)
+			n->recurrent_gradient[n->t][i] = grads[i];
+
+		n->t++;
+	}
   if(n->t >= n->seq_len){
     float **grads = n->recurrent_gradient;
     for(int i = n->depth-1; i >= 0; i--){
-      cpu_lstm_layer_backward(&n->layers[i], grads, n->params, n->param_grad, n->t-1);
+      cpu_lstm_layer_backward(&n->layers[i], grads, n->params, n->param_grad, abs_grad, n->t-1);
       grads = n->layers[i].input_gradient;
     }
     if(!n->stateful) cpu_lstm_wipe(n);
@@ -867,12 +868,21 @@ void cpu_lstm_backward(LSTM *n){
   }
 }
 #else
-static void gpu_lstm_backward(LSTM *n){
+static void gpu_lstm_backward(LSTM *n, int abs_grad){
+	{
+		MLP_layer *mlp = &n->output_layer;
+		gpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad, 0);
+
+		check_error(clEnqueueCopyBuffer(get_opencl_queue0(), mlp->input_gradient, n->recurrent_gradient[n->t], 0, 0, sizeof(float) * mlp->input_dimension, 0, NULL, NULL), "copying mlp grads to lstm network grads");
+
+		n->t++;
+	}
+
   if(n->t >= n->seq_len){
     cl_mem *grads = n->recurrent_gradient;
     for(int i = n->depth-1; i >= 0; i--){
       LSTM_layer *l = &n->layers[i];
-      gpu_lstm_layer_backward(l, grads, n->params, n->param_grad, n->t-1);
+      gpu_lstm_layer_backward(l, grads, n->params, n->param_grad, abs_grad, n->t-1);
       grads = n->layers[i].input_gradient;
     }
     if(!n->stateful) gpu_lstm_wipe(n);
@@ -920,18 +930,47 @@ float lstm_cost(LSTM *n, float *y){
 #else
   float c = gpu_lstm_cost(n, y);
 #endif
-  n->t++;
   return c;
 }
 
 void lstm_backward(LSTM *n){
 #ifdef SIEKNET_USE_GPU
-  gpu_lstm_backward(n);
+  gpu_lstm_backward(n, 0);
 #else
-  cpu_lstm_backward(n);
+  cpu_lstm_backward(n, 0);
 #endif
 }
 
+void lstm_abs_backward(LSTM *n){
+#ifdef SIEKNET_USE_GPU
+  gpu_lstm_backward(n, 1);
+#else
+  cpu_lstm_backward(n, 1);
+#endif
+}
+
+/*
+ * Make a deep-copy of an LSTM.
+ */
+LSTM *copy_lstm(LSTM *n){
+	size_t arr[n->depth+2];
+	arr[0] = n->input_dimension;
+	for(int i = 0; i < n->depth; i++){
+		arr[i+1] = n->layers[i].size;
+	}
+	arr[n->depth+1] = n->output_layer.size;
+
+	LSTM *ret = ALLOC(LSTM, 1);
+	*ret = lstm_from_arr(arr, n->depth+2);
+
+	ret->output_layer.logistic = n->output_layer.logistic;
+
+	for(int i = 0; i < n->num_params; i++)
+		ret->params[i] = n->params[i];
+  ret->performance = 0;
+
+  return ret;
+}
 
 void dealloc_lstm(LSTM *n){
 #ifndef SIEKNET_USE_GPU

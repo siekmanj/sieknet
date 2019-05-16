@@ -94,7 +94,7 @@ int main(){
     n.seq_len = 3;
     //n.output_layer.logistic = sigmoid;
     int correct = 1;
-    float epsilon = 0.001;
+    float epsilon = 0.0005;
     float threshold = 0.01; //gradients over time seem to be noisy - a high threshold is required
     float norm = 0;
     for(int i = 0; i < n.num_params; i++){
@@ -104,9 +104,8 @@ int main(){
       for(int t = 0; t < n.seq_len; t++){
         lstm_forward(&n, x);
         c += lstm_cost(&n, y);
+				lstm_backward(&n);
       }
-      lstm_backward(&n);
-
 
       float p_grad = n.param_grad[i];
 
@@ -115,8 +114,8 @@ int main(){
       for(int t = 0; t < n.seq_len; t++){
         lstm_forward(&n, x);
         c1 += lstm_cost(&n, y);
+				lstm_backward(&n);
       }
-      lstm_backward(&n);
       memset(n.param_grad, '\0', n.num_params*sizeof(float));
 
       float c2 = 0;
@@ -124,8 +123,8 @@ int main(){
       for(int t = 0; t < n.seq_len; t++){
         lstm_forward(&n, x);
         c2 += lstm_cost(&n, y);
+				lstm_backward(&n);
       }
-      lstm_backward(&n);
       memset(n.param_grad, '\0', n.num_params*sizeof(float));
 
       float diff = (p_grad - ((c1 - c2)/(2*epsilon)))/n.seq_len;
@@ -291,7 +290,8 @@ int main(){
 
     printf("\n");
     lstm_forward(&n, x1);
-    float c1 = lstm_cost(&n, y1) - 3.361277;
+    lstm_cost(&n, y1);
+    lstm_backward(&n);
     //float c0 = lstm_cost(&n, y1) - 3.361277;
     //printf("successuflly got cost %f\n", c0);
 
@@ -376,7 +376,8 @@ int main(){
     }
 
     printf("\n");
-    float c2 = lstm_cost(&n, y2) - 3.155137;
+    lstm_cost(&n, y2);
+    lstm_backward(&n);
 
     tmp = retrieve_array(n.cost_gradient, n.output_dimension);
     if(!assert_equal(tmp, cg_t2, n.output_dimension)){
@@ -428,7 +429,8 @@ int main(){
     }
 
     printf("\n");
-    float c3 = lstm_cost(&n, y3) - 3.286844;
+    lstm_cost(&n, y3);
+    lstm_backward(&n);
 
     tmp = retrieve_array(n.cost_gradient, n.output_dimension);
     if(!assert_equal(tmp, cg_t3, n.output_dimension)){
@@ -453,7 +455,7 @@ int main(){
     float gl2t1[] = {-0.023222, -0.029418, -0.047154, -0.007058, 0.020300, 0.026618, 0.032539, 0.006546, 0.034343, -0.000351, -0.030822, -0.015958, -0.044141};
     float gl2t2[] = {0.008424, 0.037569, 0.071121, 0.020271, -0.028489, -0.010587, -0.027644, -0.023600, -0.017069, -0.004688, 0.040968, 0.033726, 0.025105};
     float gl2t3[] = {0.002151, 0.007519, 0.007009, 0.022567, 0.004215, -0.009594, 0.010958, -0.001007, -0.016882, 0.011718, 0.008547, -0.002823, 0.000037};
-    lstm_backward(&n);
+    //lstm_backward(&n);
 
     tmp = retrieve_array(n.layers[0].input_gradient[0], n.layers[0].input_dimension);
     if(!assert_equal(tmp, gl1t1, n.layers[0].input_dimension)){
