@@ -109,7 +109,7 @@ chmod +x sieknet
 
 From there, compiling is handled by the script. 
 
-### Char-nn
+### char-nn
 
 You can use Sieknet to create your own char-nn (and generate text samples as shown above). You'll need to supply your own text file; I recommend the complete works of William Shakespeare, [available here](http://www.gutenberg.org/files/100/100-0.txt). To train a char-nn, simply type:
 
@@ -131,22 +131,45 @@ Please note that using the GPU might actually be slower than using the CPU due t
 
 You'll notice that we used the `--layers 5` and `--hidden_size 1024` options. Of the five layers, one is a softmax output layer, and one is a 'pretend' input layer; only three of the five are actually recurrent layers. However, each of the recurrent layers is 1024 nodes large. In total, the above network has about 21,475,424 parameters; not especially large by research standards, but it should give your GPU a nice workout. 
 
-### Genetic Algorithms
+### genetic algorithms
 
-You can use sieknet to train a pool of neural networks to come up with control and locomotion strategies in a variety of environments. This section to be completed at a later time.
+You can use sieknet to train a pool of neural networks to come up with control and locomotion strategies in a variety of OpenAI gym-style environments using any of the implemented genetic algorithms. To train an MLP on the Hopper environment,
+```
+./sieknet ga --train --new ./model/hopper.mlp --env hopper --pool_size 1000 --std 1.0 --mutation_rate 0.05 --timesteps 1e6
+```
+I have added multithreading via OpenMP (an optional dependency), so you can experience between a potentially quite large speedup on a multicore machine by using the `--threads [n]` option.
+```
+./sieknet ga --train --new ./model/hopper.mlp --env walker2d --pool_size 1000 --hidden_size 64 --threads 8
+```
+
+Several genetic algorithms are implemented - including UberAI's safe mutations w/ gradients, my own algorithm (momentum), and a variety of hybrids.
+```
+./sieknet ga --train --new ./model/hopper.mlp --env hopper --mutation_type SAFE
+```
+
+You can also just use a vanilla genetic algorithm.
+```
+./sieknet ga --train --new ./model/hopper.mlp --env hopper --mutation_type BASELINE --crossover
+```
+
+Recurrent networks are likewise implemented - to train an lstm, just use the `--lstm` flag. To train an rnn, use the `--rnn` flag.
+```
+./sieknet ga --train --new ./model/hopper.lstm --env hopper --mutation_type BASELINE --crossover --lstm
+```
 
 <a name="features"/>
 
 ## Features
 
 Features include:
- - basic multiplayer perceptron (MLP)
+ - multiplayer perceptron (MLP)
  - vanilla recurrent neural network (RNN)
  - long short-term memory (LSTM)
  - stochastic gradient descent
  - stochastic gradient descent with momentum
  - neuroevolution
-   - safe mutations w/ gradients (OpenAI)
+   - safe mutations w/ gradients (UberAI)
+   - momentum (rediscovered but originally described [here](https://www.researchgate.net/publication/220935617_Accelerating_Real-Valued_Genetic_Algorithms_Using_Mutation-with-Momentum)
  - backpropagation through time (BPTT)
  - GPU support (via OpenCL)
  - platform agnosticism
@@ -166,7 +189,6 @@ Plans for the near future include:
  - [ ] adam stochastic optimizer
  - [ ] gated recurrent unit (GRU)
  - [ ] policy gradients and various RL algorithms
- - [ ] OpenMP support for multithreading
   
 <a name="gpu">
 	
