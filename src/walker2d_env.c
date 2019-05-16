@@ -7,8 +7,8 @@
 #include <mujoco.h>
 #include <glfw3.h>
 
-#define ALIVE_BONUS 1.0f
-#define FRAMESKIP 10
+#define ALIVE_BONUS 0.001f
+#define FRAMESKIP 5
 
 typedef struct data {
   mjModel *model;
@@ -142,7 +142,7 @@ static float step(Environment env, float *action){
   /* REWARD CALCULATION: Similar to OpenAI's */
   
   float reward = (d->qpos[0] - posbefore) / (d->time - simstart);
-  reward += ALIVE_BONUS;
+  reward += ALIVE_BONUS / FRAMESKIP;
 
   float action_sum = 0;
   for(int i = 0; i < env.action_space; i++)
@@ -150,7 +150,7 @@ static float step(Environment env, float *action){
 
   reward -= 0.005 * action_sum;
 
-  if(d->qpos[1] < 0.8 || d->qpos[1] > 2.0 || d->qpos[2] < -2.5 || d->qpos[2] > 2.5){
+  if(d->qpos[1] < 0.8 || d->qpos[1] > 2.0 || d->qpos[2] < -1.0 || d->qpos[2] > 1.0){
     *env.done = 1;
   }
 

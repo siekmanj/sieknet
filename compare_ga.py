@@ -8,17 +8,15 @@ arch = 'rnn'
 viz = visdom.Visdom()
 plots = {}
 
-deterministic = True
-timesteps = 3e6
+deterministic = False
+timesteps = 5e6
 layers = 3
-hidden_sizes = [48]
+hidden_sizes = [32]
 pool_sizes = [200]
 stds	= [1.0]
 mrs		= [0.07]
-types = ['BASELINE', 'SAFE', 'MOMENTUM', 'SAFE_MOMENTUM', 'AGGRESSIVE']
-pool_sizes = [50, 100, 200]
-
-crossovers = [False]
+types = ['BASELINE', 'SAFE', 'MOMENTUM']#, 'SAFE_MOMENTUM', 'AGGRESSIVE']
+crossovers = [False]#, True]
 
 def plot(var_name, split_name, title_name, x, y):
   if title_name not in plots:
@@ -47,19 +45,19 @@ def execute(cmd):
   if return_code:
     raise subprocess.CalledProcessError(return_code, cmd)
 
-
 cmd_base = './sieknet ga --train --new ./model/'
 counter = 0
+trials = 4
 for crossover in crossovers:
 	for std in stds:
 		for mr in mrs:
 			for pool_size in pool_sizes:
 				for hidden_size in hidden_sizes:
-					for trial in range(10):
+					for trial in range(trials):
 						for mutation_type in types:
 							counter += 1
 							print(viz.get_window_data(env))
-							total_experiments = len(stds) * len(mrs) * len(types) * 10 * 2
+							total_experiments = len(stds) * len(mrs) * len(types) * trials * len(crossovers)
 							print("executing experiment ", counter, " of ", total_experiments)
 							cmd_str = cmd_base + \
 												mutation_type + "_" + \
@@ -75,6 +73,7 @@ for crossover in crossovers:
 												" --pool_size " + str(pool_size) + \
 												" --hidden_size " + str(hidden_size) + \
 												" --timesteps " +  str(timesteps) + \
+												" --env " + env + \
 												" --" + arch + \
 												" -v"
 							if not deterministic:
@@ -84,7 +83,6 @@ for crossover in crossovers:
 								cmd_str += " --crossover"
 							for path in execute(cmd_str.split()):
 								tokens = path.split()
-								print(tokens)
 								if len(tokens) > 0 and tokens[0] == 'Finished!':
 									continue
 								if len(tokens) != 0 and tokens[0] != 'WARNING:':
@@ -95,9 +93,9 @@ for crossover in crossovers:
 										avg = float(tokens[4])
 										test = float(tokens[5])
 
-										plotwin = 'Fixed seed ' + str(trial) + ' std ' + str(std) + ' mr ' + str(mr) + ' crossover ' + str(crossover)
+										plotwin = 'Fixed seed {}, std: {:3.2f}, mr {:3.2f}, crossover: {}, pool_size: {:3d}, hidden_size: {:3d} '.format(trial, std, mr, crossover, pool_size, hidden_size)
 
-										plot('fitness', mutation_type, plotwin + ' peak', samples, peak)
+										plot('fitness', mutation_type, plotwin, samples, peak)
 									except ValueError:
 										continue
 
