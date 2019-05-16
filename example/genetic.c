@@ -211,7 +211,7 @@ char *create_logfile_name(size_t hidden_size, size_t random_seed){
   snprintf(ret + strlen(ret), 50, "%s.", MACROVAL(network_type));
   snprintf(ret + strlen(ret), 50, "%s.", MACROVAL(ENV_NAME));
   snprintf(ret + strlen(ret), 50, "hs.%lu.", hidden_size);
-  snprintf(ret + strlen(ret), 50, "std.%f.", NOISE_STD);
+  snprintf(ret + strlen(ret), 50, "std.%3.2f.", NOISE_STD);
   snprintf(ret + strlen(ret), 50, "mr.%3.2f.", MUTATION_RATE);
   snprintf(ret + strlen(ret), 50, "co.%d.", CROSSOVER);
   snprintf(ret + strlen(ret), 50, "seed.%lu.", random_seed);
