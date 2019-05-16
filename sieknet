@@ -174,7 +174,7 @@ ga)
 
   SRCFILES="$SRCFILES src/ga.c src/env.c src/lstm.c src/rnn.c"
 
-  options=$(getopt -l "help,eval,train,load:,new:,std:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:,mutation_type:,elite_percentile:,threads:,crossover,seed:" -o "h,e:,t:,L:,n:,s:,d,v" -a -- "$@")
+  options=$(getopt -l "help,eval,train,load:,new:,std:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:,mutation_type:,elite_percentile:,threads:,crossover,seed:,traj_len:" -o "h,e:,t:,L:,n:,s:,d,v" -a -- "$@")
   eval set -- "$options"
   while true
   do
