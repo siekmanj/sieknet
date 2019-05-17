@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <optimizer.h>
 
-typedef enum search_type_t {BASIC, V1, V1_T, V2, V2_T} Search_type;
+typedef enum search_type_t {BASIC, V1} Search_type;
 
 typedef struct delta_{
 	float *p;

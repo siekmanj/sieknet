@@ -9,8 +9,8 @@
 #include <locale.h>
 
 #define NETWORK_TYPE MLP
-#define ROLLOUTS_PER_MEMBER 5
-#define MAX_TRAJ_LEN 300
+#define ROLLOUTS_PER_MEMBER 1
+#define MAX_TRAJ_LEN 1000
 
 size_t samples = 0;
 
@@ -47,19 +47,23 @@ int main(int argc, char **argv){
   setlocale(LC_ALL,"");
 
 	Environment env = create_hopper_env();
-	MLP seed = create_mlp(env.observation_space, 16, env.action_space);
+	MLP seed = create_mlp(env.observation_space, 8, env.action_space);
 	for(int i = 0; i < seed.depth; i++)
 		seed.layers[i].logistic = linear;
 
 	for(int j = 0; j < seed.num_params; j++)
 		seed.params[j] = 0;
 
-	RS r = create_rs(seed.params, seed.num_params, 100);
-	r.cutoff = 0.9;
+	srand(time(NULL));
+	RS r = create_rs(seed.params, seed.num_params, 300);
+	r.cutoff = 0.0;
+	r.step_size = 0.2;
+	r.std = 0.0075;
 	r.algo = V1;
 	
+	int iter = 0;
 	while(samples < 1e7){
-
+		iter++;
 		for(int i = 0; i < r.directions; i++){
 			for(int j = 0; j < seed.num_params; j++)
 				seed.params[j] += 1*r.deltas[i]->p[j];
@@ -72,7 +76,7 @@ int main(int argc, char **argv){
 			for(int j = 0; j < seed.num_params; j++)
 				seed.params[j] += 1*r.deltas[i]->p[j];
 		}
-		printf("reward: %f, samples %'lu\n", evaluate(&env, &seed, 0), samples);
+		printf("iteration %3d: reward: %8.4f samples %'9lu\n", iter, evaluate(&env, &seed, 0), samples);
 		rs_step(r);
 		//PRINTLIST(update, seed.num_params);
 		//PRINTLIST(seed.params, seed.num_params);

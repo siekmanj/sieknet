@@ -209,7 +209,7 @@ ga)
           shift
           DEFINES="$DEFINES -DENV_NAME=$1"
 					ENV_NAME="$1"
-          SRCFILES="$SRCFILES src/$1_env.c"
+          SRCFILES="$SRCFILES env/$1_env.c"
           ;;
       --mutation_type)
           shift
@@ -292,7 +292,7 @@ ga)
   if [ -z "$ENV_NAME" ]
   then
     ENV_NAME="hopper"
-    SRCFILES="$SRCFILES src/hopper_env.c"
+    SRCFILES="$SRCFILES env/hopper_env.c"
   fi
   if [ -z "$ARCH" ]
   then

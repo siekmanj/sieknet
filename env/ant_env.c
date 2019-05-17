@@ -3,12 +3,12 @@
 #include <string.h>
 
 #include <conf.h>
-#include <hopper_env.h>
+#include <ant_env.h>
 #include <mujoco.h>
 #include <glfw3.h>
 
 #define ALIVE_BONUS 0.0f
-#define FRAMESKIP 10
+#define FRAMESKIP 1
 
 typedef struct data {
   mjModel *model;
@@ -146,16 +146,16 @@ static float step(Environment env, float *action){
   for(int i = 0; i < env.action_space; i++)
     action_sum += action[i]*action[i];
 
-  reward -= 0.001 * action_sum;
+  reward -= 0.005 * action_sum;
 
-  if(d->qpos[1] < 0.7 || d->qpos[2] < -1 || d->qpos[2] > 1){
+  if(d->qpos[2] < 0.2 || d->qpos[2] > 1.0){
     *env.done = 1;
   }
 
   return reward;
 }
 
-Environment create_hopper_env(){
+Environment create_ant_env(){
   Environment env;
   glfwInit();
 
@@ -171,7 +171,7 @@ Environment create_hopper_env(){
 
   Data *d = (Data*)malloc(sizeof(Data));
   char error[1000] = "Couldn't load model file.";
-  d->model = mj_loadXML("./assets/hopper.xml", 0, error, 1000);
+  d->model = mj_loadXML("./assets/ant.xml", 0, error, 1000);
   if(!d->model)
     mju_error_s("Load model error: %s", error);
 
@@ -187,3 +187,4 @@ Environment create_hopper_env(){
   env.done = calloc(1, sizeof(int));
   return env;
 }
+

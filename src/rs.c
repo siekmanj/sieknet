@@ -93,14 +93,14 @@ void rs_step(RS r){
 				}
 				mean[j] /= 2 * b;
 			}
-			for(int i = 0; i < r.directions - (int)((r.cutoff)*r.directions); i++){
-				for(int j = 0; j < r.num_params; j++){
-					float x = r.deltas[i]->r_pos + r.deltas[i]->r_neg;
+			for(int j = 0; j < r.num_params; j++){
+				for(int i = 0; i < r.directions - (int)((r.cutoff)*r.directions); i++){
+					float x = r.deltas[i]->r_pos;
+					std[j] += (x - mean[j]) * (x - mean[j]);
+					x = r.deltas[i]->r_neg;
 					std[j] += (x - mean[j]) * (x - mean[j]);
 				}
-			}
-			for(int j = 0; j < r.num_params; j++){
-				std[j] = sqrt(std[j]/b);
+				std[j] = sqrt(std[j]/(2 * b));
 			}
 
 			for(int j = 0; j < r.num_params; j++){
@@ -108,14 +108,12 @@ void rs_step(RS r){
 					float weight = -1 * r.step_size / (b * std[j]);
  					float direction = r.deltas[i]->r_pos - r.deltas[i]->r_neg;
 					float magnitude = r.deltas[i]->p[j];
+					//printf("update[%d][%d]: %6.3f * %6.3f * %6.3f = %9.8f\n", j, i, weight, direction, magnitude, weight * direction * magnitude);
 					r.update[j] += weight * direction * magnitude;
 				}
 			}
 			r.optim.learning_rate = r.step_size;
 			r.optim.step(r.optim);
-			printf("printing maxes:\n");
-			for(int i = 0; i < r.directions; i++)
-				printf("reward: %f\n", max(r.deltas[i]->r_pos, r.deltas[i]->r_neg));
 
 			free(mean);
 			free(std);
