@@ -55,12 +55,13 @@ int main(int argc, char **argv){
 		seed.params[j] = 0;
 
 	srand(time(NULL));
-	RS r = create_rs(seed.params, seed.num_params, 300);
-	r.cutoff = 0.0;
+	RS r = create_rs(seed.params, seed.num_params, 100);
+	r.cutoff = 0.8;
 	r.step_size = 0.2;
 	r.std = 0.0075;
 	r.algo = V1;
 	
+  size_t episodes = 0;
 	int iter = 0;
 	while(samples < 1e7){
 		iter++;
@@ -75,8 +76,10 @@ int main(int argc, char **argv){
 		
 			for(int j = 0; j < seed.num_params; j++)
 				seed.params[j] += 1*r.deltas[i]->p[j];
+
+      episodes += 2 * ROLLOUTS_PER_MEMBER;
 		}
-		printf("iteration %3d: reward: %8.4f samples %'9lu\n", iter, evaluate(&env, &seed, 0), samples);
+		printf("iteration %3d: reward: %8.4f samples %'9lu episodes %7lu\n", iter, evaluate(&env, &seed, 1), samples, episodes);
 		rs_step(r);
 		//PRINTLIST(update, seed.num_params);
 		//PRINTLIST(seed.params, seed.num_params);
