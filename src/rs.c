@@ -75,8 +75,6 @@ void rs_step(RS r){
 				for(int j = 0; j < r.num_params; j++)
 					r.update[j] += weight * r.deltas[i]->p[j];
 			}
-			r.optim.learning_rate = r.step_size;
-			r.optim.step(r.optim);
 		}
 		break;
 		case V1:
@@ -100,20 +98,21 @@ void rs_step(RS r){
       }
       std = sqrt(std/(2 * b));
 
-      float weight = -1 * r.step_size / (b * std);
+      float weight = -1 / (b * std);
       for(int i = 0; i < b; i++){
         for(int j = 0; j < r.num_params; j++){
- 					float direction = r.deltas[i]->r_pos - r.deltas[i]->r_neg;
-					float magnitude = r.deltas[i]->p[j];
-					r.update[j] += weight * direction * magnitude;
+ 					float reward = (r.deltas[i]->r_pos - r.deltas[i]->r_neg);
+					float d = r.deltas[i]->p[j] / r.std;
+					r.update[j] += weight * reward * d;
 				}
 			}
-			r.optim.learning_rate = r.step_size;
-			r.optim.step(r.optim);
 
 		}
 		break;
 	}
+  float norm = 0;
+  r.optim.learning_rate = r.step_size;
+  r.optim.step(r.optim);
 	for(int i = 0; i < r.directions; i++)
 		for(int j = 0; j < r.num_params; j++)
 			r.deltas[i]->p[j] = normal(0, r.std);

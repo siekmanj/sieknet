@@ -11,7 +11,7 @@ SRC_DIR=src
 DAT_DIR=data
 MJ_DIR=$(HOME)/.mujoco/mujoco200
 
-INCLUDE=-Iinclude
+INCLUDE=-Iinclude -Ienv
 LIBS=-lm 
 GPULIBS=$(LIBS) -lOpenCL
 MJLIBS=-lmujoco200 -lGL -lglew $(MJ_DIR)/bin/libglfw.so.3
@@ -68,7 +68,7 @@ genetic:
 	$(CC) $(MUJOCOFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(GA_SRC) $(HOPPER_SRC) example/$@.c $(MJLIBS) -o $(BIN)/$@ $(LIBS)
 
 search:
-	$(CC) $(MUJOCOFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(RS_SRC) $(HOPPER_SRC) example/$@.c $(MJLIBS) -o $(BIN)/$@ $(LIBS)
+	$(CC) $(MUJOCOFLAGS) $(INCLUDE) $(OPTIM_SRC) $(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(RS_SRC) env/*.c example/$@.c $(MJLIBS) -o $(BIN)/$@ $(LIBS)
 
 test_lstm:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(MLP_SRC) example/test_lstm.c -o $(BIN)/$@ $(LIBS)

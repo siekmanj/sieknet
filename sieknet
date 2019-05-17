@@ -172,7 +172,7 @@ ga)
   MJ_FLAGS="-I$MJ_DIR/include -L$MJ_DIR/bin"
   MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
 
-  SRCFILES="$SRCFILES src/ga.c src/env.c src/lstm.c src/rnn.c"
+  SRCFILES="$SRCFILES src/ga.c src/env.c src/lstm.c src/rnn.c env/mj_env.c"
 
   options=$(getopt -l "help,eval,train,load:,new:,std:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:,mutation_type:,elite_percentile:,threads:,crossover,seed:,traj_len:" -o "h,e:,t:,L:,n:,s:,d,v" -a -- "$@")
   eval set -- "$options"
@@ -300,7 +300,7 @@ ga)
     ARCH="-DUSE_MLP"
   fi
   SRCFILES="$SRCFILES example/genetic.c"
-  compile="gcc $COMMON $MJ_FLAGS $SRCFILES $DEFINES $ARCH $MJ_LIBS $LIBS -o ./bin/genetic"
+  compile="gcc -Ienv $COMMON $MJ_FLAGS $SRCFILES $DEFINES $ARCH $MJ_LIBS $LIBS -o ./bin/genetic"
   $compile
   if [ $? -ne 0 ]
   then
