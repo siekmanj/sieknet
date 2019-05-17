@@ -59,7 +59,7 @@ int main(int argc, char **argv){
 	r.cutoff = 0.0;
 	r.step_size = 0.2;
 	r.std = 0.0075;
-	r.algo = V1;
+	r.algo = BASIC;
 	
 	int iter = 0;
 	while(samples < 1e7){
