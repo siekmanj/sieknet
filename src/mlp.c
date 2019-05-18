@@ -637,6 +637,10 @@ void save_mlp(MLP *n, const char* filename){
 
   //Create file
   FILE *fp = fopen(filename, "w");
+  if(!fp){
+    printf("ERROR: save_mlp(): unable to open file '%s' for writing.\n", filename);
+    exit(1);
+  }
   memset(buff, '\0', strlen(buff));
 
   //Write header info to file

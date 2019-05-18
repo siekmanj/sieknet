@@ -75,51 +75,43 @@ void rs_step(RS r){
 				for(int j = 0; j < r.num_params; j++)
 					r.update[j] += weight * r.deltas[i]->p[j];
 			}
-			r.optim.learning_rate = r.step_size;
-			r.optim.step(r.optim);
 		}
 		break;
 		case V1:
 		{
 			qsort(r.deltas, r.directions, sizeof(Delta*), rs_comparator);
-			float *mean = calloc(r.num_params, sizeof(float));
-			float *std  = calloc(r.num_params, sizeof(float));
+			float mean = 0;
+			float std  = 0;
 
 			int b = r.directions - (int)((r.cutoff)*r.directions);
 
-			for(int j = 0; j < r.num_params; j++){
-				for(int i = 0; i < r.directions - (int)((r.cutoff)*r.directions); i++){
-					mean[j] += r.deltas[i]->r_pos + r.deltas[i]->r_neg;
+      for(int i = 0; i < b; i++){
+        mean += r.deltas[i]->r_pos + r.deltas[i]->r_neg;
+      }
+      mean /= 2 * b;
+
+      for(int i = 0; i < b; i++){
+        float x = r.deltas[i]->r_pos;
+        std += (x - mean) * (x - mean);
+        x = r.deltas[i]->r_neg;
+        std += (x - mean) * (x - mean);
+      }
+      std = sqrt(std/(2 * b));
+
+      float weight = -1 / (b * std);
+      for(int i = 0; i < b; i++){
+        for(int j = 0; j < r.num_params; j++){
+ 					float reward = (r.deltas[i]->r_pos - r.deltas[i]->r_neg);
+					float d = r.deltas[i]->p[j] / r.std;
+					r.update[j] += weight * reward * d;
 				}
-				mean[j] /= 2 * b;
-			}
-			for(int j = 0; j < r.num_params; j++){
-				for(int i = 0; i < r.directions - (int)((r.cutoff)*r.directions); i++){
-					float x = r.deltas[i]->r_pos;
-					std[j] += (x - mean[j]) * (x - mean[j]);
-					x = r.deltas[i]->r_neg;
-					std[j] += (x - mean[j]) * (x - mean[j]);
-				}
-				std[j] = sqrt(std[j]/(2 * b));
 			}
 
-			for(int j = 0; j < r.num_params; j++){
-				for(int i = 0; i < r.directions - (int)((r.cutoff)*r.directions); i++){
-					float weight = -1 * r.step_size / (b * std[j]);
- 					float direction = r.deltas[i]->r_pos - r.deltas[i]->r_neg;
-					float magnitude = r.deltas[i]->p[j];
-					//printf("update[%d][%d]: %6.3f * %6.3f * %6.3f = %9.8f\n", j, i, weight, direction, magnitude, weight * direction * magnitude);
-					r.update[j] += weight * direction * magnitude;
-				}
-			}
-			r.optim.learning_rate = r.step_size;
-			r.optim.step(r.optim);
-
-			free(mean);
-			free(std);
 		}
 		break;
 	}
+  r.optim.learning_rate = r.step_size;
+  r.optim.step(r.optim);
 	for(int i = 0; i < r.directions; i++)
 		for(int j = 0; j < r.num_params; j++)
 			r.deltas[i]->p[j] = normal(0, r.std);
