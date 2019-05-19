@@ -153,14 +153,6 @@ float evaluate(Environment *env, NETWORK_TYPE *n, int render){
   return perf / ROLLOUTS_PER_MEMBER;
 }
 
-double get_time(){
-#ifdef _OPENMP
-  return omp_get_wtime();
-#else
-  return (double)clock() / CLOCKS_PER_SEC;
-#endif
-}
-
 NETWORK_TYPE load_policy(char *modelfile){
   printf("loading '%s'\n", modelfile);
   FILE *fp = fopen(modelfile, "rb");
@@ -179,6 +171,13 @@ NETWORK_TYPE new_policy(char *modelfile, size_t obs_space, size_t act_space){
   layersizes[LAYERS-1] = act_space;
 
   return from_arr(network_type)(layersizes, LAYERS);
+}
+double get_time(){
+#ifdef _OPENMP
+  return omp_get_wtime();
+#else
+  return (double)clock() / CLOCKS_PER_SEC;
+#endif
 }
 
 NETWORK_TYPE POLICIES[NUM_THREADS];
