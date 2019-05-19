@@ -234,6 +234,7 @@ int main(int argc, char **argv){
   else if(!strcmp(argv[3], "train")){
     #ifdef _OPENMP
     printf("OpenMP detected! Using multithreading (%d threads)\n", NUM_THREADS);
+		omp_set_num_threads(NUM_THREADS);
     #endif
 
     srand(time(NULL));
@@ -249,6 +250,7 @@ int main(int argc, char **argv){
       iter++;
       size_t samples_before = samples;
       double start = get_time();
+
       #ifdef _OPENMP
       #pragma omp parallel for default(none) shared(policy, r, ENVS, POLICIES) reduction(+: samples, episodes)
       #endif
@@ -258,6 +260,8 @@ int main(int argc, char **argv){
         #else
         int num_t = 0;
         #endif
+
+				//printf("thread %d: params %p, theta %p, deltas %p\n", num_t, POLICIES[num_t].params, theta, r.deltas[i]->p);
 
         for(int j = 0; j < policy.num_params; j++)
           POLICIES[num_t].params[j] = policy.params[j] + r.deltas[i]->p[j];
