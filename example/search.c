@@ -38,7 +38,7 @@
 #endif
 
 #ifndef DIRECTIONS
-#define DIRECTIONS 60
+#define DIRECTIONS 100
 #endif
 
 #ifndef LAYERS
@@ -46,7 +46,7 @@
 #endif
 
 #ifndef HIDDEN_LAYER_SIZE
-#define HIDDEN_LAYER_SIZE 10
+#define HIDDEN_LAYER_SIZE 32
 #endif
 
 #ifndef STEP_SIZE
@@ -205,32 +205,34 @@ int main(int argc, char **argv){
   NETWORK_TYPE policy;
 
   /* Load a policy from a file or create a new policy */
-  if(!strcmp(argv[1], "load"))
+  if(!strcmp(argv[1], "load")){
     policy = load_policy(modelfile);
-
-  else if(!strcmp(argv[1], "new"))
+  }
+  else if(!strcmp(argv[1], "new")){
     policy = new_policy(modelfile, ENVS[0].observation_space, ENVS[0].action_space);
 
-#ifdef USE_LINEAR
-  for(int i = 0; i < policy.depth; i++)
-    policy.layers[i].logistic = linear;
+    #ifdef USE_LINEAR
+    for(int i = 0; i < policy.depth; i++)
+      policy.layers[i].logistic = linear;
 
-  for(int j = 0; j < policy.num_params; j++)
-    policy.params[j] = 0;
-#endif
-
-  /* Initialize the policy for each thread */
-  for(int i = 0; i < NUM_THREADS; i++){
-    POLICIES[i] = *copy(network_type)(&policy);
+    for(int j = 0; j < policy.num_params; j++)
+      policy.params[j] = 0;
+    #endif
   }
 
   /* If we're evaluating a policy */
   if(!strcmp(argv[3], "eval"))
     while(1)
-      printf("Return over %d rollouts: %f\n", ROLLOUTS_PER_MEMBER, evaluate(&ENVS[0], &policy, 1));
+      printf("Average return over %d rollouts: %f\n", ROLLOUTS_PER_MEMBER, evaluate(&ENVS[0], &policy, 1));
 
   /* If we're training a policy */
   else if(!strcmp(argv[3], "train")){
+
+    /* Initialize the policy for each thread */
+    for(int i = 0; i < NUM_THREADS; i++){
+      POLICIES[i] = *copy(network_type)(&policy);
+    }
+
     #ifdef _OPENMP
     printf("OpenMP detected! Using multithreading (%d threads)\n", NUM_THREADS);
 		omp_set_num_threads(NUM_THREADS);
@@ -243,10 +245,16 @@ int main(int argc, char **argv){
     r.std       = NOISE_STD;
     r.algo      = ALGO;
     
-    size_t episodes = 0;
-    int iter = 0;
+    float avg_return = 0;
+    size_t episodes  = 0;
+    size_t iter      = 0;
+    const size_t print_every = 10;
+
     while(samples < TIMESTEPS){
-      iter++;
+			if(!(iter % print_every)){
+				avg_return = 0;
+				printf("\n");
+			}
       size_t samples_before = samples;
       double start = get_time();
 
@@ -259,8 +267,6 @@ int main(int argc, char **argv){
         #else
         int num_t = 0;
         #endif
-
-				//printf("thread %d: params %p, theta %p, deltas %p\n", num_t, POLICIES[num_t].params, theta, r.deltas[i]->p);
 
         for(int j = 0; j < policy.num_params; j++)
           POLICIES[num_t].params[j] = policy.params[j] + r.deltas[i]->p[j];
@@ -277,13 +283,15 @@ int main(int argc, char **argv){
       float completion = (double)samples / (double)TIMESTEPS;
       float samples_per_sec = (get_time() - start)/(samples - samples_before);
       float time_left = ((1 - completion) * TIMESTEPS) * samples_per_sec;
-      int hrs_left = (int)(time_left / (60*60));
+      int hrs_left = (int)(time_left / (60 * 60));
       int min_left = ((int)(time_left - (hrs_left * 60 * 60))) / 60;
-      printf("iteration %3d | reward: %9.2f | est. time remaining %3dh %2dm | %5.4fs per 1k samples | episodes %7lu | samples %'9lu \r", iter, evaluate(&ENVS[0], &policy, 0), hrs_left, min_left, samples_per_sec * 1000, episodes, samples);
-      if(!(iter%10))
-        printf("\n");
+
+      avg_return += evaluate(&ENVS[0], &policy, 0);
+
+      printf("iteration %3lu | avg return over last %2lu iters: %9.2f | time remaining %3dh %2dm | %5.4fs / 1k samples | episodes %7lu | samples %'9lu \r", iter, (iter % print_every) + 1, avg_return / (((iter) % print_every)+1), hrs_left, min_left, samples_per_sec * 1000, episodes, samples);
 
       save(network_type)(&policy, modelfile);
+      iter++;
     }
   }
   return 0;
