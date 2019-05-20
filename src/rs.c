@@ -17,7 +17,7 @@ static float normal(float mean, float std){
 	return mean + norm * std;
 }
 
-RS create_rs(float (*R)(const float *, size_t, size_t *), float *seed, size_t num_params, size_t n){
+RS create_rs(float (*R)(const float *, size_t), float *seed, size_t num_params, size_t n){
 	RS r;
 	if(!seed){
 		printf("Error: parameter vector cannot be null!\n");
@@ -30,7 +30,6 @@ RS create_rs(float (*R)(const float *, size_t, size_t *), float *seed, size_t nu
 	r.algo = V1;
 	r.cutoff = 0.0;
   r.num_threads = 1;
-  r.samples = 0;
 
   r.f = R;
 
@@ -69,13 +68,15 @@ static int rs_comparator(const void *one, const void *two){
 }
 
 void rs_step(RS r){
-  #if 1
+
+  /* Allocate memory for parameter vector for each thread */
   float **thetas = ALLOC(float*, r.num_threads);
   for(int i = 0; i < r.num_threads; i++)
     thetas[i] = ALLOC(float, r.num_params);
 
   /* Do rollouts */
   #ifdef _OPENMP
+  omp_set_num_threads(r.num_threads);
   #pragma omp parallel for default(none) shared(r, thetas)
   #endif
   for(int i = 0; i < r.directions; i++){
@@ -89,19 +90,19 @@ void rs_step(RS r){
     for(int j = 0; j < r.num_params; j++)
       thetas[thread][j] = r.params[j] + r.deltas[i]->p[j];
 
-    r.deltas[i]->r_pos = r.f(thetas[thread], r.num_params, &r.samples);
+    r.deltas[i]->r_pos = r.f(thetas[thread], r.num_params);
     
     /* Negative delta rollouts */
     for(int j = 0; j < r.num_params; j++)
       thetas[thread][j] = r.params[j] - r.deltas[i]->p[j];
 
-    r.deltas[i]->r_neg = r.f(thetas[thread], r.num_params, &r.samples);
+    r.deltas[i]->r_neg = r.f(thetas[thread], r.num_params);
   }
+  //*(r.samples) += samples;
 
   for(int i = 0; i < r.num_threads; i++)
     free(thetas[i]);
   free(thetas);
-  #endif
 
 	switch(r.algo){
 		case BASIC:
@@ -115,11 +116,15 @@ void rs_step(RS r){
 		break;
 		case V1:
 		{
+      /* Sort all noise vectors by performance */
 			qsort(r.deltas, r.directions, sizeof(Delta*), rs_comparator);
+
+      /* Use only top b noise vectors when calculating update */
+			int b = r.directions - (int)((r.cutoff)*r.directions);
+
+      /* Mean and standard deviation of reward calculation */
 			float mean = 0;
 			float std  = 0;
-
-			int b = r.directions - (int)((r.cutoff)*r.directions);
 
       for(int i = 0; i < b; i++){
         mean += r.deltas[i]->r_pos + r.deltas[i]->r_neg;
@@ -134,6 +139,7 @@ void rs_step(RS r){
       }
       std = sqrt(std/(2 * b));
 
+      /* Sum up all the weighted noise vectors to get update */
       float weight = -1 / (b * std);
       for(int i = 0; i < b; i++){
         for(int j = 0; j < r.num_params; j++){
@@ -146,10 +152,11 @@ void rs_step(RS r){
 		}
 		break;
 	}
+  /* Update the policy's parameters */
   r.optim.learning_rate = r.step_size;
   r.optim.step(r.optim);
 
-  /* Generate deltas */
+  /* Generate deltas for next step */
   #ifdef _OPENMP
   omp_set_num_threads(NUM_THREADS);
   #pragma omp parallel for default(none) shared(r)

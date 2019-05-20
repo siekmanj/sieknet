@@ -21,19 +21,18 @@ typedef struct RS{
 	size_t directions;
 	size_t num_params;
   size_t num_threads;
-  size_t samples;
 
 	float *params;
 	float *update;
 	Delta **deltas;
 
-  float (*f)(const float *, size_t, size_t *);
+  float (*f)(const float *, size_t);
 
 	Search_type algo;
 	SGD optim;
 } RS;
 
-RS create_rs(float (*R)(const float *, size_t, size_t *), float *, size_t, size_t);
+RS create_rs(float (*R)(const float *, size_t), float *, size_t, size_t);
 
 void rs_step(RS);
 
