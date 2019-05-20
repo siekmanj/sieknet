@@ -2,6 +2,10 @@
 #include <rs.h>
 #include <math.h>
 
+#ifdef SIEKNET_USE_OMP
+#include <omp.h>
+#endif
+
 static float uniform(float lowerbound, float upperbound){
 	return lowerbound + (upperbound - lowerbound) * ((float)rand()/RAND_MAX);
 }
@@ -13,7 +17,7 @@ static float normal(float mean, float std){
 	return mean + norm * std;
 }
 
-RS create_rs(float *seed, size_t num_params, size_t n){
+RS create_rs(float (*R)(const float *, size_t, size_t *), float *seed, size_t num_params, size_t n){
 	RS r;
 	if(!seed){
 		printf("Error: parameter vector cannot be null!\n");
@@ -25,16 +29,14 @@ RS create_rs(float *seed, size_t num_params, size_t n){
 	r.num_params = num_params;
 	r.algo = V1;
 	r.cutoff = 0.0;
+  r.num_threads = 1;
+  r.samples = 0;
 
-	if(seed)
-		r.params = seed;
-	else
-		r.params = calloc(num_params, sizeof(float));
+  r.f = R;
 
+  r.params = seed;
 	r.update = calloc(num_params, sizeof(float));
-
-	r.deltas = ALLOC(Delta*, n);
-
+	r.deltas = calloc(n, sizeof(Delta*));
 	r.optim = cpu_init_SGD(r.params, r.update, r.num_params);
 
 	for(int i = 0; i < n; i++){
@@ -67,6 +69,40 @@ static int rs_comparator(const void *one, const void *two){
 }
 
 void rs_step(RS r){
+  #if 1
+  float **thetas = ALLOC(float*, r.num_threads);
+  for(int i = 0; i < r.num_threads; i++)
+    thetas[i] = ALLOC(float, r.num_params);
+
+  /* Do rollouts */
+  #ifdef _OPENMP
+  #pragma omp parallel for default(none) shared(r, thetas)
+  #endif
+  for(int i = 0; i < r.directions; i++){
+    #ifdef _OPENMP
+    size_t thread = omp_get_thread_num();
+    #else
+    size_t thread = 0;
+    #endif
+
+    /* Positive delta rollouts */
+    for(int j = 0; j < r.num_params; j++)
+      thetas[thread][j] = r.params[j] + r.deltas[i]->p[j];
+
+    r.deltas[i]->r_pos = r.f(thetas[thread], r.num_params, &r.samples);
+    
+    /* Negative delta rollouts */
+    for(int j = 0; j < r.num_params; j++)
+      thetas[thread][j] = r.params[j] - r.deltas[i]->p[j];
+
+    r.deltas[i]->r_neg = r.f(thetas[thread], r.num_params, &r.samples);
+  }
+
+  for(int i = 0; i < r.num_threads; i++)
+    free(thetas[i]);
+  free(thetas);
+  #endif
+
 	switch(r.algo){
 		case BASIC:
 		{
@@ -112,6 +148,12 @@ void rs_step(RS r){
 	}
   r.optim.learning_rate = r.step_size;
   r.optim.step(r.optim);
+
+  /* Generate deltas */
+  #ifdef _OPENMP
+  omp_set_num_threads(NUM_THREADS);
+  #pragma omp parallel for default(none) shared(r)
+  #endif
 	for(int i = 0; i < r.directions; i++)
 		for(int j = 0; j < r.num_params; j++)
 			r.deltas[i]->p[j] = normal(0, r.std);

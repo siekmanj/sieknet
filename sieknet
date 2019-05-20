@@ -431,7 +431,7 @@ rs)
           ;;
       --threads)
           shift
-          DEFINES="$DEFINES -DNUM_THREADS=$1"
+          DEFINES="$DEFINES -DNUM_THREADS=$1 -DSIEKNET_USE_OMP"
           COMMON="$COMMON -fopenmp"
           ;;
       -v)

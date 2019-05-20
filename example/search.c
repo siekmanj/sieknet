@@ -129,14 +129,15 @@
 
 size_t samples = 0;
 
-float evaluate(Environment *env, NETWORK_TYPE *n, int render){
+float evaluate(Environment *env, NETWORK_TYPE *n, int render, size_t *timesteps){
   float perf = 0;
   for(int i = 0; i < ROLLOUTS_PER_MEMBER; i++){
     env->reset(*env);
     env->seed(*env);
 
     for(int t = 0; t < MAX_TRAJ_LEN; t++){
-      samples++;
+      if(timesteps)
+        *timesteps++;
       mlp_forward(n, env->state);
       perf += env->step(*env, n->output);
 
@@ -183,6 +184,26 @@ double get_time(){
 NETWORK_TYPE POLICIES[NUM_THREADS];
 Environment ENVS[NUM_THREADS];
 
+/* 
+ * The function pointer passed in to the random search
+ * algorithm. Supports multithreading with OpenMP.
+ */
+float R(const float *theta, size_t len, size_t *timesteps){
+  #ifdef _OPENMP
+  size_t num_t = omp_get_thread_num();
+  #else
+  size_t num_t = 0;
+  #endif
+
+  //PRINTLIST(theta, len);
+  //getchar();
+  Environment *env = &ENVS[num_t];
+  NETWORK_TYPE *policy = &POLICIES[num_t];
+
+  memcpy(policy->params, theta, len * sizeof(float));
+  return evaluate(env, policy, 0, timesteps);
+}
+
 int main(int argc, char **argv){
   if(argc < 4){ printf("%d args needed. Usage: [new/load] [path_to_modelfile] [train/eval]\n", 3); exit(1);}
   setlocale(LC_ALL,"");
@@ -223,7 +244,7 @@ int main(int argc, char **argv){
   /* If we're evaluating a policy */
   if(!strcmp(argv[3], "eval"))
     while(1)
-      printf("Average return over %d rollouts: %f\n", ROLLOUTS_PER_MEMBER, evaluate(&ENVS[0], &policy, 1));
+      printf("Average return over %d rollouts: %f\n", ROLLOUTS_PER_MEMBER, evaluate(&ENVS[0], &policy, 1, NULL));
 
   /* If we're training a policy */
   else if(!strcmp(argv[3], "train")){
@@ -239,11 +260,13 @@ int main(int argc, char **argv){
     #endif
 
     srand(time(NULL));
-    RS r = create_rs(policy.params, policy.num_params, DIRECTIONS);
-    r.cutoff    = TOP_B;
-    r.step_size = STEP_SIZE;
-    r.std       = NOISE_STD;
-    r.algo      = ALGO;
+
+    RS r = create_rs(R, policy.params, policy.num_params, DIRECTIONS);
+    r.cutoff      = TOP_B;
+    r.step_size   = STEP_SIZE;
+    r.std         = NOISE_STD;
+    r.algo        = ALGO;
+    r.num_threads = NUM_THREADS;
     
     float avg_return = 0;
     size_t episodes  = 0;
@@ -255,40 +278,20 @@ int main(int argc, char **argv){
 				avg_return = 0;
 				printf("\n");
 			}
-      size_t samples_before = samples;
+      size_t samples_before = r.samples;
       double start = get_time();
 
-      #ifdef _OPENMP
-      #pragma omp parallel for default(none) shared(policy, r, ENVS, POLICIES) reduction(+: samples, episodes)
-      #endif
-      for(int i = 0; i < r.directions; i++){
-        #ifdef _OPENMP
-        int num_t = omp_get_thread_num();
-        #else
-        int num_t = 0;
-        #endif
-
-        for(int j = 0; j < policy.num_params; j++)
-          POLICIES[num_t].params[j] = policy.params[j] + r.deltas[i]->p[j];
-        r.deltas[i]->r_pos = evaluate(&ENVS[num_t], &POLICIES[num_t], 0);
-
-        for(int j = 0; j < policy.num_params; j++)
-          POLICIES[num_t].params[j] = policy.params[j] - r.deltas[i]->p[j];
-        r.deltas[i]->r_neg = evaluate(&ENVS[num_t], &POLICIES[num_t], 0);
-      
-        episodes += 2 * ROLLOUTS_PER_MEMBER;
-      }
       rs_step(r);
 
-      float completion = (double)samples / (double)TIMESTEPS;
-      float samples_per_sec = (get_time() - start)/(samples - samples_before);
+      avg_return += evaluate(&ENVS[0], &policy, 0, &r.samples);
+
+      float completion = (double)r.samples / (double)TIMESTEPS;
+      float samples_per_sec = (get_time() - start)/(r.samples - samples_before);
       float time_left = ((1 - completion) * TIMESTEPS) * samples_per_sec;
       int hrs_left = (int)(time_left / (60 * 60));
       int min_left = ((int)(time_left - (hrs_left * 60 * 60))) / 60;
 
-      avg_return += evaluate(&ENVS[0], &policy, 0);
-
-      printf("iteration %3lu | avg return over last %2lu iters: %9.2f | time remaining %3dh %2dm | %5.4fs / 1k samples | episodes %7lu | samples %'9lu \r", iter, (iter % print_every) + 1, avg_return / (((iter) % print_every)+1), hrs_left, min_left, samples_per_sec * 1000, episodes, samples);
+      printf("iteration %3lu | avg return over last %2lu iters: %9.2f | time remaining %3dh %2dm | %5.4fs / 1k samples | samples %'9lu \r", iter, (iter % print_every) + 1, avg_return / (((iter) % print_every)+1), hrs_left, min_left, samples_per_sec * 1000, samples);
 
       save(network_type)(&policy, modelfile);
       iter++;
