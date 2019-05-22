@@ -410,7 +410,7 @@ rs)
           DEFINES="$DEFINES -DMAX_TRAJ_LEN=$1"
           ;;
       --linear)
-          ARCH="-DUSE_LINEAR"
+          DEFINES="$DEFINES -DUSE_LINEAR"
           ;;
       --mlp)
           ARCH="-DUSE_MLP"

@@ -18,11 +18,11 @@
 
 #include <rs.h>
 
-#if !defined(USE_MLP) && !defined(USE_RNN) && !defined(USE_LSTM) && !defined(USE_LINEAR)
-#define USE_LINEAR
+#if !defined(USE_MLP) && !defined(USE_RNN) && !defined(USE_LSTM)
+#define USE_MLP
 #endif
 
-#if defined(USE_LINEAR) || defined(USE_MLP)
+#if defined(USE_MLP)
 #define network_type mlp
 #define NETWORK_TYPE MLP
 #endif
@@ -136,7 +136,7 @@ float evaluate(Environment *env, NETWORK_TYPE *n, int render, size_t *timesteps)
     for(int t = 0; t < MAX_TRAJ_LEN; t++){
       if(timesteps)
         *timesteps = *timesteps + 1;
-      mlp_forward(n, env->state);
+      forward(network_type)(n, env->state);
       perf += env->step(*env, n->output);
 
       if(render)
@@ -214,6 +214,9 @@ char *create_logfile_name(size_t hidden_size, size_t random_seed){
   snprintf(ret, 50, "%s", "./log/");
   snprintf(ret + strlen(ret), 50, "%d.", DIRECTIONS);
   snprintf(ret + strlen(ret), 50, "%s.", MACROVAL(network_type));
+#ifdef USE_LINEAR
+  snprintf(ret + strlen(ret), 50, "linear.");
+#endif
   snprintf(ret + strlen(ret), 50, "%s.", MACROVAL(ENV_NAME));
   snprintf(ret + strlen(ret), 50, "hs.%lu.", hidden_size);
   snprintf(ret + strlen(ret), 50, "std.%3.2f.", NOISE_STD);
@@ -222,7 +225,6 @@ char *create_logfile_name(size_t hidden_size, size_t random_seed){
   if(NUM_THREADS > 1)
     snprintf(ret + strlen(ret), 50, "nd");
   return ret;
-
 }
 
 
@@ -258,20 +260,30 @@ int main(int argc, char **argv){
     policy = new_policy(modelfile, ENVS[0].observation_space, ENVS[0].action_space);
 
     #ifdef USE_LINEAR
+
+    #if (defined(USE_MLP) || defined(USE_RNN))
     for(int i = 0; i < policy.depth; i++)
       policy.layers[i].logistic = linear;
+    #endif
+
+    #if (defined(USE_LSTM) || defined(USE_RNN))
+    policy.layers[policy.depth-1].logistic = linear;
+    #endif
 
     for(int j = 0; j < policy.num_params; j++)
       policy.params[j] = 0;
+
+    #else /* !USE_LINEAR */
+    #error "Currently, only linear policies are supported."
     #endif
   }
 
-  printf("network has %'lu params.\n", policy.num_params);
+  printf("%s has %'lu params.\n", MACROVAL(network_type), policy.num_params);
 
   /* If we're evaluating a policy */
   if(!strcmp(argv[3], "eval")){
+    ENVS[0].alive_bonus = default_alive_bonus;
     while(1){
-      ENVS[0].alive_bonus = default_alive_bonus;
       printf("Average return over %d rollouts: %f\n", ROLLOUTS_PER_MEMBER, evaluate(&ENVS[0], &policy, 1, NULL));
     }
   }
@@ -288,7 +300,11 @@ int main(int argc, char **argv){
     printf("OpenMP detected! Using multithreading (%d threads)\n", NUM_THREADS);
     #endif
 
-    srand(time(NULL));
+    size_t seed = RANDOM_SEED;
+    srand(seed);
+
+    char *logfile = create_logfile_name(policy.layers[0].size, seed);
+    printf("Logging to '%s'\n", logfile);
 
     RS r = create_rs(R, policy.params, policy.num_params, DIRECTIONS);
     r.cutoff      = TOP_B;
@@ -298,7 +314,6 @@ int main(int argc, char **argv){
     r.num_threads = NUM_THREADS;
     
     float avg_return = 0;
-    size_t episodes  = 0;
     size_t iter      = 0;
     const size_t print_every = 10;
 
