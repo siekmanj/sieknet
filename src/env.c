@@ -62,6 +62,7 @@ void save_normalizer(Normalizer *n, const char *filename){
   fprintf(fp, "%lu %lu ", n->dimension, n->num_steps);
   for(int i = 0; i < n->dimension; i++)
     fprintf(fp, "%f %f", n->env_mean[i], n->env_std[i]);
+  fclose(fp);
 }
 
 Normalizer *load_normalizer(const char *filename){
@@ -82,6 +83,7 @@ Normalizer *load_normalizer(const char *filename){
       exit(1);
     }
   }
+  fclose(fp);
 
   return n;
 }

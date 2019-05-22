@@ -264,7 +264,7 @@ int main(int argc, char **argv){
   }
 
   NETWORK_TYPE policy;
-  Normalizer *normalizer;
+  Normalizer *normalizer = NULL;
 
   /* Load a policy from a file or create a new policy */
   if(!strcmp(argv[1], "load")){
