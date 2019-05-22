@@ -7,16 +7,16 @@
 #include <time.h>
 
 #include <conf.h>
-#include <lstm.h>
+#include <mlp.h>
 #include <rnn.h>
-#include <ga.h>
+#include <lstm.h>
 #include <env.h>
+#include <rs.h>
 
 #ifdef NUM_THREADS
 #include <omp.h>
 #endif
 
-#include <rs.h>
 
 #if !defined(USE_MLP) && !defined(USE_RNN) && !defined(USE_LSTM)
 #define USE_MLP
