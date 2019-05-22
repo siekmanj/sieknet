@@ -137,13 +137,13 @@ float evaluate(Environment *env, NETWORK_TYPE *n, Normalizer *normalizer, int re
       if(timesteps)
         *timesteps = *timesteps + 1;
       //if(timesteps && *timesteps > 2000){
-      //  printf("before:\n");
-      //  PRINTLIST(env->state, env->observation_space);
+        //printf("before:\n");
+        //PRINTLIST(env->state, env->observation_space);
       //}
       normalize(normalizer, env);
       //if(timesteps && *timesteps > 2000){
-      //  printf("after:\n");
-      //  PRINTLIST(env->state, env->observation_space);
+        //printf("after:\n");
+        //PRINTLIST(env->state, env->observation_space);
       //  getchar();
       //}
       forward(network_type)(n, env->state);
@@ -251,7 +251,10 @@ int main(int argc, char **argv){
   printf("augmented random search for reinforcement learning.\n");
 
   setbuf(stdout, NULL);
-  char *modelfile = argv[2];
+  char *modelfile  = argv[2];
+  char *normalfile = (char*)malloc(sizeof(char) * (strlen(modelfile) + 6));
+  strcpy(normalfile, modelfile);
+  strcat(normalfile, ".norm");
 
   float default_alive_bonus;
   for(int i = 0; i < NUM_THREADS; i++){
@@ -261,10 +264,14 @@ int main(int argc, char **argv){
   }
 
   NETWORK_TYPE policy;
+  Normalizer *normalizer;
 
   /* Load a policy from a file or create a new policy */
   if(!strcmp(argv[1], "load")){
     policy = load_policy(modelfile);
+    normalizer = load_normalizer(normalfile);
+    if(!normalizer)
+      printf("Couldn't find '%s' - not normalizing states.\n", normalfile);
   }
   else if(!strcmp(argv[1], "new")){
     policy = new_policy(modelfile, ENVS[0].observation_space, ENVS[0].action_space);
@@ -300,11 +307,12 @@ int main(int argc, char **argv){
   }
 
   printf("%s has %'lu params.\n", MACROVAL(network_type), policy.num_params);
-  Normalizer *normalizer = create_normalizer(ENVS[0].observation_space);
 
   /* If we're evaluating a policy */
   if(!strcmp(argv[3], "eval")){
     ENVS[0].alive_bonus = default_alive_bonus;
+    if(normalizer)
+      normalizer->update = 0;
     while(1){
       printf("Average return over %d rollouts: %f\n", ROLLOUTS_PER_MEMBER, evaluate(&ENVS[0], &policy, normalizer, 1, NULL));
     }
@@ -328,13 +336,24 @@ int main(int argc, char **argv){
     char *logfile = create_logfile_name(policy.layers[0].size, seed);
     printf("Logging to '%s'\n", logfile);
 
+    FILE *log = fopen(logfile, "wb");
+    if(!log){
+      printf("ERROR: main(): Couldn't open '%s' for write.\n", logfile);
+      exit(1);
+    }
+    fprintf(log, "%s %s %s\n", "iteration", "samples", "return");
+
     RS r = create_rs(R, policy.params, policy.num_params, DIRECTIONS);
     r.cutoff      = TOP_B;
     r.step_size   = STEP_SIZE;
     r.std         = NOISE_STD;
     r.algo        = ALGO;
     r.num_threads = NUM_THREADS;
-    r.normalizer  = normalizer;
+
+    if(!normalizer && (r.algo == V2 || r.algo == V2_t))
+      r.normalizer = create_normalizer(policy.input_dimension);
+    else
+      r.normalizer = normalizer;
     
     float avg_return = 0;
     size_t iter      = 0;
@@ -352,7 +371,7 @@ int main(int argc, char **argv){
       rs_step(r);
 
       ENVS[0].alive_bonus = default_alive_bonus;
-      avg_return += evaluate(&ENVS[0], &policy, r.normalizer, 0, NULL);
+      float iter_return = evaluate(&ENVS[0], &policy, r.normalizer, 0, NULL);
       ENVS[0].alive_bonus = 0;
 
       size_t samples_after = num_samples();
@@ -364,11 +383,18 @@ int main(int argc, char **argv){
       int hrs_left = (int)(time_left / (60 * 60));
       int min_left = ((int)(time_left - (hrs_left * 60 * 60))) / 60;
 
+      avg_return += iter_return;
+
       printf("iteration %3lu | avg return over last %2lu iters: %9.2f | time remaining %3dh %2dm | %5.4fs / 1k samples | samples %'9lu \r", iter+1, (iter % print_every) + 1, avg_return / (((iter) % print_every)+1), hrs_left, min_left, samples_per_sec * 1000, samples_after);
+      fprintf(log, "%lu %lu %f\n", iter+1, samples_after, iter_return);
 
       save(network_type)(&policy, modelfile);
+      if(r.normalizer);
+      save_normalizer(r.normalizer, normalfile);
+
       iter++;
     }
+    fclose(log);
   }
   return 0;
 }

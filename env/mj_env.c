@@ -66,7 +66,9 @@ static void render(Environment env){
     tmp->render_setup = 1;
   }
 
-  tmp->camera.lookat[0] = d->qpos[0];
+  for(int i = 0; i < tmp->qpos_start; i++)
+    tmp->camera.lookat[i] = d->qpos[i];
+
   tmp->camera.distance = 5;
   tmp->camera.elevation = -20.0;
 

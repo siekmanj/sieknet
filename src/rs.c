@@ -77,7 +77,7 @@ void rs_step(RS r){
   for(int i = 0; i < r.num_threads; i++)
     thetas[i] = ALLOC(float, r.num_params);
 
-  Normalizer *normalizers;
+  Normalizer **normalizers;
   if(r.normalizer){
 
     if(r.algo == V2 || r.algo == V2_t)
@@ -85,9 +85,9 @@ void rs_step(RS r){
     else
       r.normalizer->update = 0;
 
-    normalizers = ALLOC(Normalizer, r.num_threads);
+    normalizers = ALLOC(Normalizer*, r.num_threads);
     for(int i = 0; i < r.num_threads; i++)
-      normalizers[i] = copy_normalizer(*r.normalizer);
+      normalizers[i] = copy_normalizer(r.normalizer);
     
     memset(r.normalizer->env_mean, '\0', sizeof(float)*r.normalizer->dimension);
     memset(r.normalizer->env_std, '\0', sizeof(float)*r.normalizer->dimension);
@@ -107,7 +107,7 @@ void rs_step(RS r){
     
     Normalizer *norm = NULL;
     if(r.normalizer)
-      norm = &normalizers[thread];
+      norm = normalizers[thread];
 
     /* Positive delta rollouts */
     for(int j = 0; j < r.num_params; j++)
@@ -126,10 +126,10 @@ void rs_step(RS r){
   for(int i = 0; i < r.num_threads; i++){
     if(r.normalizer){
       for(int j = 0; j < r.normalizer->dimension; j++){
-        r.normalizer->env_mean[j] += normalizers[i].env_mean[j] / r.num_threads;
-        r.normalizer->env_std[j] += normalizers[i].env_std[j] / r.num_threads;
+        r.normalizer->env_mean[j] += normalizers[i]->env_mean[j] / r.num_threads;
+        r.normalizer->env_std[j] += normalizers[i]->env_std[j] / r.num_threads;
       }
-      r.normalizer->num_steps += normalizers[i].num_steps - steps_before;
+      r.normalizer->num_steps += normalizers[i]->num_steps - steps_before;
       dealloc_normalizer(normalizers[i]);
     }
     free(thetas[i]);

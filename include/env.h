@@ -40,9 +40,9 @@ typedef struct normalize_ {
 Normalizer *create_normalizer(size_t dim);
 
 void normalize(Normalizer*, Environment*);
-void save_normalizer(Normalizer, const char *);
-void dealloc_normalizer(Normalizer);
-Normalizer load_normalizer(const char *);
-Normalizer copy_normalizer(Normalizer);
+void save_normalizer(Normalizer*, const char *);
+void dealloc_normalizer(Normalizer*);
+Normalizer *load_normalizer(const char *);
+Normalizer *copy_normalizer(Normalizer*);
 
 #endif
