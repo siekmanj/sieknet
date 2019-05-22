@@ -535,8 +535,12 @@ MLP *copy_mlp(MLP *n){
 		ret->layers[i].logistic = n->layers[i].logistic;
 	}
 
+  #ifndef SIEKNET_USE_GPU
 	for(int i = 0; i < n->num_params; i++)
 		ret->params[i] = n->params[i];
+  #else
+  //TODO
+  #endif
   ret->performance = 0;
 
   return ret;

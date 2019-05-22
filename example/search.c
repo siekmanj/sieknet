@@ -62,7 +62,7 @@
 #endif
 
 #ifndef ALGO
-#define ALGO V1
+#define ALGO V2
 #endif
 
 #ifndef TIMESTEPS
@@ -127,7 +127,7 @@
 #define MACROVAL_(s) #s
 #define MACROVAL(s) MACROVAL_(s)
 
-float evaluate(Environment *env, NETWORK_TYPE *n, int render, size_t *timesteps){
+float evaluate(Environment *env, NETWORK_TYPE *n, Normalizer *normalizer, int render, size_t *timesteps){
   float perf = 0;
   for(int i = 0; i < ROLLOUTS_PER_MEMBER; i++){
     env->reset(*env);
@@ -136,6 +136,16 @@ float evaluate(Environment *env, NETWORK_TYPE *n, int render, size_t *timesteps)
     for(int t = 0; t < MAX_TRAJ_LEN; t++){
       if(timesteps)
         *timesteps = *timesteps + 1;
+      //if(timesteps && *timesteps > 2000){
+      //  printf("before:\n");
+      //  PRINTLIST(env->state, env->observation_space);
+      //}
+      normalize(normalizer, env);
+      //if(timesteps && *timesteps > 2000){
+      //  printf("after:\n");
+      //  PRINTLIST(env->state, env->observation_space);
+      //  getchar();
+      //}
       forward(network_type)(n, env->state);
       perf += env->step(*env, n->output);
 
@@ -187,7 +197,7 @@ size_t THREAD_SAMPLES[NUM_THREADS];
  * The function pointer passed in to the random search
  * algorithm. Supports multithreading with OpenMP.
  */
-float R(const float *theta, size_t len){
+float R(const float *theta, size_t len, Normalizer *normalizer){
   #ifdef _OPENMP
   size_t num_t = omp_get_thread_num();
   #else
@@ -199,7 +209,7 @@ float R(const float *theta, size_t len){
   size_t *samples = &THREAD_SAMPLES[num_t];
 
   memcpy(policy->params, theta, len * sizeof(float));
-  return evaluate(env, policy, 0, samples);
+  return evaluate(env, policy, normalizer, 0, samples);
 }
 
 size_t num_samples(){
@@ -260,31 +270,43 @@ int main(int argc, char **argv){
     policy = new_policy(modelfile, ENVS[0].observation_space, ENVS[0].action_space);
 
     #ifdef USE_LINEAR
+      #if (defined(USE_MLP) || defined(USE_RNN))
+      for(int i = 0; i < policy.depth; i++)
+        policy.layers[i].logistic = linear;
+      #endif
 
-    #if (defined(USE_MLP) || defined(USE_RNN))
-    for(int i = 0; i < policy.depth; i++)
-      policy.layers[i].logistic = linear;
-    #endif
+      #if defined(USE_RNN) || defined(USE_LSTM)
+      policy.output_layer.logistic = linear;
+      #endif
 
-    #if (defined(USE_LSTM) || defined(USE_RNN))
-    policy.layers[policy.depth-1].logistic = linear;
-    #endif
+      for(int j = 0; j < policy.num_params; j++)
+        policy.params[j] = 0;
 
-    for(int j = 0; j < policy.num_params; j++)
-      policy.params[j] = 0;
+    #else
+      #if (defined(USE_MLP) || defined(USE_RNN))
+      for(int i = 0; i < policy.depth; i++)
+        policy.layers[i].logistic = relu;
+      #endif
 
-    #else /* !USE_LINEAR */
-    #error "Currently, only linear policies are supported."
+      #if defined(USE_RNN)
+      policy.output_layer.logistic = hypertan;
+      #endif
+
+      #if defined(USE_LSTM)
+      policy.output_layer.logistic = hypertan;
+      #endif
+
     #endif
   }
 
   printf("%s has %'lu params.\n", MACROVAL(network_type), policy.num_params);
+  Normalizer *normalizer = create_normalizer(ENVS[0].observation_space);
 
   /* If we're evaluating a policy */
   if(!strcmp(argv[3], "eval")){
     ENVS[0].alive_bonus = default_alive_bonus;
     while(1){
-      printf("Average return over %d rollouts: %f\n", ROLLOUTS_PER_MEMBER, evaluate(&ENVS[0], &policy, 1, NULL));
+      printf("Average return over %d rollouts: %f\n", ROLLOUTS_PER_MEMBER, evaluate(&ENVS[0], &policy, normalizer, 1, NULL));
     }
   }
 
@@ -312,6 +334,7 @@ int main(int argc, char **argv){
     r.std         = NOISE_STD;
     r.algo        = ALGO;
     r.num_threads = NUM_THREADS;
+    r.normalizer  = normalizer;
     
     float avg_return = 0;
     size_t iter      = 0;
@@ -329,7 +352,7 @@ int main(int argc, char **argv){
       rs_step(r);
 
       ENVS[0].alive_bonus = default_alive_bonus;
-      avg_return += evaluate(&ENVS[0], &policy, 0, NULL);
+      avg_return += evaluate(&ENVS[0], &policy, r.normalizer, 0, NULL);
       ENVS[0].alive_bonus = 0;
 
       size_t samples_after = num_samples();

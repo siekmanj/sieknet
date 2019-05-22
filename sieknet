@@ -468,8 +468,9 @@ rs)
   fi
   if [ -z "$ARCH" ]
   then
-    echo "No arch specified, doing linear policy"
-    ARCH="-DUSE_LINEAR"
+    echo "No arch specified, doing linear policy (mlp)"
+    ARCH="-DUSE_MLP"
+    DEFINES="$DEFINES -DUSE_LINEAR"
   fi
   SRCFILES="$SRCFILES example/search.c"
   compile="gcc -Ienv $COMMON $MJ_FLAGS $SRCFILES $DEFINES $ARCH $MJ_LIBS $LIBS -o ./bin/search"

@@ -1,4 +1,6 @@
+#include <string.h>
 #include <conf.h>
+#include <env.h>
 #include <rs.h>
 #include <math.h>
 
@@ -17,7 +19,7 @@ static float normal(float mean, float std){
 	return mean + norm * std;
 }
 
-RS create_rs(float (*R)(const float *, size_t), float *seed, size_t num_params, size_t n){
+RS create_rs(float (*R)(const float *, size_t, Normalizer*), float *seed, size_t num_params, size_t n){
 	RS r;
 	if(!seed){
 		printf("Error: parameter vector cannot be null!\n");
@@ -37,6 +39,7 @@ RS create_rs(float (*R)(const float *, size_t), float *seed, size_t num_params, 
 	r.update = calloc(num_params, sizeof(float));
 	r.deltas = calloc(n, sizeof(Delta*));
 	r.optim = cpu_init_SGD(r.params, r.update, r.num_params);
+  r.normalizer = NULL;
 
 	for(int i = 0; i < n; i++){
 		r.deltas[i] = ALLOC(Delta, 1);
@@ -74,10 +77,26 @@ void rs_step(RS r){
   for(int i = 0; i < r.num_threads; i++)
     thetas[i] = ALLOC(float, r.num_params);
 
+  Normalizer *normalizers;
+  if(r.normalizer){
+
+    if(r.algo == V2 || r.algo == V2_t)
+      r.normalizer->update = 1;
+    else
+      r.normalizer->update = 0;
+
+    normalizers = ALLOC(Normalizer, r.num_threads);
+    for(int i = 0; i < r.num_threads; i++)
+      normalizers[i] = copy_normalizer(*r.normalizer);
+    
+    memset(r.normalizer->env_mean, '\0', sizeof(float)*r.normalizer->dimension);
+    memset(r.normalizer->env_std, '\0', sizeof(float)*r.normalizer->dimension);
+  }
+
   /* Do rollouts */
   #ifdef _OPENMP
   omp_set_num_threads(r.num_threads);
-  #pragma omp parallel for default(none) shared(r, thetas)
+  #pragma omp parallel for default(none) shared(r, thetas, normalizers)
   #endif
   for(int i = 0; i < r.directions; i++){
     #ifdef _OPENMP
@@ -85,24 +104,44 @@ void rs_step(RS r){
     #else
     size_t thread = 0;
     #endif
+    
+    Normalizer *norm = NULL;
+    if(r.normalizer)
+      norm = &normalizers[thread];
 
     /* Positive delta rollouts */
     for(int j = 0; j < r.num_params; j++)
       thetas[thread][j] = r.params[j] + r.deltas[i]->p[j];
 
-    r.deltas[i]->r_pos = r.f(thetas[thread], r.num_params);
+    r.deltas[i]->r_pos = r.f(thetas[thread], r.num_params, norm);
     
     /* Negative delta rollouts */
     for(int j = 0; j < r.num_params; j++)
       thetas[thread][j] = r.params[j] - r.deltas[i]->p[j];
 
-    r.deltas[i]->r_neg = r.f(thetas[thread], r.num_params);
+    r.deltas[i]->r_neg = r.f(thetas[thread], r.num_params, norm);
   }
-  //*(r.samples) += samples;
 
-  for(int i = 0; i < r.num_threads; i++)
+  size_t steps_before = r.normalizer->num_steps;
+  for(int i = 0; i < r.num_threads; i++){
+    if(r.normalizer){
+      for(int j = 0; j < r.normalizer->dimension; j++){
+        r.normalizer->env_mean[j] += normalizers[i].env_mean[j] / r.num_threads;
+        r.normalizer->env_std[j] += normalizers[i].env_std[j] / r.num_threads;
+      }
+      r.normalizer->num_steps += normalizers[i].num_steps - steps_before;
+      dealloc_normalizer(normalizers[i]);
+    }
     free(thetas[i]);
+  }
+  if(r.normalizer)
+    free(normalizers);
+
   free(thetas);
+  //printf("normalizer mean/std after step: %lu\n", r.normalizer->num_steps);
+  //PRINTLIST(r.normalizer->env_mean, r.normalizer->dimension);
+  //PRINTLIST(r.normalizer->env_std, r.normalizer->dimension);
+  //getchar();
 
 	switch(r.algo){
 		case BASIC:
@@ -114,7 +153,54 @@ void rs_step(RS r){
 			}
 		}
 		break;
-		case V1:
+    case V2:
+    {
+      if(!r.normalizer){
+        printf("ERROR: rs_step(): normalizer not initialized.\n");
+        exit(1);
+      }
+    }
+    case V1:
+    {
+      /* Consider all directions */
+      int b = r.directions; 
+
+      /* Mean and standard deviation of reward calculation */
+			float mean = 0;
+			float std  = 0;
+
+      for(int i = 0; i < b; i++){
+        mean += r.deltas[i]->r_pos + r.deltas[i]->r_neg;
+      }
+      mean /= 2 * b;
+
+      for(int i = 0; i < b; i++){
+        float x = r.deltas[i]->r_pos;
+        std += (x - mean) * (x - mean);
+        x = r.deltas[i]->r_neg;
+        std += (x - mean) * (x - mean);
+      }
+      std = sqrt(std/(2 * b));
+
+      /* Sum up all the weighted noise vectors to get update */
+      float weight = -1 / (b * std);
+      for(int i = 0; i < b; i++){
+        for(int j = 0; j < r.num_params; j++){
+ 					float reward = (r.deltas[i]->r_pos - r.deltas[i]->r_neg);
+					float d = r.deltas[i]->p[j] / r.std;
+					r.update[j] += weight * reward * d;
+				}
+			}
+    }
+    break;
+    case V2_t:
+    {
+      if(!r.normalizer){
+        printf("ERROR: rs_step(): normalizer not initialized.\n");
+        exit(1);
+      }
+    }
+		case V1_t:
 		{
       /* Sort all noise vectors by performance */
 			qsort(r.deltas, r.directions, sizeof(Delta*), rs_comparator);
@@ -148,7 +234,6 @@ void rs_step(RS r){
 					r.update[j] += weight * reward * d;
 				}
 			}
-
 		}
 		break;
 	}
