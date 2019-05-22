@@ -267,7 +267,7 @@ int main(int argc, char** argv){
   }
   size_t rand_seed = RANDOM_SEED;
 
-  printf("network has %lu params.\n", seed.num_params);
+  printf("network has %'lu params.\n", seed.num_params);
 
   /* Probably want full dynamic range (-1, 1), set it just in case */
 #if defined(USE_LSTM) || defined(USE_RNN)

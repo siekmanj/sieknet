@@ -13,6 +13,9 @@ typedef struct env_ {
   size_t action_space;
   size_t observation_space;
 
+  size_t frameskip;
+  float alive_bonus;
+
   int *done;
 
   void (*dispose)(struct env_ env);

@@ -8,13 +8,6 @@ static float uniform(float lowerbound, float upperbound){
 	return lowerbound + (upperbound - lowerbound) * ((float)rand()/RAND_MAX);
 }
 
-static float normal(float mean, float std){
-	float u1 = uniform(0, 1);
-	float u2 = uniform(0, 1);
-	float norm = sqrt(-2 * log(u1)) * cos(2 * 3.14159 * u2);
-	return mean + norm * std;
-}
-
 static void dispose(Environment env){
   Data *tmp = ((Data*)env.data);
   mjData *d = tmp->data;
@@ -44,10 +37,10 @@ static void seed(Environment env){
   mjModel *m = tmp->model;
 
   for(int i = 0; i < m->nq; i++)
-    d->qpos[i] += normal(0, 0.005);
+    d->qpos[i] += uniform(-0.005, 0.005);
 
   for(int i = 0; i < m->nu; i++)
-    d->qvel[i] += normal(0, 0.005);
+    d->qvel[i] += uniform(-0.005, 0.005);
 
 }
 

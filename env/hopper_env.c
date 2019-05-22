@@ -1,11 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include <mj_env.h>
-
-#define ALIVE_BONUS 0.0f
-#define FRAMESKIP 5
 
 static float step(Environment env, float *action){
   Data *tmp = ((Data*)env.data);
@@ -18,7 +11,7 @@ static float step(Environment env, float *action){
   for(int i = 0; i < env.action_space; i++)
     d->ctrl[i] = action[i];
   
-  for(int i = 0; i < FRAMESKIP; i++)
+  for(int i = 0; i < env.frameskip; i++)
     mj_step(m, d);
 
   for(int i = 1; i < m->nq; i++)
@@ -30,15 +23,15 @@ static float step(Environment env, float *action){
   /* REWARD CALCULATION: Identical to OpenAI's */
   
   float reward = (d->qpos[0] - posbefore) / (d->time - simstart);
-  reward += ALIVE_BONUS;
+  reward += env.alive_bonus;
 
   float action_sum = 0;
   for(int i = 0; i < env.action_space; i++)
     action_sum += action[i]*action[i];
 
-  reward -= 0.001 * action_sum;
+  reward -= 1e-3 * action_sum;
 
-  if(d->qpos[1] < 0.7 || d->qpos[2] < -1 || d->qpos[2] > 1){
+  if(d->qpos[1] < 0.7 || d->qpos[2] < -0.2 || d->qpos[2] > 0.2){
     *env.done = 1;
   }
 
@@ -46,5 +39,8 @@ static float step(Environment env, float *action){
 }
 
 Environment create_hopper_env(){
-  return create_mujoco_env("./assets/hopper.xml", step, 1);
+  Environment ret = create_mujoco_env("./assets/hopper.xml", step, 1);
+  ret.alive_bonus = 1.0f;
+  ret.frameskip = 4;
+  return ret;
 }

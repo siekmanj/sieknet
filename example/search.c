@@ -70,7 +70,7 @@
 #endif
 
 #ifndef MAX_TRAJ_LEN
-#define MAX_TRAJ_LEN 600
+#define MAX_TRAJ_LEN 1000
 #endif
 
 #ifndef ENV_NAME
@@ -209,6 +209,23 @@ size_t num_samples(){
   return samples;
 }
 
+char *create_logfile_name(size_t hidden_size, size_t random_seed){
+  char *ret = malloc(1000*sizeof(char));
+  snprintf(ret, 50, "%s", "./log/");
+  snprintf(ret + strlen(ret), 50, "%d.", DIRECTIONS);
+  snprintf(ret + strlen(ret), 50, "%s.", MACROVAL(network_type));
+  snprintf(ret + strlen(ret), 50, "%s.", MACROVAL(ENV_NAME));
+  snprintf(ret + strlen(ret), 50, "hs.%lu.", hidden_size);
+  snprintf(ret + strlen(ret), 50, "std.%3.2f.", NOISE_STD);
+  snprintf(ret + strlen(ret), 50, "lr.%5.4f.", STEP_SIZE);
+  snprintf(ret + strlen(ret), 50, "seed.%lu.", random_seed);
+  if(NUM_THREADS > 1)
+    snprintf(ret + strlen(ret), 50, "nd");
+  return ret;
+
+}
+
+
 int main(int argc, char **argv){
   if(argc < 4){ printf("%d args needed. Usage: [new/load] [path_to_modelfile] [train/eval]\n", 3); exit(1);}
   setlocale(LC_ALL,"");
@@ -224,8 +241,11 @@ int main(int argc, char **argv){
   setbuf(stdout, NULL);
   char *modelfile = argv[2];
 
+  float default_alive_bonus;
   for(int i = 0; i < NUM_THREADS; i++){
     ENVS[i] = create_env(ENV_NAME)();
+    default_alive_bonus = ENVS[i].alive_bonus;
+    ENVS[i].alive_bonus = 0;
   }
 
   NETWORK_TYPE policy;
@@ -246,10 +266,15 @@ int main(int argc, char **argv){
     #endif
   }
 
+  printf("network has %'lu params.\n", policy.num_params);
+
   /* If we're evaluating a policy */
-  if(!strcmp(argv[3], "eval"))
-    while(1)
+  if(!strcmp(argv[3], "eval")){
+    while(1){
+      ENVS[0].alive_bonus = default_alive_bonus;
       printf("Average return over %d rollouts: %f\n", ROLLOUTS_PER_MEMBER, evaluate(&ENVS[0], &policy, 1, NULL));
+    }
+  }
 
   /* If we're training a policy */
   else if(!strcmp(argv[3], "train")){
@@ -288,7 +313,9 @@ int main(int argc, char **argv){
 
       rs_step(r);
 
+      ENVS[0].alive_bonus = default_alive_bonus;
       avg_return += evaluate(&ENVS[0], &policy, 0, NULL);
+      ENVS[0].alive_bonus = 0;
 
       size_t samples_after = num_samples();
 

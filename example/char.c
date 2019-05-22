@@ -311,7 +311,7 @@ int main(int argc, char** argv){
     n = load(network_type)(modelfile);
     fclose(fp);
   }
-  printf("network has %lu params.\n", n.num_params);
+  printf("network has %'lu params.\n", n.num_params);
   save(network_type)(&n, modelfile);
 
   if(!strcmp(datafile, "sample")){

@@ -4,7 +4,7 @@
 
 #include <mj_env.h>
 #define ALIVE_BONUS 0.0f
-#define FRAMESKIP 1
+#define env.frameskip 1
 
 static float step(Environment env, float *action){
   Data *tmp = ((Data*)env.data);
@@ -17,7 +17,7 @@ static float step(Environment env, float *action){
   for(int i = 0; i < env.action_space; i++)
     d->ctrl[i] = action[i];
   
-  for(int i = 0; i < FRAMESKIP; i++)
+  for(int i = 0; i < env.frameskip; i++)
     mj_step(m, d);
 
   for(int i = tmp->qpos_start; i < m->nq; i++)
@@ -28,24 +28,22 @@ static float step(Environment env, float *action){
 
   /* REWARD CALCULATION: Identical to OpenAI's */
   
-  float reward = (d->qpos[0] - posbefore) / (d->time - simstart);
-  reward += ALIVE_BONUS;
+  float reward_run = (d->qpos[0] - posbefore) / (d->time - simstart);
 
-  float action_sum = 0;
+  float reward_ctrl = 0;
   for(int i = 0; i < env.action_space; i++)
-    action_sum += action[i]*action[i];
+    reward_ctrl -= 0.1 * action[i] * action[i];
 
-  reward -= 0.005 * action_sum;
-
-  //if(d->qpos[2] < 0.2 || d->qpos[2] > 1.0){
-  //  *env.done = 1;
-  //}
+  float reward = reward_ctrl + reward_run;
 
   return reward;
 }
 
 Environment create_half_cheetah_env(){
-  return create_mujoco_env("./assets/half_cheetah.xml", step, 1);
+  Environment ret = create_mujoco_env("./assets/half_cheetah.xml", step, 1);
+  ret.alive_bonus = 0.0f;
+  ret.frameskip = 5;
+  return ret;
 }
 
 

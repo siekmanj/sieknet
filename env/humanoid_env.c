@@ -1,8 +1,5 @@
 #include <mj_env.h>
 
-#define ALIVE_BONUS 0.0f
-#define FRAMESKIP 3
-
 static float step(Environment env, float *action){
   Data *tmp = ((Data*)env.data);
   mjData *d = tmp->data;
@@ -14,7 +11,7 @@ static float step(Environment env, float *action){
   for(int i = 0; i < env.action_space; i++)
     d->ctrl[i] = action[i];
   
-  for(int i = 0; i < FRAMESKIP; i++)
+  for(int i = 0; i < env.frameskip; i++)
     mj_step(m, d);
 
   for(int i = tmp->qpos_start; i < m->nq; i++)
@@ -25,16 +22,23 @@ static float step(Environment env, float *action){
 
   /* REWARD CALCULATION: Identical to OpenAI's */
   
-  float reward = (d->qpos[0] - posbefore) / (d->time - simstart);
-  reward += ALIVE_BONUS;
+  float lin_vel_cost = 1.25 * (d->qpos[0] - posbefore) / (d->time - simstart);
 
-  float action_sum = 0;
+  float quad_ctrl_cost = 0;
   for(int i = 0; i < env.action_space; i++)
-    action_sum += action[i]*action[i];
+    quad_ctrl_cost += 0.1 * action[i] * action[i];
 
-  reward -= 0.005 * action_sum;
+  float quad_impact_cost = 0;
+  for(int i = 0; i < m->nbody; i++){
+    float contact_force = d->cfrc_ext[i];
+    quad_impact_cost += 5e-7 * contact_force * contact_force;
+  }
+  if(quad_impact_cost > 10)
+    quad_impact_cost = 10;
 
-  if(d->qpos[2] < 1.0){
+  float reward = lin_vel_cost - quad_ctrl_cost - quad_impact_cost + env.alive_bonus;
+
+  if(d->qpos[2] < 1.0 || d->qpos[2] > 2.0){
     *env.done = 1;
   }
 
@@ -42,7 +46,10 @@ static float step(Environment env, float *action){
 }
 
 Environment create_humanoid_env(){
-  return create_mujoco_env("./assets/humanoid.xml", step, 2);
+  Environment ret = create_mujoco_env("./assets/humanoid.xml", step, 2);
+  ret.alive_bonus = 5.0f;
+  ret.frameskip = 5;
+  return ret;
 }
 
 
