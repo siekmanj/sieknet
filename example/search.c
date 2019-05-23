@@ -222,6 +222,7 @@ size_t num_samples(){
 char *create_logfile_name(size_t hidden_size, size_t random_seed){
   char *ret = malloc(1000*sizeof(char));
   snprintf(ret, 50, "%s", "./log/");
+  snprintf(ret + strlen(ret), 50, "%d.", MACROVAL(ALGO);
   snprintf(ret + strlen(ret), 50, "%d.", DIRECTIONS);
   snprintf(ret + strlen(ret), 50, "%s.", MACROVAL(network_type));
 #ifdef USE_LINEAR
