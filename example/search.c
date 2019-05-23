@@ -62,7 +62,7 @@
 #endif
 
 #ifndef ALGO
-#define ALGO V2
+#define ALGO V1
 #endif
 
 #ifndef TIMESTEPS
@@ -222,7 +222,7 @@ size_t num_samples(){
 char *create_logfile_name(size_t hidden_size, size_t random_seed){
   char *ret = malloc(1000*sizeof(char));
   snprintf(ret, 50, "%s", "./log/");
-  snprintf(ret + strlen(ret), 50, "%d.", MACROVAL(ALGO);
+  snprintf(ret + strlen(ret), 50, "%u.", ALGO);
   snprintf(ret + strlen(ret), 50, "%d.", DIRECTIONS);
   snprintf(ret + strlen(ret), 50, "%s.", MACROVAL(network_type));
 #ifdef USE_LINEAR
@@ -390,8 +390,8 @@ int main(int argc, char **argv){
       fprintf(log, "%lu %lu %f\n", iter+1, samples_after, iter_return);
 
       save(network_type)(&policy, modelfile);
-      if(r.normalizer);
-      save_normalizer(r.normalizer, normalfile);
+      if(r.normalizer)
+	      save_normalizer(r.normalizer, normalfile);
 
       iter++;
     }

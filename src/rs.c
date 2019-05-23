@@ -122,7 +122,9 @@ void rs_step(RS r){
     r.deltas[i]->r_neg = r.f(thetas[thread], r.num_params, norm);
   }
 
-  size_t steps_before = r.normalizer->num_steps;
+  size_t steps_before;
+  if(r.normalizer)
+	  steps_before = r.normalizer->num_steps;
   for(int i = 0; i < r.num_threads; i++){
     if(r.normalizer){
       for(int j = 0; j < r.normalizer->dimension; j++){
