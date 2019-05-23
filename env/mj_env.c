@@ -90,9 +90,10 @@ static void render(Environment env){
 
 static void close(Environment env){
   Data *tmp = ((Data*)env.data);
-  glfwDestroyWindow(tmp->window);
-
-  tmp->render_setup = 0;
+  if(tmp->render_setup){
+    glfwDestroyWindow(tmp->window);
+    tmp->render_setup = 0;
+  }
 }
 
 Environment create_mujoco_env(char *xml, float (*step)(Environment, float *), int qpos_start){

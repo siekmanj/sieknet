@@ -1,7 +1,7 @@
 CC=gcc
 
-CPULIBOUT=libcpusieknet.so
-GPULIBOUT=libgpusieknet.so
+CPULIBOUT=libsieknetcpu.so
+GPULIBOUT=libsieknetgpu.so
 
 DIRS=bin model data log
 
@@ -23,21 +23,30 @@ MUJOCOFLAGS=$(CFLAGS) -I$(MJ_DIR)/include -L$(MJ_DIR)/bin
 LSTM_SRC=$(SRC_DIR)/lstm.c
 RNN_SRC=$(SRC_DIR)/rnn.c
 MLP_SRC=$(SRC_DIR)/mlp.c
-MNIST_SRC=$(SRC_DIR)/mnist.c
 OPTIM_SRC=$(SRC_DIR)/optimizer.c
+ENV_SRC=$(SRC_DIR)/env.c
 CL_SRC=$(SRC_DIR)/opencl_utils.c
+
+MNIST_SRC=$(SRC_DIR)/mnist.c
 GA_SRC=$(SRC_DIR)/ga.c
 RS_SRC=$(SRC_DIR)/rs.c
 HOPPER_SRC=env/hopper_env.c
 
-CPU_SRC=$(MLP_SRC) $(OPTIM_SRC)
-GPU_SRC=$(MLP_SRC) $(OPTIM_SRC) $(CL_SRC)
+CPU_SRC=$(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(OPTIM_SRC) $(GA_SRC) $(RS_SRC) $(ENV_SRC)
+GPU_SRC=$(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(OPTIM_SRC) $(GA_SRC) $(RS_SRC) $(ENV_SRC) $(CL_SRC)
 
-libcpu: src/*.c
-	gcc -shared -o $(BIN)/$(CPULIBOUT) -fPIC $(CFLAGS) $(CPU_SRC) $(INCLUDE) $(LIBS) -Wl,-rpath /home/jonah/sieknet/bin
+cpu: src/*.c
+	gcc -shared -o $(BIN)/$(CPULIBOUT) -fPIC $(CFLAGS) $(CPU_SRC) $(INCLUDE) $(LIBS) -Wl,-rpath bin/
 
-libgpu: src/*.c
-	gcc -shared -o $(BIN)/$(GPULIBOUT) -fPIC $(GPUFLAGS) $(GPU_SRC) $(INCLUDE) $(GPULIBS) -Wl,-rpath /home/jonah/sieknet/bin
+gpu: src/*.c
+	gcc -shared -o $(BIN)/$(GPULIBOUT) -fPIC $(GPUFLAGS) $(GPU_SRC) $(INCLUDE) $(GPULIBS) -Wl,-rpath bin/
+
+clean:
+	rm ./bin/*
+
+
+
+# DEPRECATED
 
 char:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(RNN_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
