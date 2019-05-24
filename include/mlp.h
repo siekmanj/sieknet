@@ -92,6 +92,9 @@ void dealloc_mlp(MLP *);
 void xavier_init(float *, size_t, size_t);
 void zero_2d_arr(float **, size_t, size_t);
 
+float uniform(float, float);
+float normal(float, float);
+
 int argmax(float *, size_t);
 int sample_softmax(float *, size_t);
 

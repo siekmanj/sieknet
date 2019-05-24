@@ -2,34 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <conf.h>
-#include <walker2d_env.h>
-#include <mujoco.h>
-#include <glfw3.h>
-
-#define ALIVE_BONUS 0.001f
-#define FRAMESKIP 5
-
-typedef struct data {
-  mjModel *model;
-  mjData *data;
-  mjvCamera camera;
-  mjvOption opt;
-  mjvScene scene;
-  mjrContext context;
-  GLFWwindow *window;
-  int render_setup;
-} Data;
+#include <mj_env.h>
 
 static float uniform(float lowerbound, float upperbound){
 	return lowerbound + (upperbound - lowerbound) * ((float)rand()/RAND_MAX);
-}
-
-static float normal(float mean, float std){
-	float u1 = uniform(0, 1);
-	float u2 = uniform(0, 1);
-	float norm = sqrt(-2 * log(u1)) * cos(2 * 3.14159 * u2);
-	return mean + norm * std;
 }
 
 static void dispose(Environment env){
@@ -61,10 +37,10 @@ static void seed(Environment env){
   mjModel *m = tmp->model;
 
   for(int i = 0; i < m->nq; i++)
-    d->qpos[i] += normal(0, 0.005);
+    d->qpos[i] += uniform(-0.005, 0.005);
 
   for(int i = 0; i < m->nu; i++)
-    d->qvel[i] += normal(0, 0.005);
+    d->qvel[i] += uniform(-0.005, 0.005);
 
 }
 
@@ -76,7 +52,7 @@ static void render(Environment env){
 
   if(!tmp->render_setup){
 
-    tmp->window = glfwCreateWindow(1200, 900, "Walker2d", NULL, NULL);
+    tmp->window = glfwCreateWindow(1200, 900, "MuJoCo", NULL, NULL);
     glfwMakeContextCurrent(tmp->window);
     glfwSwapInterval(1);
 
@@ -90,8 +66,10 @@ static void render(Environment env){
     tmp->render_setup = 1;
   }
 
-  tmp->camera.lookat[0] = d->qpos[0];
-  tmp->camera.distance = 4.0;
+  for(int i = 0; i < tmp->qpos_start; i++)
+    tmp->camera.lookat[i] = d->qpos[i];
+
+  tmp->camera.distance = 5;
   tmp->camera.elevation = -20.0;
 
   // get framebuffer viewport
@@ -112,58 +90,19 @@ static void render(Environment env){
 
 static void close(Environment env){
   Data *tmp = ((Data*)env.data);
-  glfwDestroyWindow(tmp->window);
-  //glfwTerminate();
-
-  tmp->render_setup = 0;
-
-}
-
-static float step(Environment env, float *action){
-  Data *tmp = ((Data*)env.data);
-  mjData *d = tmp->data;
-  mjModel *m = tmp->model;
-
-  float posbefore = d->qpos[0];
-
-  mjtNum simstart = d->time;
-  for(int i = 0; i < env.action_space; i++)
-    d->ctrl[i] = action[i];
-  
-  for(int i = 0; i < FRAMESKIP; i++)
-    mj_step(m, d);
-
-  for(int i = 1; i < m->nq; i++)
-    env.state[i-1] = d->qpos[i];
-
-  for(int i = 0; i < m->nv; i++)
-    env.state[i + m->nq - 1] = d->qvel[i];
-
-  /* REWARD CALCULATION: Similar to OpenAI's */
-  
-  float reward = (d->qpos[0] - posbefore) / (d->time - simstart);
-  reward += ALIVE_BONUS / FRAMESKIP;
-
-  float action_sum = 0;
-  for(int i = 0; i < env.action_space; i++)
-    action_sum += action[i]*action[i];
-
-  reward -= 0.005 * action_sum;
-
-  if(d->qpos[1] < 0.8 || d->qpos[1] > 2.0 || d->qpos[2] < -1.0 || d->qpos[2] > 1.0){
-    *env.done = 1;
+  if(tmp->render_setup){
+    glfwDestroyWindow(tmp->window);
+    tmp->render_setup = 0;
   }
-
-  return reward;
 }
 
-Environment create_walker2d_env(){
+Environment create_mujoco_env(char *xml, float (*step)(Environment, float *), int qpos_start){
+  Environment env;
   glfwInit();
 
   // activate software
   mj_activate(SIEKNET_MJKEYPATH);
 
-  Environment env;
   env.dispose = dispose;
   env.reset = reset;
   env.seed = seed;
@@ -173,21 +112,21 @@ Environment create_walker2d_env(){
 
   Data *d = (Data*)malloc(sizeof(Data));
   char error[1000] = "Couldn't load model file.";
-  d->model = mj_loadXML("./assets/walker2d.xml", 0, error, 1000);
+  d->model = mj_loadXML(xml, 0, error, 1000);
   if(!d->model)
     mju_error_s("Load model error: %s", error);
 
   d->data = mj_makeData(d->model);
   d->render_setup = 0;
+  d->qpos_start = qpos_start;
 
-  env.observation_space = d->model->nq + d->model->nv - 1;
+  env.observation_space = d->model->nq + d->model->nv - qpos_start;
   env.action_space = d->model->nu;
 
   env.data = d;
   env.state = (float*)calloc(env.observation_space, sizeof(float));
 
   env.done = calloc(1, sizeof(int));
-
   return env;
 }
 

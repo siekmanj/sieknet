@@ -7,10 +7,6 @@
 #define PI 3.14159
 #define ALPHA 1.0
 
-#ifdef SIEKNET_USE_GPU
-#error "ERROR: Use of genetic algorithms is currently not supported on the GPU."
-#endif
-
 static float uniform(float lowerbound, float upperbound){
 	return lowerbound + (upperbound - lowerbound) * ((float)rand()/RAND_MAX);
 }

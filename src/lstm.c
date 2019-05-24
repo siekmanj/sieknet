@@ -965,8 +965,12 @@ LSTM *copy_lstm(LSTM *n){
 
 	ret->output_layer.logistic = n->output_layer.logistic;
 
+  #ifndef SIEKNET_USE_GPU
 	for(int i = 0; i < n->num_params; i++)
 		ret->params[i] = n->params[i];
+  #else 
+  //TODO
+  #endif
   ret->performance = 0;
 
   return ret;

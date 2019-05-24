@@ -213,6 +213,7 @@ char *create_logfile_name(size_t hidden_size, size_t random_seed){
   snprintf(ret + strlen(ret), 50, "hs.%lu.", hidden_size);
   snprintf(ret + strlen(ret), 50, "std.%3.2f.", NOISE_STD);
   snprintf(ret + strlen(ret), 50, "mr.%3.2f.", MUTATION_RATE);
+  snprintf(ret + strlen(ret), 50, ".%s.", MACROVAL(MUTATION_TYPE));
   snprintf(ret + strlen(ret), 50, "co.%d.", CROSSOVER);
   snprintf(ret + strlen(ret), 50, "seed.%lu.", random_seed);
   if(NUM_THREADS > 1)
@@ -267,7 +268,7 @@ int main(int argc, char** argv){
   }
   size_t rand_seed = RANDOM_SEED;
 
-  printf("network has %lu params.\n", seed.num_params);
+  printf("network has %'lu params.\n", seed.num_params);
 
   /* Probably want full dynamic range (-1, 1), set it just in case */
 #if defined(USE_LSTM) || defined(USE_RNN)

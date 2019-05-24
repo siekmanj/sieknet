@@ -1,6 +1,7 @@
 #ifndef ENVIRONMENT_H
 #define ENVIRONMENT_H
 
+#include <stdlib.h>
 
 /*
  * Use this struct to interface an environment.
@@ -12,6 +13,9 @@ typedef struct env_ {
   
   size_t action_space;
   size_t observation_space;
+
+  size_t frameskip;
+  float alive_bonus;
 
   int *done;
 
@@ -27,12 +31,18 @@ typedef struct env_ {
 typedef struct normalize_ {
   float *env_mean;
   float *env_std;
+  float *env_var;
   size_t dimension;
+  size_t num_steps;
+  int update;
 } Normalizer;
 
-Normalizer create_normalizer(Environment env, void *policy, void (*forward)(void *policy, float *input), float *output, size_t samples);
+Normalizer *create_normalizer(size_t dim);
 
-void normalize(Normalizer, Environment);
-
+void normalize(Normalizer*, Environment*);
+void save_normalizer(Normalizer*, const char *);
+void dealloc_normalizer(Normalizer*);
+Normalizer *load_normalizer(const char *);
+Normalizer *copy_normalizer(Normalizer*);
 
 #endif

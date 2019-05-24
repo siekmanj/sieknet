@@ -15,6 +15,17 @@
 
 #define ARR_FROM_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue0(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_SIEKNET_USE_GPU)");
 
+float uniform(float lowerbound, float upperbound){
+	return lowerbound + (upperbound - lowerbound) * ((float)rand()/RAND_MAX);
+}
+
+float normal(float mean, float std){
+	float u1 = uniform(0, 1);
+	float u2 = uniform(0, 1);
+	float norm = sqrt(-2 * log(u1)) * cos(2 * M_PI * u2);
+	return mean + norm * std;
+}
+
 #ifdef SIEKNET_USE_GPU
 static cl_kernel mlp_forward_kernel;
 static cl_kernel mlp_input_gradient_kernel, mlp_parameter_gradient_kernel;
@@ -71,6 +82,7 @@ float **alloc_2d_array(size_t num, size_t depth){
     ret[i] = ALLOC(float, depth);
   return ret;
 }
+
 
 /*
  * Handy function for zeroing out a 2d array
@@ -523,8 +535,12 @@ MLP *copy_mlp(MLP *n){
 		ret->layers[i].logistic = n->layers[i].logistic;
 	}
 
+  #ifndef SIEKNET_USE_GPU
 	for(int i = 0; i < n->num_params; i++)
 		ret->params[i] = n->params[i];
+  #else
+  //TODO
+  #endif
   ret->performance = 0;
 
   return ret;
@@ -605,11 +621,11 @@ void mlp_abs_backward(MLP *n){
 /*
  * IO FUNCTIONS FOR READING AND WRITING TO A FILE
  */
-
 static int getWord(FILE *fp, char* dest){
   memset(dest, '\0', strlen(dest));
   return fscanf(fp, " %1023s", dest);
 }
+
 /* 
  * Saves the network's state to a file that can be read later.
  * n: A pointer to the network.
@@ -625,12 +641,16 @@ void save_mlp(MLP *n, const char* filename){
 
   //Create file
   FILE *fp = fopen(filename, "w");
+  if(!fp){
+    printf("ERROR: save_mlp(): unable to open file '%s' for writing.\n", filename);
+    exit(1);
+  }
   memset(buff, '\0', strlen(buff));
 
   //Write header info to file
   fprintf(fp, "MLP %lu %lu ", n->depth, n->input_dimension);
   for(int i = 0; i < n->depth; i++){
-    fprintf(fp, "%lu", n->layers[i].size);
+    fprintf(fp, "%lu %u", n->layers[i].size, n->layers[i].logistic);
     if(i < n->depth-1) fprintf(fp, " ");
     else fprintf(fp, "\n");
   }
@@ -672,9 +692,10 @@ MLP load_mlp(const char *filename){
     exit(1);
   }
   size_t arr[num_layers+1];
+  Nonlinearity logistics[num_layers];
   arr[0] = input_dim;
   for(int i = 1; i <= num_layers; i++){
-    if(fscanf(fp, " %lu", &arr[i]) == EOF){
+    if(fscanf(fp, " %lu %u", &arr[i], &logistics[i-1]) == EOF){
       printf("ERROR: '%s' corrupted.\n", filename);
       exit(1);
     }
@@ -682,6 +703,9 @@ MLP load_mlp(const char *filename){
 
   MLP n;
   n = mlp_from_arr(arr, num_layers+1);
+  for(int i = 0; i < n.depth; i++)
+    n.layers[i].logistic = logistics[i];
+
 #ifndef SIEKNET_USE_GPU
   for(int i = 0; i < n.num_params; i++){
     if(fscanf(fp, "%f", &n.params[i]) == EOF){
