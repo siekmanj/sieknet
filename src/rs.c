@@ -94,8 +94,8 @@ void rs_step(RS r){
     for(int i = 0; i < r.num_threads; i++)
       normalizers[i] = copy_normalizer(r.normalizer);
     
-    memset(r.normalizer->env_mean, '\0', sizeof(float)*r.normalizer->dimension);
-    memset(r.normalizer->env_std, '\0', sizeof(float)*r.normalizer->dimension);
+    memset(r.normalizer->mean, '\0', sizeof(float)*r.normalizer->dimension);
+    memset(r.normalizer->mean_diff, '\0', sizeof(float)*r.normalizer->dimension);
   }
 
   /* Do rollouts */
@@ -133,8 +133,8 @@ void rs_step(RS r){
   for(int i = 0; i < r.num_threads; i++){
     if(r.normalizer){
       for(int j = 0; j < r.normalizer->dimension; j++){
-        r.normalizer->env_mean[j] += normalizers[i]->env_mean[j] / r.num_threads;
-        r.normalizer->env_std[j] += normalizers[i]->env_std[j] / r.num_threads;
+        r.normalizer->mean[j] += normalizers[i]->mean[j] / r.num_threads;
+        r.normalizer->mean_diff[j] += normalizers[i]->mean_diff[j] / r.num_threads;
       }
       r.normalizer->num_steps += normalizers[i]->num_steps - steps_before;
       dealloc_normalizer(normalizers[i]);
@@ -145,10 +145,6 @@ void rs_step(RS r){
     free(normalizers);
 
   free(thetas);
-  //printf("normalizer mean/std after step: %lu\n", r.normalizer->num_steps);
-  //PRINTLIST(r.normalizer->env_mean, r.normalizer->dimension);
-  //PRINTLIST(r.normalizer->env_std, r.normalizer->dimension);
-  //getchar();
 
 	switch(r.algo){
 		case BASIC:

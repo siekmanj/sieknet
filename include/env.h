@@ -29,9 +29,9 @@ typedef struct env_ {
 } Environment;
 
 typedef struct normalize_ {
-  float *env_mean;
-  float *env_std;
-  float *env_var;
+  float *mean;
+  float *mean_diff;
+  float *var;
   size_t dimension;
   size_t num_steps;
   int update;

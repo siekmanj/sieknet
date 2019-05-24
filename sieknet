@@ -8,7 +8,7 @@ SIEKNET_LIB=""
 COMMON="-Iinclude -O3 -Wall -Wno-unused-function"
 LIBS="-lm"
 
-MJ_DIR="$HOME/.mujoco/mujoco200"
+MJ_DIR="$HOME/.mujoco/mujoco200_linux"
 MJ_FLAGS="-I$MJ_DIR/include -L$MJ_DIR/bin"
 MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
 
