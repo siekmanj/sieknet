@@ -398,7 +398,7 @@ void cpu_rnn_layer_backward(RNN_layer *l, float **grad, float *params, float *pa
   }
 }
 #else
-void gpu_rnn_layer_backward(RNN_layer *l, cl_mem *grad, cl_mem params, cl_mem param_grad, abs_grad, size_t MAX_TIME){
+void gpu_rnn_layer_backward(RNN_layer *l, cl_mem *grad, cl_mem params, cl_mem param_grad, int abs_grad, size_t MAX_TIME){
   int params_per_neuron = (l->input_dimension+1);
 
   for(int t = MAX_TIME; t >= 0; t--){
@@ -558,6 +558,7 @@ void rnn_wipe(RNN *n){
  * Does a deep-copy of an RNN.
  */
 RNN *copy_rnn(RNN *n){
+#ifndef SIEKNET_USE_GPU
 	size_t arr[n->depth+2];
 	arr[0] = n->input_dimension;
 	for(int i = 0; i < n->depth; i++){
@@ -578,6 +579,11 @@ RNN *copy_rnn(RNN *n){
   ret->performance = 0;
 
   return ret;
+#else
+  printf("WARNING: copy_rnn(): copying currently not supported on GPU\n");
+  exit(1);
+  return NULL;
+#endif
 }
 
 void dealloc_rnn(RNN *n){

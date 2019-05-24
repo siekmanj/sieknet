@@ -38,7 +38,12 @@ RS create_rs(float (*R)(const float *, size_t, Normalizer*), float *seed, size_t
   r.params = seed;
 	r.update = calloc(num_params, sizeof(float));
 	r.deltas = calloc(n, sizeof(Delta*));
+#ifndef SIEKNET_USE_GPU
 	r.optim = cpu_init_SGD(r.params, r.update, r.num_params);
+#else
+  printf("ERROR: create_rs(): random search currently not supported on GPU.\n");
+  exit(1);
+#endif
   r.normalizer = NULL;
 
 	for(int i = 0; i < n; i++){
@@ -77,7 +82,7 @@ void rs_step(RS r){
   for(int i = 0; i < r.num_threads; i++)
     thetas[i] = ALLOC(float, r.num_params);
 
-  Normalizer **normalizers;
+  Normalizer **normalizers = NULL;
   if(r.normalizer){
 
     if(r.algo == V2 || r.algo == V2_t)
@@ -122,7 +127,7 @@ void rs_step(RS r){
     r.deltas[i]->r_neg = r.f(thetas[thread], r.num_params, norm);
   }
 
-  size_t steps_before;
+  size_t steps_before = 0;
   if(r.normalizer)
 	  steps_before = r.normalizer->num_steps;
   for(int i = 0; i < r.num_threads; i++){

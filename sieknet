@@ -1,14 +1,21 @@
 #!/bin/bash
 
+CPULIB="-lsieknetcpu"
+GPULIB="-lsieknetgpu"
+
+SIEKNET_LIB=""
+
 COMMON="-Iinclude -O3 -Wall -Wno-unused-function"
-SRCFILES="src/mlp.c"
 LIBS="-lm"
 
 MJ_DIR="$HOME/.mujoco/mujoco200"
 MJ_FLAGS="-I$MJ_DIR/include -L$MJ_DIR/bin"
 MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
 
+CL_LIBS="-lOpenCL"
+
 MODELFILE=""
+SRCFILES=""
 DATADIR=""
 ARCH=""
 LOADNEW=""
@@ -103,7 +110,6 @@ EOF
 
 case $1 in
 char_nn)
-  SRCFILES="$SRCFILES src/optimizer.c"
   ARCH=""
   MODE=""
   DEFINES=""
@@ -120,7 +126,7 @@ char_nn)
       -g|--gpu) 
           DEFINES="$DEFINES -DSIEKNET_USE_GPU"
           LIBS="$LIBS -lOpenCL"
-          SRCFILES="$SRCFILES src/opencl_utils.c"
+          SIEKNET_LIB=$GPULIB
           ;;
       -e|--eval)
           shift
@@ -148,11 +154,9 @@ char_nn)
           ;;
       --rnn)
           ARCH="-DUSE_RNN"
-          SRCFILES="$SRCFILES src/rnn.c"
           ;;
       --lstm)
           ARCH="-DUSE_LSTM"
-          SRCFILES="$SRCFILES src/lstm.c"
           ;;
       --layers)
           shift
@@ -171,7 +175,7 @@ char_nn)
     esac
     shift
   done
-  #construct compile command for char_nn:
+
   if [ -z "$LOADNEW" ]
   then
     echo "ERROR: neither --load [path] nor --new [path] specified."
@@ -188,12 +192,32 @@ char_nn)
   if [ -z "$ARCH" ]
   then
     ARCH="-DUSE_LSTM"
-    SRCFILES="$SRCFILES src/lstm.c"
+  fi
+
+  if [ -z "$SIEKNET_LIB" ]
+  then
+    SIEKNET_LIB=$CPULIB
+  fi
+  
+  if [ $SIEKNET_LIB == $CPULIB ]
+  then
+    CPU_LIB_SO=./bin/libsieknetcpu.so
+    if [ ! -f $CPU_LIB_SO ];
+    then
+      make cpu
+    fi
+  else
+    GPU_LIB_SO=./bin/libsieknetgpu.so
+    if [ ! -f $GPU_LIB_SO ];
+    then
+      make gpu
+    fi
   fi
 
   SRCFILES="$SRCFILES example/char.c"
-  compile="gcc $COMMON $DEFINES $ARCH $SRCFILES -o ./bin/char_nn $LIBS" 
+  compile="gcc -L./bin $COMMON $DEFINES $ARCH $SRCFILES -o ./bin/char_nn $SIEKNET_LIB $LIBS" 
   $compile
+
   if [ $? -ne 0 ]
   then
     echo "Compilation failed."
@@ -204,7 +228,7 @@ char_nn)
   $cmd
   ;;
 ga)
-  SRCFILES="$SRCFILES src/ga.c src/env.c src/lstm.c src/rnn.c env/mj_env.c"
+  SRCFILES="$SRCFILES env/mj_env.c"
 
   options=$(getopt -l "help,eval,train,load:,new:,std:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:,mutation_type:,elite_percentile:,threads:,crossover,seed:,traj_len:" -o "h,e:,t:,L:,n:,s:,d,v" -a -- "$@")
   eval set -- "$options"
@@ -309,12 +333,14 @@ ga)
     esac
     shift
   done
+  
   if [ -z "$LOADNEW" ]
   then
     echo "ERROR: neither --load [path] nor --new [path] specified."
     ga_help
     exit
   fi
+  
   if [ -z "$MODE" ]
   then
     echo "ERROR: need to specify either --eval or --train."
@@ -326,14 +352,37 @@ ga)
     ENV_NAME="hopper"
     SRCFILES="$SRCFILES env/hopper_env.c"
   fi
+
   if [ -z "$ARCH" ]
   then
     echo "No arch specified, doing mlp"
     ARCH="-DUSE_MLP"
   fi
+
+  if [ -z "$SIEKNET_LIB" ]
+  then
+    SIEKNET_LIB=$CPULIB
+  fi
+  
+  if [ $SIEKNET_LIB == $CPULIB ]
+  then
+    CPU_LIB_SO=./bin/libsieknetcpu.so
+    if [ ! -f $CPU_LIB_SO ];
+    then
+      make cpu
+    fi
+  else
+    GPU_LIB_SO=./bin/libsieknetgpu.so
+    if [ ! -f $GPU_LIB_SO ];
+    then
+      make gpu
+    fi
+  fi
+
   SRCFILES="$SRCFILES example/genetic.c"
-  compile="gcc -Ienv $COMMON $MJ_FLAGS $SRCFILES $DEFINES $ARCH $MJ_LIBS $LIBS -o ./bin/genetic"
+  compile="gcc -L./bin -Ienv $COMMON $MJ_FLAGS $SRCFILES $DEFINES $ARCH $SIEKNET_LIB $MJ_LIBS $LIBS -o ./bin/genetic"
   $compile
+
   if [ $? -ne 0 ]
   then
     echo "Compilation failed."
@@ -448,33 +497,59 @@ rs)
     esac
     shift
   done
+  
   if [ -z "$LOADNEW" ]
   then
     echo "ERROR: neither --load [path] nor --new [path] specified."
     rs_help
     exit
   fi
+  
   if [ -z "$MODE" ]
   then
     echo "ERROR: need to specify either --eval or --train."
     rs_help
     exit
   fi
+  
   if [ -z "$ENV_NAME" ]
   then
     ENV_NAME="hopper"
     DEFINES="$DEFINES -DENV_NAME=hopper"
     SRCFILES="$SRCFILES env/hopper_env.c"
   fi
+  
   if [ -z "$ARCH" ]
   then
     echo "No arch specified, doing linear policy (mlp)"
     ARCH="-DUSE_MLP"
     DEFINES="$DEFINES -DUSE_LINEAR"
   fi
+
+  if [ -z "$SIEKNET_LIB" ]
+  then
+    SIEKNET_LIB=$CPULIB
+  fi
+  
+  if [ $SIEKNET_LIB == $CPULIB ]
+  then
+    CPU_LIB_SO=./bin/libsieknetcpu.so
+    if [ ! -f $CPU_LIB_SO ];
+    then
+      make cpu
+    fi
+  else
+    GPU_LIB_SO=./bin/libsieknetgpu.so
+    if [ ! -f $GPU_LIB_SO ];
+    then
+      make gpu
+    fi
+  fi
+
   SRCFILES="$SRCFILES example/search.c"
-  compile="gcc -Ienv $COMMON $MJ_FLAGS $SRCFILES $DEFINES $ARCH $MJ_LIBS $LIBS -o ./bin/search"
+  compile="gcc -L./bin -Ienv $COMMON $MJ_FLAGS $SRCFILES $DEFINES $ARCH $SIEKNET_LIB $MJ_LIBS $LIBS -o ./bin/search"
   $compile
+
   if [ $? -ne 0 ]
   then
     echo "Compilation failed."
