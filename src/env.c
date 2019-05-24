@@ -61,7 +61,7 @@ void save_normalizer(Normalizer *n, const char *filename){
   }
   fprintf(fp, "%lu %lu ", n->dimension, n->num_steps);
   for(int i = 0; i < n->dimension; i++)
-    fprintf(fp, "%f %f ", n->mean[i], n->var[i]);
+    fprintf(fp, "%f %f ", n->mean[i], n->mean_diff[i]);
   fclose(fp);
 }
 
@@ -78,7 +78,7 @@ Normalizer *load_normalizer(const char *filename){
   Normalizer *n = create_normalizer(dim);
   n->num_steps = num_steps;
   for(int i = 0; i < n->dimension; i++){
-    if(fscanf(fp, "%f %f", &n->mean[i], &n->var[i]) == EOF){
+    if(fscanf(fp, "%f %f", &n->mean[i], &n->mean_diff[i]) == EOF){
       printf("ERROR: load_normalizer(): EOF reached while loading file - probably corrupted.\n");
       exit(1);
     }

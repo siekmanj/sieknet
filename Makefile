@@ -9,14 +9,14 @@ BIN=bin
 
 SRC_DIR=src
 DAT_DIR=data
-MJ_DIR=$(HOME)/.mujoco/mujoco200
+MJ_DIR=$(HOME)/.mujoco/mujoco200_linux
 
 INCLUDE=-Iinclude -Ienv
 LIBS=-lm 
 GPULIBS=$(LIBS) -lOpenCL
 MJLIBS=-lmujoco200 -lGL -lglew $(MJ_DIR)/bin/libglfw.so.3
 
-CFLAGS=-O3 -Wall -Wno-unused-function
+CFLAGS=-O3 -Wno-unused-function
 GPUFLAGS=$(CFLAGS) -DSIEKNET_USE_GPU
 MUJOCOFLAGS=$(CFLAGS) -I$(MJ_DIR)/include -L$(MJ_DIR)/bin
 
@@ -34,6 +34,9 @@ HOPPER_SRC=env/hopper_env.c
 
 CPU_SRC=$(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(OPTIM_SRC) $(GA_SRC) $(RS_SRC) $(ENV_SRC)
 GPU_SRC=$(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(OPTIM_SRC) $(GA_SRC) $(RS_SRC) $(ENV_SRC) $(CL_SRC)
+
+bug:
+	$(CC) cassietest.c env/cassie_env.c -I ./env/cassie/include/ -I ./env/ -I ./include/ -L /home/jonah/cassie-mujoco-sim/ -lcassiemujoco $(MUJOCOFLAGS)
 
 cpu: src/*.c
 	gcc -shared -o $(BIN)/$(CPULIBOUT) -fPIC $(CFLAGS) $(CPU_SRC) $(INCLUDE) $(LIBS) -Wl,-rpath bin/
