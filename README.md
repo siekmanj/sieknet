@@ -208,6 +208,7 @@ Features include:
  - [augmented random search (ARS)](https://arxiv.org/abs/1803.07055)
  - OpenAI-gym-style MuJoCo environments
  - [backpropagation through time (BPTT)](https://en.wikipedia.org/wiki/Backpropagation_through_time)
+
  - GPU support (via OpenCL)
  - platform agnosticism
  - zero dependencies
