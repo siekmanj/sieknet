@@ -139,16 +139,7 @@ float evaluate(Environment *env, NETWORK_TYPE *n, Normalizer *normalizer, int re
     for(int t = 0; t < MAX_TRAJ_LEN; t++){
       if(timesteps)
         *timesteps = *timesteps + 1;
-      //if(timesteps && *timesteps > 2000){
-        //printf("before:\n");
-        //PRINTLIST(env->state, env->observation_space);
-      //}
       normalize(normalizer, env);
-      //if(timesteps && *timesteps > 2000){
-        //printf("after:\n");
-        //PRINTLIST(env->state, env->observation_space);
-      //  getchar();
-      //}
       forward(network_type)(n, env->state);
       perf += env->step(*env, n->output);
 
