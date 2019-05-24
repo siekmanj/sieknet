@@ -63,7 +63,8 @@ __kernel void rnn_parameter_gradient_kernel(__mem_ro float *gradient,
                                             const int dim,
                                             const int size,
                                             const int layer_param_idx,
-                                            const int skiplength){
+                                            const int skiplength,
+                                            const int abs_grad){
   agnostic_rnn_parameter_gradient_kernel(gradient,
                                          output,
                                          future_input_gradient,
@@ -77,6 +78,7 @@ __kernel void rnn_parameter_gradient_kernel(__mem_ro float *gradient,
                                          size,
                                          layer_param_idx,
                                          skiplength,
+                                         abs_grad,
                                          get_global_id(0));
 }
 /*<<KERNEL END>>*/
