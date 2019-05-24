@@ -16,7 +16,7 @@ typedef struct delta_{
 typedef struct RS{
 	float std;
 	float step_size;
-	float cutoff;
+	float top_b;
 
 	size_t directions;
 	size_t num_params;

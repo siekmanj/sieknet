@@ -30,7 +30,7 @@ RS create_rs(float (*R)(const float *, size_t, Normalizer*), float *seed, size_t
 	r.directions = n;
 	r.num_params = num_params;
 	r.algo = V1;
-	r.cutoff = 0.0;
+	r.top_b = 0.0;
   r.num_threads = 1;
 
   r.f = R;
@@ -213,7 +213,7 @@ void rs_step(RS r){
 			qsort(r.deltas, r.directions, sizeof(Delta*), rs_comparator);
 
       /* Use only top b noise vectors when calculating update */
-			int b = r.directions - (int)((r.cutoff)*r.directions);
+			int b = (int)((r.top_b)*r.directions);
 
       /* Mean and standard deviation of reward calculation */
 			float mean = 0;

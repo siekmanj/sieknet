@@ -429,6 +429,10 @@ rs)
           shift
           DEFINES="$DEFINES -DNOISE_STD=$1"
           ;;
+      --use_top)
+          shift
+          DEFINES="$DEFINES -DTOP_B=$1"
+          ;;
       --env)
           shift
           DEFINES="$DEFINES -DENV_NAME=$1"

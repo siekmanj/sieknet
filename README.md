@@ -107,7 +107,14 @@ cd sieknet
 chmod +x sieknet
 ```
 
-From there, compiling is handled by the script. 
+You will need to tell the linker where to find `libsieknetcpu.so` and `libsieknetgpu.so`, which you can do with the following command.
+```
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path_to/sieknet/bin/
+```
+
+You can also put the above in your .bashrc to make it permanent - that way you won't have to run it after every reboot or when you close your terminal window.
+
+## Unsupervised Learning
 
 ### char-nn
 
@@ -131,6 +138,34 @@ Please note that using the GPU might actually be slower than using the CPU due t
 
 You'll notice that we used the `--layers 5` and `--hidden_size 1024` options. Of the five layers, one is a softmax output layer, and one is a 'pretend' input layer; only three of the five are actually recurrent layers. However, each of the recurrent layers is 1024 nodes large. In total, the above network has about 21,475,424 parameters; not especially large by research standards, but it should give your GPU a nice workout. 
 
+## Reinforcement Learning
+
+Implemented are a few of the MuJoCo locomotion environments and a variety of reinforcement learning algorithms. You'll need [MuJoCo](http://www.mujoco.org/) to use them.
+
+### random search
+
+Augmented Random Search is an ingeniously simple black-box optimization algorithm developed by Benjamin Recht's group. It is very parallelizable and computationally efficient. My implementation supports multithreading and you will probably experience a large speedup by using the `--threads [n]` option.
+
+```
+./sieknet rs --train --new ./model/walker2d.mlp --env walker2d --directions 200 --std 0.0075 --lr 0.005 --timesteps 1e7 --threads 4
+```
+
+By default, the algorithm used is ARS-v1 (from the ARS paper), but you can specify which algorithm to use. The `use_top` option sets the proportion of top-performing directions to use. `--use_top 0.1` will consider only the top 10% of directions. Fair warning - I'm not confident I implemented the online state normalization right, so V2 and V2_t might not work as expected.
+
+```
+./sieknet rs --train --new ./model/humanoid.mlp --env humanoid --algo V1
+./sieknet rs --train --new ./model/humanoid.mlp --env humanoid --algo V2
+./sieknet rs --train --new ./model/humanoid.mlp --env humanoid --algo V1_t --use_top 0.5
+./sieknet rs --train --new ./model/humanoid.mlp --env humanoid --algo V2_t --use_top 0.5
+```
+
+ARS will by default use a linear policy, but you can use any architecture implemented.
+
+```
+./sieknet rs --train --new ./model/cheetah.rnn --env half_cheetah --rnn
+./sieknet rs --train --new ./model/cheetah.rnn --env half_cheetah --lstm
+```
+
 ### genetic algorithms
 
 You can use sieknet to train a pool of neural networks to come up with control and locomotion strategies in a variety of OpenAI gym-style environments using any of the implemented genetic algorithms. To train an MLP on the Hopper environment,
@@ -142,7 +177,7 @@ I have added multithreading via OpenMP (an optional dependency), so you can expe
 ./sieknet ga --train --new ./model/hopper.mlp --env walker2d --pool_size 1000 --hidden_size 64 --threads 8
 ```
 
-Several genetic algorithms are implemented - including UberAI's safe mutations w/ gradients, my own algorithm (momentum), and a variety of hybrids.
+Several genetic algorithms are implemented - including UberAI's safe mutations w/ gradients, momentum, and a variety of hybrids.
 ```
 ./sieknet ga --train --new ./model/hopper.mlp --env hopper --mutation_type SAFE
 ```
@@ -168,9 +203,11 @@ Features include:
  - stochastic gradient descent
  - stochastic gradient descent with momentum
  - neuroevolution
-   - safe mutations w/ gradients (UberAI)
-   - momentum (rediscovered but originally described [here](https://www.researchgate.net/publication/220935617_Accelerating_Real-Valued_Genetic_Algorithms_Using_Mutation-with-Momentum)
- - backpropagation through time (BPTT)
+   - safe mutations w/ gradients [(UberAI)](https://arxiv.org/abs/1712.06563)
+   - momentum (originally described [here](https://www.researchgate.net/publication/220935617_Accelerating_Real-Valued_Genetic_Algorithms_Using_Mutation-with-Momentum) by Temby et. al.
+ - [augmented random search (ARS)](https://arxiv.org/abs/1803.07055)
+ - OpenAI-gym-style MuJoCo environments
+ - [backpropagation through time (BPTT)](https://en.wikipedia.org/wiki/Backpropagation_through_time)
  - GPU support (via OpenCL)
  - platform agnosticism
  - zero dependencies
@@ -184,11 +221,13 @@ Plans for the near future include:
  - [ ] boltzmann machines
  - [ ] neural turing machine
  - [ ] differentiable neural computer
- - [ ] nesterov's accelerated gradient optimizer
  - [ ] novelty search
  - [ ] adam stochastic optimizer
  - [ ] gated recurrent unit (GRU)
- - [ ] policy gradients and various RL algorithms
+ - [ ] policy gradients
+    - [ ] PPO
+    - [ ] DDPG
+    - [ ] TD3
   
 <a name="gpu">
 	

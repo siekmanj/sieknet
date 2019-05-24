@@ -345,7 +345,7 @@ int main(int argc, char **argv){
     fprintf(log, "%s %s %s\n", "iteration", "samples", "return");
 
     RS r = create_rs(R, policy.params, policy.num_params, DIRECTIONS);
-    r.cutoff      = TOP_B;
+    r.top_b       = TOP_B;
     r.step_size   = STEP_SIZE;
     r.std         = NOISE_STD;
     r.algo        = ALGO;
