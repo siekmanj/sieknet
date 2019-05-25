@@ -9,7 +9,7 @@ BIN=bin
 
 SRC_DIR=src
 DAT_DIR=data
-MJ_DIR=$(HOME)/.mujoco/mujoco200_linux
+MJ_DIR=$(HOME)/.mujoco/mjpro150
 
 INCLUDE=-Iinclude -Ienv
 LIBS=-lm 
@@ -36,7 +36,7 @@ CPU_SRC=$(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(OPTIM_SRC) $(GA_SRC) $(RS_SRC) $(ENV
 GPU_SRC=$(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(OPTIM_SRC) $(GA_SRC) $(RS_SRC) $(ENV_SRC) $(CL_SRC)
 
 bug:
-	$(CC) cassietest.c env/cassie_env.c -I ./env/cassie/include/ -I ./env/ -I ./include/ -L /home/jonah/cassie-mujoco-sim/ -lcassiemujoco $(MUJOCOFLAGS)
+	$(CC) cassietest.c env/cassie_env.c -I ./env/cassie/include/ -I ./env/ -I ./include/ -L../cassie-mujoco-sim/ -lcassiemujoco $(MUJOCOFLAGS)
 
 cpu: src/*.c
 	gcc -shared -o $(BIN)/$(CPULIBOUT) -fPIC $(CFLAGS) $(CPU_SRC) $(INCLUDE) $(LIBS) -Wl,-rpath bin/
