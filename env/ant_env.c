@@ -1,4 +1,5 @@
 #include <mj_env.h>
+#include <stdio.h>
 
 static float step(Environment env, float *action){
   Data *tmp = ((Data*)env.data);
@@ -41,6 +42,13 @@ static float step(Environment env, float *action){
 
   float reward = forward_reward - ctrl_cost - contact_cost + survive_reward;
 
+  for(int i = 0; i < env.observation_space; i++){
+    if(isnan(env.state[i])){
+      printf("\nWARNING: NaN in observation vector - aborting episode early.\n");
+      *env.done = 1;
+      return 0;
+    }
+  }
   if(d->qpos[2] < 0.2 || d->qpos[2] > 1.0){
     *env.done = 1;
   }

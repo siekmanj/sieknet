@@ -100,7 +100,7 @@ void normalize(Normalizer *n, Environment *e){
       if(n->num_steps == 1){
         n->mean[i] = e->state[i];
         n->mean_diff[i] = 0.0f;
-        n->var[i] = 0.0f;
+        n->var[i] = 1.0f;
       }else{
 				float old_mean = n->mean[i];
 				n->mean[i]      += (e->state[i] - n->mean[i]) / n->num_steps;
