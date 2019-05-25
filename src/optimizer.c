@@ -8,6 +8,10 @@
 static void cpu_sgd_step(SGD o){
   for(int i = 0; i < o.num_params; i++){
     o.weights[i] -= o.learning_rate * o.gradient[i];
+    if(isnan(o.weights[i])){
+      printf("ERROR: cpu_sgd_step: optimizer just NAN'd a weight given learning rate %f and gradient %f\n", o.learning_rate, o.gradient[i]);
+      exit(1);
+    }
     o.gradient[i] = 0.0;
   }
 }
