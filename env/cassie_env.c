@@ -1,12 +1,13 @@
 #include <cassiemujoco.h>
 #include <cassie_env.h>
+#include <mujoco.h>
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 static float dt(Environment env){
 	return (float) 1 / 2000 * env.frameskip;
-
 }
 
 void dispose(Environment env){
@@ -26,17 +27,16 @@ void seed(Environment env){
 void render(Environment env){
 	Data *tmp = (Data*)env.data;
 	if(!tmp->vis){
-		printf("creating visualizer!\n");
-		//tmp->vis = cassie_vis_init(tmp->sim, "assets/cassie.xml");
 		tmp->render_setup = 1;
+    tmp->vis = cassie_vis_init(tmp->sim, "assets/cassie.xml");
 	}
 	cassie_vis_draw(tmp->vis, tmp->sim);
 }
 
-void close(Environment env){
+static void close(Environment env){
 	Data *tmp = (Data*)env.data;
 	cassie_vis_close(tmp->vis);
-
+  tmp->render_setup = 0;
 }
 
 static float sim_step(Environment env, float *action){
@@ -65,49 +65,48 @@ static float sim_step(Environment env, float *action){
 
 float step(Environment env, float *action){
 	Data *tmp = (Data*)env.data;
+  cassie_sim_t *c = tmp->sim;
+
+  mjData *d = cassie_sim_mjdata(c);
+
 	for(int i = 0; i < env.frameskip; i++){
 		sim_step(env, action);
 	}
-	//for(int i = 0; i < 5; i++)
-	//	printf("qpos[%d]: %f\n", i, tmp->sim->d->qos[i]);
 
 	//calc reward
-	//get full state()
   return 0.0f;
 }
-
 Environment create_cassie_env(){
+	setenv("MUJOCO_KEY_PATH", "/home/jonah/.mujoco/mjkey.txt", 0);
+	setenv("CASSIE_MODEL_PATH", "assets/cassie.xml", 0);
+
+  const char modelfile[] = "assets/cassie.xml";
+  cassie_sim_t *c = cassie_sim_init(modelfile);
+  //cassie_vis_t *v = cassie_vis_init(c, modelfile);
+
+  Environment env;
+  
 	float pid_p[5] = {100,  100,  88,  96,  50};
 	float pid_d[5] = {10.0, 10.0, 8.0, 9.6, 5.0};
 
 	size_t pos_idx[10] = {7, 8, 9, 14, 20, 21, 22, 23, 28, 34};
 	size_t vel_idx[10] = {6, 7, 8, 12, 18, 19, 20, 21, 25, 31};
 
-	setenv("MUJOCO_KEY_PATH", "/home/jonah/.mujoco/mjkey.txt", 0);
-	setenv("CASSIE_MODEL_PATH", "assets/cassie.xml", 0);
-
-	if(!cassie_mujoco_init("/home/jonah/.mujoco/mujoco200_linux")){
-		printf("unable to initialize mujoco.\n");
-		exit(1);
-	}
-
-  Environment env;
-
-
-  env.dispose = dispose;
-  env.reset = reset;
-  env.seed = seed;
   env.render = render;
   env.close = close;
   env.step = step;
+  env.dispose = dispose;
+  env.reset = reset;
+  env.seed = seed;
+
 	env.frameskip = 60;
 
   Data *d = (Data*)malloc(sizeof(Data));
 
-	d->sim = cassie_sim_init(getenv("CASSIE_MODEL_PATH"));
-	printf("sim: %p\n", d->sim);
-	d->vis = cassie_vis_init(d->sim, getenv("CASSIE_MODEL_PATH"));
+	d->sim = c;
+	d->vis = NULL;
 	d->render_setup = 0;
+
 	d->p_gains = (float*)malloc(5 * sizeof(float));
 	d->d_gains = (float*)malloc(5 * sizeof(float));
 
@@ -126,3 +125,4 @@ Environment create_cassie_env(){
 
   return env;
 }
+
