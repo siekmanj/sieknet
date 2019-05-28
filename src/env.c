@@ -68,7 +68,6 @@ void save_normalizer(Normalizer *n, const char *filename){
 Normalizer *load_normalizer(const char *filename){
   FILE *fp = fopen(filename, "rb");
   if(!fp){
-    printf("couldn't find file\n");
     return NULL;
   }
   
@@ -115,5 +114,10 @@ void normalize(Normalizer *n, Environment *e){
   for(int i = 0; i < n->dimension; i++){
     n->var[i] = n->mean_diff[i] / n->num_steps;
     e->state[i] = (e->state[i] - n->mean[i]) / sqrt(n->var[i]);
+    if(!isfinite(e->state[i])){
+      printf("\nWARNING: normalize(): non-finite value found. Aborting episode.\n");
+      *e->done = 1;
+      return;
+    }
   }
 }
