@@ -5,11 +5,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <conf.h>
 
 #define CASSIE_ENV_USE_CLOCK
-#define CASS_ENV_USE_REF_TRAJ
+#define CASSIE_ENV_USE_REF_TRAJ
 
 static const double JOINT_WEIGHTS[] = {0.15, 0.15, 0.1, 0.05, 0.05, 0.15, 0.15, 0.1, 0.05, 0.05};
 
@@ -23,6 +24,8 @@ static const float PID_P[5] = {100,  100,  88,  96,  50};
 static const float PID_D[5] = {10.0, 10.0, 8.0, 9.6, 5.0};
 
 const size_t TRAJECTORY_LENGTH = 1684; /* 1684 rows in stepdata.bin */
+
+#define LENGTHOF(arr) (sizeof(arr)/sizeof(arr[0]))
 
 #define REF_QPOS_START  1
 #define REF_QPOS_END   36
@@ -52,17 +55,18 @@ static float dt(Environment env){
 	return (float) 1 / 2000 * env.frameskip;
 }
 
-static double *get_ref_pos(Environment env){
-	Data *tmp = (Data*)env.data;
-	
-	return &tmp->traj[tmp->phase * env.frameskip][REF_QPOS_START];
-
+static void get_ref_qpos(double **traj, size_t frameskip, size_t phase, double *dest){
+  printf("%d vs %lu\n", LENGTHOF(STATE_POS_IDX), REF_QPOS_LEN);
+  double *raw_qpos = traj[phase * frameskip];
+  for(int i = 0; i < REF_QVEL_LEN; i++){
+    dest[i] = raw_qpos[STATE_POS_IDX[i]];
+  }
+	//return &tmp->traj[tmp->phase * env.frameskip][REF_QPOS_START];
 }
 
-static double *get_ref_vel(Environment env){
-	Data *tmp = (Data*)env.data;
+static void get_ref_qvel(double **traj, size_t phase, double *dest){
 
-	return &tmp->traj[tmp->phase * env.frameskip][REF_QVEL_START];
+	//return &tmp->traj[tmp->phase * env.frameskip][REF_QVEL_START];
 }
 
 void dispose(Environment env){
@@ -76,6 +80,7 @@ static void set_state(Environment env){
 	for(int i = 0; i < 20; i++){
 		env.state[i] = d->qpos[STATE_POS_IDX[i]];
 	}
+
 	for(int i = 0; i < 20; i++){
 			env.state[i+20] = d->qvel[STATE_VEL_IDX[i]];
 	}
@@ -89,9 +94,12 @@ static void set_state(Environment env){
 
 #elif defined(CASSIE_ENV_REF)
 	env.observation_space = 80;
-#error "Not implemented"
+  #error "Not implemented"
+
 #elif defined(CASSIE_ENV_NOCLOCK)
-//nothing
+
+  //nothing
+
 #endif
 
 }
@@ -109,8 +117,8 @@ void reset(Environment env){
 	double *qpos = d->qpos;
 	double *qvel = d->qvel;
 
-	double *ref_qpos = get_ref_pos(env);
-	double *ref_qvel = get_ref_vel(env);
+	double *ref_qpos = NULL;//get_ref_pos(env);
+	double *ref_qvel = NULL;//get_ref_vel(env);
 
 	for(int i = 0; i < REF_QPOS_LEN; i++){
 		if(!i)
@@ -146,7 +154,7 @@ void render(Environment env){
 	cassie_vis_draw(tmp->vis, tmp->sim);
 }
 
-static void close(Environment env){
+static void env_close(Environment env){
 	Data *tmp = (Data*)env.data;
 	cassie_vis_close(tmp->vis);
   tmp->render_setup = 0;
@@ -156,8 +164,10 @@ static float calculate_reward(Environment env){
 	Data *tmp = (Data*)env.data;
   mjData *d = cassie_sim_mjdata(tmp->sim);
 
-	double *ref_qpos = get_ref_pos(env);
-	//double *ref_qvel = get_ref_vel(env);
+#ifdef CASSIE_ENV_USE_REF_TRAJ
+  /* Use a reward based on matching the expert trajectory */
+	double *ref_qpos = NULL;//get_ref_pos(env);
+	//double *ref_qvel = NULL;//get_ref_vel(env);
 
 	double joint_error       = 0;
 	double com_error         = 0;
@@ -195,20 +205,41 @@ static float calculate_reward(Environment env){
 	orientation_error = 0.1 * exp(-orientation_error);
 
 	double reward = joint_error + com_error + orientation_error;
+#else
+  /* Use the OpenAI-gym humanoid-v1 reward */
+  float lin_vel_cost = 1.25 * (d->qvel[0]) / (d->time - simstart);
+
+  float quad_ctrl_cost = 0;
+  for(int i = 0; i < env.action_space; i++)
+    quad_ctrl_cost += 0.1 * action[i] * action[i];
+
+  float quad_impact_cost = 0;
+  for(int i = 0; i < m->nbody; i++){
+    float contact_force = d->cfrc_ext[i];
+    quad_impact_cost += 5e-7 * contact_force * contact_force;
+  }
+  if(quad_impact_cost > 10)
+    quad_impact_cost = 10;
+
+  float reward = lin_vel_cost - quad_ctrl_cost - quad_impact_cost + env.alive_bonus;
+#endif
 
 	return reward;
 }
 
 static void sim_step(Environment env, float *action){
 	Data *tmp = (Data*)env.data;
+  tmp->phase = 0;
 
 	double *ref_pos = tmp->traj[tmp->phase + 1];
 	//double *ref_vel = tmp->traj[tmp->phase + 1];
 
 	pd_in_t u;
 	for(int i = 0; i < 5; i++){
-		float ltarget = action[i+0] + ref_pos[POS_IDX[i+0]];
-		float rtarget = action[i+5] + ref_pos[POS_IDX[i+5]];
+		double ltarget = /*action[i+0] + */ref_pos[POS_IDX[i+0]];
+		double rtarget = /*action[i+5] + */ref_pos[POS_IDX[i+5]];
+
+    printf("%d: ltarget: %f, rtarget: %f\n", i, ltarget, rtarget);
 
 		u.leftLeg.motorPd.pGain[i]  = PID_P[i];
 		u.rightLeg.motorPd.pGain[i] = PID_P[i];
@@ -225,6 +256,7 @@ static void sim_step(Environment env, float *action){
 		u.leftLeg.motorPd.dTarget[i]  = 0;
 		u.rightLeg.motorPd.dTarget[i] = 0;
 	}
+  getchar();
 	state_out_t y;
 	cassie_sim_step_pd(tmp->sim, &y, &u);
 }
@@ -256,8 +288,10 @@ float step(Environment env, float *action){
 		*env.done = 1;
 
 	set_state(env);
+  sleep(1);
   return reward;
 }
+
 Environment create_cassie_env(){
 	setenv("MUJOCO_KEY_PATH", SIEKNET_MJKEYPATH, 0);
 	setenv("CASSIE_MODEL_PATH", "assets/cassie.xml", 0);
@@ -270,13 +304,14 @@ Environment create_cassie_env(){
   Environment env;
   
   env.render = render;
-  env.close = close;
+  env.close = env_close;
   env.step = step;
   env.dispose = dispose;
   env.reset = reset;
   env.seed = seed;
 
 	env.frameskip = 60;
+  env.alive_bonus = 0.0f;
 
   Data *d = (Data*)malloc(sizeof(Data));
 
@@ -295,35 +330,50 @@ Environment create_cassie_env(){
 		exit(1);
 	}
 
-	d->traj = ALLOC(double*, TRAJECTORY_LENGTH); 
 	int traj_data_row_len = 1 + 35 + 32 + 10 + 10 + 10;
-	size_t n_read = 0;
 
-	do{
+	d->traj = ALLOC(double*, TRAJECTORY_LENGTH); 
+  for(int i = 0; i < TRAJECTORY_LENGTH; i++){
 
-		d->traj[idx] = ALLOC(double, traj_data_row_len);
-		n_read = fread(d->traj[idx], sizeof(double), traj_data_row_len, fp);
-		idx++;
+		d->traj[i] = ALLOC(double, traj_data_row_len);
+		size_t n_read = fread(d->traj[i], sizeof(double), traj_data_row_len, fp);
 
-	}while(n_read > 0);
-
+    if(n_read != traj_data_row_len){
+      printf("WARNING: create_cassie_env(): unable to read stepdata.bin correctly, read %lu of %lu bytes\n", n_read, traj_data_row_len);
+      //exit(1);
+    }
+  }
 	d->phaselen = (size_t)(TRAJECTORY_LENGTH / env.frameskip);
 
-	free(d->traj[idx]);
+  //PRINTLIST(d->traj[0], traj_data_row_len);
+
+  double test[LENGTHOF(STATE_POS_IDX)];
+  get_ref_qpos(d->traj, env.frameskip, 0, test);
+  PRINTLIST(test, REF_QVEL_LEN);
+  getchar();
 
 	env.data = d;
 
   env.state = NULL;
 
 #if defined(CASSIE_ENV_USE_CLOCK)
+
   env.observation_space = 42;
+
 #elif defined(CASSIE_ENV_REF)
-	env.observation_space = 80;
-#error "Not implemented"
+
+  env.observation_space = 80;
+
+  #error "Not implemented"
+
 #elif defined(CASSIE_ENV_NOCLOCK)
-	env.observation_space = 40;
+
+  env.observation_space = 40;
+
 #else
-#error "Cassie environment type not defined"
+
+  #error "Cassie environment type not defined"
+
 #endif
 
   env.action_space = 10;
