@@ -12,6 +12,11 @@ MJ_DIR="$HOME/.mujoco/mujoco200_linux"
 MJ_FLAGS="-I$MJ_DIR/include -L$MJ_DIR/bin"
 MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
 
+CASSIE_MUJOCO_DIR="$HOME/cassie-mujoco-sim/"
+CASSIE_DIR="env/cassie"
+CASSIE_INCLUDE="$CASSIE_DIR/include"
+CASSIE_LIB="-L$CASSIE_MUJOCO_DIR -lcassiemujoco"
+
 CL_LIBS="-lOpenCL"
 
 MODELFILE=""
@@ -379,6 +384,11 @@ ga)
     fi
   fi
 
+	if [ $ENV_NAME == "cassie" ]
+	then
+		$COMMON="$COMMON -I$CASSIE_INCLUDE $CASSIE_LIB"
+	fi
+
   SRCFILES="$SRCFILES example/genetic.c"
   compile="gcc -L./bin -Ienv $COMMON $MJ_FLAGS $SRCFILES $DEFINES $ARCH $SIEKNET_LIB $MJ_LIBS $LIBS -o ./bin/genetic"
   $compile
@@ -392,7 +402,7 @@ ga)
   $cmd
   ;;
 rs)
-  SRCFILES="$SRCFILES src/rs.c src/env.c src/lstm.c src/rnn.c env/mj_env.c src/optimizer.c"
+  SRCFILES="$SRCFILES src/rs.c src/env.c src/lstm.c src/rnn.c src/optimizer.c"
 
   options=$(getopt -l "help,new:,load:,lr:,std:,env:,algo:,directions:,use_top:,threads:,layers:,hidden_size:,eval,train,debug,seed:,timesteps:,traj_len:,linear,mlp,rnn,lstm" -o "h,n,L,l,e,t,d" -a -- "$@")
   eval set -- "$options"
@@ -550,8 +560,19 @@ rs)
     fi
   fi
 
+	if [ $ENV_NAME == "cassie" ]
+	then
+		COMMON="$COMMON -I$CASSIE_INCLUDE -L$CASSIE_MUJOCO_DIR "
+		LIBS="$FLAGS $CASSIE_LIB -lm"
+	else
+		SRCFILES="$SRCFILES env/mj_env.c"
+		LIBS="$LIBS $MJ_LIBS"
+	fi
+
   SRCFILES="$SRCFILES example/search.c"
-  compile="gcc -L./bin -Ienv $COMMON $MJ_FLAGS $SRCFILES $DEFINES $ARCH $SIEKNET_LIB $MJ_LIBS $LIBS -o ./bin/search"
+
+  compile="gcc -L./bin -Ienv $MJ_FLAGS $COMMON $SRCFILES $DEFINES $ARCH $SIEKNET_LIB $LIBS -o ./bin/search"
+	echo $compile
   $compile
 
   if [ $? -ne 0 ]
