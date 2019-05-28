@@ -101,7 +101,7 @@ void normalize(Normalizer *n, Environment *e){
     for(int i = 0; i < n->dimension; i++){
       if(n->num_steps == 1){
         n->mean[i] = e->state[i];
-        n->mean_diff[i] = 0.0f;
+        n->mean_diff[i] = 1e-2;
         n->var[i] = 1.0f;
       }else{
 				float old_mean = n->mean[i];
