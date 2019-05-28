@@ -1,4 +1,5 @@
 #include <mj_env.h>
+#include <stdio.h>
 
 static float step(Environment env, float *action){
   Data *tmp = ((Data*)env.data);
