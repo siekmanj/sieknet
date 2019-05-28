@@ -183,6 +183,11 @@ void rs_step(RS r){
         x = r.deltas[i]->r_neg;
         std += (x - mean) * (x - mean);
       }
+
+      if(!isfinite(sqrt(std/(2 * b)))){
+        printf("WARNING: rs_step(): got non-finite standard deviation of reward form sqrt(%f / (2 * %d))\n", std, b);
+        exit(1);
+      }
       std = sqrt(std/(2 * b));
 
       /* Sum up all the weighted noise vectors to get update */
@@ -192,6 +197,9 @@ void rs_step(RS r){
  					float reward = (r.deltas[i]->r_pos - r.deltas[i]->r_neg);
 					float d = r.deltas[i]->p[j] / r.std;
 					r.update[j] += weight * reward * d;
+          if(!isfinite(r.update[j])){
+            printf("WARNING: rs_step(): got non-finite gradient estimate from %f * %f * %f\n", weight, reward, d);
+          }
 				}
 			}
     }
