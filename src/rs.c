@@ -13,8 +13,8 @@ static float uniform(float lowerbound, float upperbound){
 }
 
 static float normal(float mean, float std){
-	float u1 = uniform(0, 1);
-	float u2 = uniform(0, 1);
+	float u1 = uniform(1e-12, 1);
+	float u2 = uniform(1e-12, 1);
 	float norm = sqrt(-2 * log(u1)) * cos(2 * M_PI * u2);
 	return mean + norm * std;
 }
@@ -266,7 +266,12 @@ void rs_step(RS r){
   #pragma omp parallel for default(none) shared(r)
   #endif
 	for(int i = 0; i < r.directions; i++)
-		for(int j = 0; j < r.num_params; j++)
+		for(int j = 0; j < r.num_params; j++){
 			r.deltas[i]->p[j] = normal(0, r.std);
+			if(!isfinite(r.deltas[i]->p[j])){
+				printf("ERROR: rs_step(): got non-finite value whil generating noise vector for direction %d, param %d: %f\n", i, j, r.deltas[i]->p[j]);
+				exit(1);
+			}
+		}
 
 }
