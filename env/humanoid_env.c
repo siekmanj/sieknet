@@ -47,7 +47,7 @@ static float step(Environment env, float *action){
 
   float reward = lin_vel_cost - quad_ctrl_cost - quad_impact_cost + env.alive_bonus;
 
-  if(d->qpos[2] < 1.0 || d->qpos[2] > 2.0){
+  if(!isfinite(reward) || d->qpos[2] < 1.0 || d->qpos[2] > 2.0){
     *env.done = 1;
   }
 
