@@ -12,7 +12,7 @@ MJ_DIR="$HOME/.mujoco/mujoco200_linux"
 MJ_FLAGS="-I$MJ_DIR/include -L$MJ_DIR/bin"
 MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
 
-CASSIE_MUJOCO_DIR="$HOME/cassie-mujoco-sim/"
+CASSIE_MUJOCO_DIR="$HOME/jonah/cassie-mujoco-sim/"
 CASSIE_DIR="env/cassie"
 CASSIE_INCLUDE="$CASSIE_DIR/include"
 CASSIE_LIB="-L$CASSIE_MUJOCO_DIR -lcassiemujoco"
@@ -415,9 +415,11 @@ rs)
           ;;
       -e|--eval)
           MODE="eval"
+	  MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
           ;;
       -t|--train)
           MODE="train"
+	  MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
           ;;
       -L|--load)
           shift
