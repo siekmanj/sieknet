@@ -174,6 +174,10 @@ void rs_step(RS r){
 
       for(int i = 0; i < b; i++){
         mean += r.deltas[i]->r_pos + r.deltas[i]->r_neg;
+        if(!isfinite(mean)){
+          printf("WARNING: rs_step(): got non-finite mean while calculating reward stats, from %f or %f\n", r.deltas[i]->r_pos, r.deltas[i]->r_neg);
+          exit(1);
+        }
       }
       mean /= 2 * b;
 
@@ -182,6 +186,10 @@ void rs_step(RS r){
         std += (x - mean) * (x - mean);
         x = r.deltas[i]->r_neg;
         std += (x - mean) * (x - mean);
+	if(!isfinite(std)){
+          printf("WARNING: rs_step(): got non-finite std during sum from either: %f, %f, or %f\n", mean, r.deltas[i]->r_pos, r.deltas[i]->r_neg);
+          exit(1);
+	}
       }
 
       if(!isfinite(sqrt(std/(2 * b)))){
@@ -194,9 +202,9 @@ void rs_step(RS r){
       float weight = -1 / (b * std);
       for(int i = 0; i < b; i++){
         for(int j = 0; j < r.num_params; j++){
- 					float reward = (r.deltas[i]->r_pos - r.deltas[i]->r_neg);
-					float d = r.deltas[i]->p[j] / r.std;
-					r.update[j] += weight * reward * d;
+          float reward = (r.deltas[i]->r_pos - r.deltas[i]->r_neg);
+          float d = r.deltas[i]->p[j] / r.std;
+          r.update[j] += weight * reward * d;
           if(!isfinite(r.update[j])){
             printf("WARNING: rs_step(): got non-finite gradient estimate from %f * %f * %f\n", weight, reward, d);
           }
