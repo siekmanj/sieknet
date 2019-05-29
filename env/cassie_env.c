@@ -14,8 +14,8 @@
 
 static const double JOINT_WEIGHTS[] = {0.15, 0.15, 0.1, 0.05, 0.05, 0.15, 0.15, 0.1, 0.05, 0.05};
 
-static const size_t POS_IDX[10] = {7, 8, 9, 14, 20, 21, 22, 23, 28, 34};
-static const size_t VEL_IDX[10] = {6, 7, 8, 12, 18, 19, 20, 21, 25, 31};
+static const size_t ACTION_POS_IDX[10] = {7, 8, 9, 14, 20, 21, 22, 23, 28, 34};
+static const size_t ACTION_VEL_IDX[10] = {6, 7, 8, 12, 18, 19, 20, 21, 25, 31};
 
 static const size_t STATE_POS_IDX[20] = {1,2,3,4,5,6,7,8,9,14,15,16,20,21,22,23,28,29,30,34};
 static const size_t STATE_VEL_IDX[20] = {0,1,2,3,4,5,6,7,8,12,13,14,18,19,20,21,25,26,27,31};
@@ -37,7 +37,7 @@ const size_t REF_QVEL_LEN   = REF_QVEL_END - REF_QVEL_START;
 
 #define REF_TORQUE_START 68
 #define REF_TORQUE_END   78
-const size_t REF_TORQUE_LEN   = REF_TORQUE_END - REF_TORQUE_START;
+const size_t REF_TORQUE_LEN = REF_TORQUE_END - REF_TORQUE_START;
 
 #define REF_MPOS_START 78
 #define REF_MPOS_END   88
@@ -55,18 +55,51 @@ static float dt(Environment env){
 	return (float) 1 / 2000 * env.frameskip;
 }
 
-static void get_ref_qpos(double **traj, size_t frameskip, size_t phase, double *dest){
-  printf("%d vs %lu\n", LENGTHOF(STATE_POS_IDX), REF_QPOS_LEN);
-  double *raw_qpos = traj[phase * frameskip];
-  for(int i = 0; i < REF_QVEL_LEN; i++){
-    dest[i] = raw_qpos[STATE_POS_IDX[i]];
+static void get_ref_qpos_raw(double **traj, size_t frameskip, size_t phase, double *dest){
+
+  double *raw_qpos = &traj[phase * frameskip][REF_QPOS_START];
+  for(int i = 0; i < REF_QPOS_LEN; i++){
+    dest[i] = raw_qpos[i];
   }
-	//return &tmp->traj[tmp->phase * env.frameskip][REF_QPOS_START];
 }
 
-static void get_ref_qvel(double **traj, size_t phase, double *dest){
+static void get_ref_qpos_state(double **traj, size_t frameskip, size_t phase, double *dest){
 
-	//return &tmp->traj[tmp->phase * env.frameskip][REF_QVEL_START];
+	double tmp[REF_QPOS_LEN];
+	get_ref_qpos_raw(traj, frameskip, phase, tmp);
+
+	for(int i = 0; i < LENGTHOF(STATE_POS_IDX); i++){
+		if(!i)
+			dest[i] = 0.0f;
+		else
+			dest[i] = tmp[STATE_POS_IDX[i]];
+	}
+}
+
+static void get_ref_qpos_action(double **traj, size_t frameskip, size_t phase, double *dest){
+	double tmp[REF_QPOS_LEN];
+	get_ref_qpos_raw(traj, frameskip, phase, tmp);
+
+	for(int i = 0; i < LENGTHOF(ACTION_POS_IDX); i++){
+		dest[i] = tmp[ACTION_POS_IDX[i]];
+	}
+}
+
+static void get_ref_qvel_raw(double **traj, size_t frameskip, size_t phase, double *dest){
+
+	double *raw_qvel = &traj[phase * frameskip][REF_QVEL_START];
+	for(int i = 0; i < REF_QVEL_LEN; i++){
+		dest[i] = raw_qvel[i];
+	}
+}
+
+static void get_ref_qvel_state(double **traj, size_t frameskip, size_t phase, double *dest){
+	double tmp[REF_QVEL_LEN];
+	get_ref_qvel_raw(traj, frameskip, phase, tmp);
+
+	for(int i = 0; i < LENGTHOF(STATE_VEL_IDX); i++){
+		dest[i] = tmp[STATE_VEL_IDX[i]];
+	}
 }
 
 void dispose(Environment env){
@@ -109,26 +142,18 @@ void reset(Environment env){
 	Data *tmp = (Data*)env.data;
 
 	tmp->counter = 0;
-	tmp->phase = rand() % tmp->phaselen;
+	tmp->phase = 0;//rand() % tmp->phaselen;
 	tmp->time  = 0;
 
   mjData *d = cassie_sim_mjdata(tmp->sim);
+	d->time = 0;
 
 	double *qpos = d->qpos;
 	double *qvel = d->qvel;
 
-	double *ref_qpos = NULL;//get_ref_pos(env);
-	double *ref_qvel = NULL;//get_ref_vel(env);
+	get_ref_qpos_raw(tmp->traj, env.frameskip, tmp->phase, qpos);
+	get_ref_qvel_raw(tmp->traj, env.frameskip, tmp->phase, qvel);
 
-	for(int i = 0; i < REF_QPOS_LEN; i++){
-		if(!i)
-			qpos[i] = 0;
-		else
-			qpos[i] = ref_qpos[i];
-	}
-	for(int i = 0; i < REF_QVEL_LEN; i++){
-		qvel[i] = ref_qvel[i];
-	}
 	set_state(env);
 }
 
@@ -166,17 +191,17 @@ static float calculate_reward(Environment env){
 
 #ifdef CASSIE_ENV_USE_REF_TRAJ
   /* Use a reward based on matching the expert trajectory */
-	double *ref_qpos = NULL;//get_ref_pos(env);
-	//double *ref_qvel = NULL;//get_ref_vel(env);
+	double ref_qpos[REF_QPOS_LEN];
+	get_ref_qpos_raw(tmp->traj, env.frameskip, tmp->phase, ref_qpos);
 
 	double joint_error       = 0;
 	double com_error         = 0;
 	double orientation_error = 0;
-	//double spring_error      = 0;
+	double spring_error      = 0;
 
-	for(int i = 0; i < sizeof(POS_IDX)/sizeof(POS_IDX[0]); i++){
-		double target = ref_qpos[POS_IDX[i]];
-		double actual = d->qpos[i];
+	for(int i = 0; i < LENGTHOF(ACTION_POS_IDX); i++){
+		double target = ref_qpos[ACTION_POS_IDX[i]];
+		double actual = d->qpos[ACTION_POS_IDX[i]];
 
 		joint_error += 30 * JOINT_WEIGHTS[i] * (target - actual) * (target - actual);
 	}
@@ -199,10 +224,18 @@ static float calculate_reward(Environment env){
 
 		orientation_error += (target - actual) * (target - actual);
 	}
+
+	for(int i = 15; i < 29; i++){
+		double target = ref_qpos[i];
+		double actual = d->qpos[i];
+
+		spring_error += 1000 * (target - actual) * (target - actual);
+	}
 	
 	joint_error       = 0.5 * exp(-joint_error);
 	com_error         = 0.3 * exp(-com_error);
 	orientation_error = 0.1 * exp(-orientation_error);
+	spring_error      = 0.1 * exp(-spring_error);
 
 	double reward = joint_error + com_error + orientation_error;
 #else
@@ -229,17 +262,20 @@ static float calculate_reward(Environment env){
 
 static void sim_step(Environment env, float *action){
 	Data *tmp = (Data*)env.data;
-  tmp->phase = 0;
 
-	double *ref_pos = tmp->traj[tmp->phase + 1];
-	//double *ref_vel = tmp->traj[tmp->phase + 1];
+	size_t next_phase = tmp->phase + 1;
+	if(next_phase > tmp->phaselen)
+		next_phase = 0;
+
+	double ref_pos[LENGTHOF(ACTION_POS_IDX)];
+	get_ref_qpos_action(tmp->traj, env.frameskip, next_phase, ref_pos);
 
 	pd_in_t u;
 	for(int i = 0; i < 5; i++){
-		double ltarget = /*action[i+0] + */ref_pos[POS_IDX[i+0]];
-		double rtarget = /*action[i+5] + */ref_pos[POS_IDX[i+5]];
+		double ltarget = action[i+0] + ref_pos[i+0];
+		double rtarget = action[i+5] + ref_pos[i+5];
 
-    printf("%d: ltarget: %f, rtarget: %f\n", i, ltarget, rtarget);
+    //printf("%d: ltarget: %f + %f, rtarget: %f + %f\n", i, action[i], ref_pos[i], action[i+5], ref_pos[i+5]);
 
 		u.leftLeg.motorPd.pGain[i]  = PID_P[i];
 		u.rightLeg.motorPd.pGain[i] = PID_P[i];
@@ -256,7 +292,6 @@ static void sim_step(Environment env, float *action){
 		u.leftLeg.motorPd.dTarget[i]  = 0;
 		u.rightLeg.motorPd.dTarget[i] = 0;
 	}
-  getchar();
 	state_out_t y;
 	cassie_sim_step_pd(tmp->sim, &y, &u);
 }
@@ -270,6 +305,14 @@ float step(Environment env, float *action){
 	for(int i = 0; i < env.frameskip; i++){
 		sim_step(env, action);
 	}
+
+	/*
+	double ref_pos[LENGTHOF(ACTION_POS_IDX)];
+	get_ref_qpos_action(tmp->traj, env.frameskip, tmp->phase+1, ref_pos);
+	printf("phase %d: ", tmp->phase);
+	PRINTLIST(ref_pos, LENGTHOF(ACTION_POS_IDX));
+	getchar();
+	*/
 
 	tmp->time++;
 	tmp->phase++;
@@ -288,7 +331,6 @@ float step(Environment env, float *action){
 		*env.done = 1;
 
 	set_state(env);
-  sleep(1);
   return reward;
 }
 
@@ -329,8 +371,9 @@ Environment create_cassie_env(){
 		printf("ERROR: create_cassie_env(): couldn't open binary file '%s'\n", trajfile);
 		exit(1);
 	}
+	fseek(fp, 0L, SEEK_SET);
 
-	int traj_data_row_len = 1 + 35 + 32 + 10 + 10 + 10;
+	size_t traj_data_row_len = 1 + 35 + 32 + 10 + 10 + 10;
 
 	d->traj = ALLOC(double*, TRAJECTORY_LENGTH); 
   for(int i = 0; i < TRAJECTORY_LENGTH; i++){
@@ -345,16 +388,7 @@ Environment create_cassie_env(){
   }
 	d->phaselen = (size_t)(TRAJECTORY_LENGTH / env.frameskip);
 
-  //PRINTLIST(d->traj[0], traj_data_row_len);
-
-  double test[LENGTHOF(STATE_POS_IDX)];
-  get_ref_qpos(d->traj, env.frameskip, 0, test);
-  PRINTLIST(test, REF_QVEL_LEN);
-  getchar();
-
 	env.data = d;
-
-  env.state = NULL;
 
 #if defined(CASSIE_ENV_USE_CLOCK)
 
@@ -380,7 +414,6 @@ Environment create_cassie_env(){
 	env.state = calloc(env.observation_space, sizeof(float));
 
   env.done = calloc(1, sizeof(int));
-
   return env;
 }
 
