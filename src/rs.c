@@ -162,7 +162,7 @@ void rs_step(RS r){
         printf("ERROR: rs_step(): normalizer not initialized.\n");
         exit(1);
       }
-    }
+    } /* Intentional fall-through */
     case V1:
     {
       /* Consider all directions */
