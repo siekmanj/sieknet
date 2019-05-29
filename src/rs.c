@@ -199,6 +199,7 @@ void rs_step(RS r){
 					r.update[j] += weight * reward * d;
           if(!isfinite(r.update[j])){
             printf("WARNING: rs_step(): got non-finite gradient estimate from %f * %f * %f\n", weight, reward, d);
+            exit(1);
           }
 				}
 			}
