@@ -83,13 +83,15 @@ Environment create_cassie_env(){
 	size_t pos_idx[10] = {7, 8, 9, 14, 20, 21, 22, 23, 28, 34};
 	size_t vel_idx[10] = {6, 7, 8, 12, 18, 19, 20, 21, 25, 31};
 
-	setenv("MUJOCO_KEY_PATH", "/home/jonah/.mujoco/mjkey.txt", 0);
+	setenv("MUJOCO_KEY_PATH", "/home/drl/.mujoco/mjkey.txt", 0);
 	setenv("CASSIE_MODEL_PATH", "assets/cassie.xml", 0);
 
-	if(!cassie_mujoco_init("/home/jonah/.mujoco/mujoco200_linux")){
+  printf("init\n");
+	if(!cassie_mujoco_init("/home/drl/.mujoco/mujoco200_linux")){
 		printf("unable to initialize mujoco.\n");
 		exit(1);
 	}
+  printf("done\n");
 
   Environment env;
 
@@ -104,6 +106,7 @@ Environment create_cassie_env(){
 
   Data *d = (Data*)malloc(sizeof(Data));
 
+  printf("here\n");
 	d->sim = cassie_sim_init(getenv("CASSIE_MODEL_PATH"));
 	printf("sim: %p\n", d->sim);
 	d->vis = cassie_vis_init(d->sim, getenv("CASSIE_MODEL_PATH"));
