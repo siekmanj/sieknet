@@ -2,6 +2,8 @@
 #define CASSIE_ENV_H
 
 #include <cassiemujoco.h>
+#include <mujoco.h>
+#include <glfw3.h>
 #include <env.h>
 
 #define CASSIE_ENV_REFTRAJ
@@ -9,6 +11,12 @@
 typedef struct data {
   cassie_sim_t *sim;
 	cassie_vis_t *vis;
+
+  mjvCamera camera;
+  mjvOption opt;
+  mjvScene scene;
+  mjrContext context;
+  GLFWwindow *window;
 
 #ifdef CASSIE_ENV_REFTRAJ
 	/* 
