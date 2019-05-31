@@ -565,7 +565,7 @@ rs)
 	if [ $ENV_NAME == "cassie" ]
 	then
 		COMMON="$COMMON -I$CASSIE_INCLUDE -L$CASSIE_MUJOCO_DIR "
-		LIBS="$FLAGS $CASSIE_LIB -lm"
+		LIBS="$FLAGS $CASSIE_LIB $MJ_LIBS -lm"
 	else
 		SRCFILES="$SRCFILES env/mj_env.c"
 		LIBS="$LIBS $MJ_LIBS"

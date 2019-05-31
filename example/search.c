@@ -129,22 +129,22 @@
 
 float evaluate(Environment *env, NETWORK_TYPE *n, Normalizer *normalizer, int render, size_t *timesteps){
   float perf = 0;
-  if(!render)
-    env->close(*env);
+  //if(!render)
+    //env->close(*env);
 
   for(int i = 0; i < ROLLOUTS_PER_MEMBER; i++){
     env->reset(*env);
     env->seed(*env);
 
     for(int t = 0; t < MAX_TRAJ_LEN; t++){
+      if(render)
+        env->render(*env);
+
       if(timesteps)
         *timesteps = *timesteps + 1;
       normalize(normalizer, env);
       forward(network_type)(n, env->state);
       perf += env->step(*env, n->output);
-
-      if(render)
-        env->render(*env);
 
       if(*env->done)
         break;

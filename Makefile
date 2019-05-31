@@ -36,7 +36,7 @@ CPU_SRC=$(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(OPTIM_SRC) $(GA_SRC) $(RS_SRC) $(ENV
 GPU_SRC=$(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(OPTIM_SRC) $(GA_SRC) $(RS_SRC) $(ENV_SRC) $(CL_SRC)
 
 bug:
-	$(CC) cassietest.c env/cassie_env.c -I ./env/cassie/include/ -I ./env/ -I ./include/ -L../cassie-mujoco-sim/ -lcassiemujoco $(MUJOCOFLAGS) $(LIBS)
+	$(CC) cassietest.c env/cassie_env.c -I ./env/cassie/include/ -I ./env/ -I ./include/ -L../cassie-mujoco-sim/ -lcassiemujoco $(MUJOCOFLAGS) $(LIBS) $(MJLIBS)
 
 cpu: src/*.c
 	gcc -shared -o $(BIN)/$(CPULIBOUT) -fPIC $(CFLAGS) $(CPU_SRC) $(INCLUDE) $(LIBS) -Wl,-rpath bin/
