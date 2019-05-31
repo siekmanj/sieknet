@@ -67,8 +67,9 @@ void save_normalizer(Normalizer *n, const char *filename){
 
 Normalizer *load_normalizer(const char *filename){
   FILE *fp = fopen(filename, "rb");
-  if(!fp)
+  if(!fp){
     return NULL;
+  }
   
   size_t dim, num_steps;
   if(fscanf(fp, "%lu %lu ", &dim, &num_steps) == EOF){
@@ -77,8 +78,8 @@ Normalizer *load_normalizer(const char *filename){
   }
   Normalizer *n = create_normalizer(dim);
   n->num_steps = num_steps;
-  for(int i = 0; i < n->dimension; i++){
-    if(fscanf(fp, "%f %f", &n->mean[i], &n->mean_diff[i]) == EOF){
+  for(int i = 0; i < dim; i++){
+    if(fscanf(fp, "%f %f ", &n->mean[i], &n->mean_diff[i]) == EOF){
       printf("ERROR: load_normalizer(): EOF reached while loading file - probably corrupted.\n");
       exit(1);
     }
@@ -99,19 +100,24 @@ void normalize(Normalizer *n, Environment *e){
     for(int i = 0; i < n->dimension; i++){
       if(n->num_steps == 1){
         n->mean[i] = e->state[i];
-        n->mean_diff[i] = 0.0f;
-        n->var[i] = 0.0f;
+        n->mean_diff[i] = 1e-2;
+        n->var[i] = 1.0f;
       }else{
 				float old_mean = n->mean[i];
 				n->mean[i]      += (e->state[i] - n->mean[i]) / n->num_steps;
 				n->mean_diff[i] += (e->state[i] - old_mean) * (e->state[i] - n->mean[i]);
-				n->var[i] = n->mean_diff[i] / n->num_steps;
       }
     }
   }
 
   /* Normalize environment state */
   for(int i = 0; i < n->dimension; i++){
+    n->var[i] = n->mean_diff[i] / n->num_steps;
     e->state[i] = (e->state[i] - n->mean[i]) / sqrt(n->var[i]);
+    if(!isfinite(e->state[i])){
+      printf("\nWARNING: normalize(): non-finite value found. Aborting episode.\n");
+      *e->done = 1;
+      return;
+    }
   }
 }

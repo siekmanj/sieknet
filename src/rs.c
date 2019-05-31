@@ -13,8 +13,8 @@ static float uniform(float lowerbound, float upperbound){
 }
 
 static float normal(float mean, float std){
-	float u1 = uniform(0, 1);
-	float u2 = uniform(0, 1);
+	float u1 = uniform(1e-12, 1);
+	float u2 = uniform(1e-12, 1);
 	float norm = sqrt(-2 * log(u1)) * cos(2 * M_PI * u2);
 	return mean + norm * std;
 }
@@ -162,7 +162,7 @@ void rs_step(RS r){
         printf("ERROR: rs_step(): normalizer not initialized.\n");
         exit(1);
       }
-    }
+    } /* Intentional fall-through */
     case V1:
     {
       /* Consider all directions */
@@ -174,6 +174,10 @@ void rs_step(RS r){
 
       for(int i = 0; i < b; i++){
         mean += r.deltas[i]->r_pos + r.deltas[i]->r_neg;
+        if(!isfinite(mean)){
+          printf("WARNING: rs_step(): got non-finite mean while calculating reward stats, from %f or %f\n", r.deltas[i]->r_pos, r.deltas[i]->r_neg);
+          exit(1);
+        }
       }
       mean /= 2 * b;
 
@@ -182,6 +186,15 @@ void rs_step(RS r){
         std += (x - mean) * (x - mean);
         x = r.deltas[i]->r_neg;
         std += (x - mean) * (x - mean);
+	if(!isfinite(std)){
+          printf("WARNING: rs_step(): got non-finite std during sum from either: %f, %f, or %f\n", mean, r.deltas[i]->r_pos, r.deltas[i]->r_neg);
+          exit(1);
+	}
+      }
+
+      if(!isfinite(sqrt(std/(2 * b)))){
+        printf("WARNING: rs_step(): got non-finite standard deviation of reward form sqrt(%f / (2 * %d))\n", std, b);
+        exit(1);
       }
       std = sqrt(std/(2 * b));
 
@@ -189,9 +202,12 @@ void rs_step(RS r){
       float weight = -1 / (b * std);
       for(int i = 0; i < b; i++){
         for(int j = 0; j < r.num_params; j++){
- 					float reward = (r.deltas[i]->r_pos - r.deltas[i]->r_neg);
-					float d = r.deltas[i]->p[j] / r.std;
-					r.update[j] += weight * reward * d;
+          float reward = (r.deltas[i]->r_pos - r.deltas[i]->r_neg);
+          float d = r.deltas[i]->p[j] / r.std;
+          r.update[j] += weight * reward * d;
+          if(!isfinite(r.update[j])){
+            printf("WARNING: rs_step(): got non-finite gradient estimate from %f * %f * %f\n", weight, reward, d);
+          }
 				}
 			}
     }
@@ -250,7 +266,12 @@ void rs_step(RS r){
   #pragma omp parallel for default(none) shared(r)
   #endif
 	for(int i = 0; i < r.directions; i++)
-		for(int j = 0; j < r.num_params; j++)
+		for(int j = 0; j < r.num_params; j++){
 			r.deltas[i]->p[j] = normal(0, r.std);
+			if(!isfinite(r.deltas[i]->p[j])){
+				printf("ERROR: rs_step(): got non-finite value whil generating noise vector for direction %d, param %d: %f\n", i, j, r.deltas[i]->p[j]);
+				exit(1);
+			}
+		}
 
 }
