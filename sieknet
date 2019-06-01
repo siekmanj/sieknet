@@ -25,6 +25,12 @@ DATADIR=""
 ARCH=""
 LOADNEW=""
 
+echo $LD_LIBRARY_PATH | grep -rnw "$(pwd)/bin"
+if [ $? -ne 0 ]
+then
+  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/bin
+fi
+
 char_nn_help() {
 cat << EOF  
 Usage (training):   ./sieknet char_nn --new [modelpath] --train [dataset]
