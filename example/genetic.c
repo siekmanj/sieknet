@@ -170,8 +170,8 @@ float evaluate(Environment *env, NETWORK_TYPE *n, int render){
 				break;
 		}
 	}
-  if(render)
-    env->close(*env);
+  //if(render)
+  //  env->close(*env);
 
 	return perf / ROLLOUTS_PER_MEMBER;
 }

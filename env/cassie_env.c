@@ -10,7 +10,12 @@
 #include <conf.h>
 
 #define CASSIE_ENV_USE_CLOCK
-#define CASSIE_ENV_USE_REF_TRAJ
+
+//#define CASSIE_ENV_USE_REF_TRAJ
+
+#define CASSIE_ENV_NO_DELTAS
+
+//#define CASSIE_ENV_USE_HUMANOID_REWARD
 
 static const double JOINT_WEIGHTS[] = {0.15, 0.15, 0.1, 0.05, 0.05, 0.15, 0.15, 0.1, 0.05, 0.05};
 
@@ -102,9 +107,7 @@ static void get_ref_qvel_state(double **traj, size_t frameskip, size_t phase, do
 	}
 }
 
-void dispose(Environment env){
-
-}
+void cassie_env_dispose(Environment env){}
 
 static void set_state(Environment env){
 	Data *tmp = (Data*)env.data;
@@ -125,19 +128,15 @@ static void set_state(Environment env){
 	env.state[env.observation_space - 1] = cos_clock;
 
 
-#elif defined(CASSIE_ENV_REF)
-	env.observation_space = 80;
+#elif defined(CASSIE_ENV_USE_REF_TRAJ)
+	//env.observation_space = 80;
   #error "Not implemented"
-
-#elif defined(CASSIE_ENV_NOCLOCK)
-
-  //nothing
 
 #endif
 
 }
 
-void reset(Environment env){
+void cassie_env_reset(Environment env){
 	*env.done = 0;
 	Data *tmp = (Data*)env.data;
 
@@ -157,7 +156,7 @@ void reset(Environment env){
 	set_state(env);
 }
 
-void seed(Environment env){
+void cassie_env_seed(Environment env){
 	Data *tmp = (Data*)env.data;
   mjData *d = cassie_sim_mjdata(tmp->sim);
 
@@ -170,27 +169,77 @@ void seed(Environment env){
 	set_state(env);
 }
 
-void render(Environment env){
-	Data *tmp = (Data*)env.data;
-	if(!tmp->vis){
-		tmp->render_setup = 1;
-    tmp->vis = cassie_vis_init(tmp->sim, "assets/cassie.xml");
+
+#define USE_CASSIE_VIS
+void cassie_env_render(Environment env){
+	Data *tmp  = (Data*)env.data;
+
+#ifndef USE_CASSIE_VIS
+  mjData *d  = cassie_sim_mjdata(tmp->sim);
+  mjModel *m = cassie_sim_mjmodel(tmp->sim);
+
+	if(!tmp->render_setup){
+    tmp->window = glfwCreateWindow(1200, 900, "MuJoCo", NULL, NULL);
+    glfwMakeContextCurrent(tmp->window);
+    glfwSwapInterval(1);
+
+    mjv_defaultCamera(&tmp->camera);
+    mjv_defaultOption(&tmp->opt);
+    mjv_defaultScene(&tmp->scene);
+    mjr_defaultContext(&tmp->context);
+
+    mjv_makeScene(m, &tmp->scene, 2000);
+    mjr_makeContext(m, &tmp->context, mjFONTSCALE_150);
+    tmp->render_setup = 1;
 	}
+
+  for(int i = 0; i < 0; i++)
+    tmp->camera.lookat[i] = d->qpos[i];
+
+  tmp->camera.distance = 3;
+  tmp->camera.elevation = -20.0;
+
+  mjrRect viewport = {0, 0, 0, 0};
+  glfwMakeContextCurrent(tmp->window);
+  glfwGetFramebufferSize(tmp->window, &viewport.width, &viewport.height);
+
+  mjv_updateScene(m, d, &tmp->opt, NULL, &tmp->camera, mjCAT_ALL, &tmp->scene);
+  mjr_render(viewport, &tmp->scene, &tmp->context);
+
+  // swap OpenGL buffers (blocking call due to v-sync)
+  glfwSwapBuffers(tmp->window);
+
+  // process pending GUI events, call GLFW callbacks
+  glfwPollEvents();
+#else
+	if(!tmp->render_setup){
+    tmp->vis = cassie_vis_init(tmp->sim, "assets/cassie.xml");
+    tmp->render_setup = 1;
+  }
 	cassie_vis_draw(tmp->vis, tmp->sim);
+#endif
+
 }
 
-static void env_close(Environment env){
+static void cassie_env_close(Environment env){
 	Data *tmp = (Data*)env.data;
+#ifndef USE_CASSIE_VIS
+  if(tmp->render_setup){
+    glfwDestroyWindow(tmp->window);
+    tmp->render_setup = 0;
+  }
+#else
 	cassie_vis_close(tmp->vis);
   tmp->render_setup = 0;
+#endif
 }
 
 static float calculate_reward(Environment env){
-	Data *tmp = (Data*)env.data;
-  mjData *d = cassie_sim_mjdata(tmp->sim);
+	Data *tmp  = (Data*)env.data;
+  mjData *d  = cassie_sim_mjdata(tmp->sim);
 
-#ifdef CASSIE_ENV_USE_REF_TRAJ
-  /* Use a reward based on matching the expert trajectory */
+#ifndef CASSIE_ENV_USE_HUMANOID_REWARD
+  // Use a reward based on matching the expert trajectory
 	double ref_qpos[REF_QPOS_LEN];
 	get_ref_qpos_raw(tmp->traj, env.frameskip, tmp->phase, ref_qpos);
 
@@ -239,12 +288,12 @@ static float calculate_reward(Environment env){
 
 	double reward = joint_error + com_error + orientation_error;
 #else
-  /* Use the OpenAI-gym humanoid-v1 reward */
-  float lin_vel_cost = 1.25 * (d->qvel[0]) / (d->time - simstart);
+  // Use the OpenAI-gym humanoid-v1 reward 
+  float lin_vel_cost = 1.25 * (d->qvel[0]) / dt(env);
 
   float quad_ctrl_cost = 0;
   for(int i = 0; i < env.action_space; i++)
-    quad_ctrl_cost += 0.1 * action[i] * action[i];
+    quad_ctrl_cost += 0.1 * d->ctrl[i] * d->ctrl[i];
 
   float quad_impact_cost = 0;
   for(int i = 0; i < m->nbody; i++){
@@ -270,12 +319,15 @@ static void sim_step(Environment env, float *action){
 	double ref_pos[LENGTHOF(ACTION_POS_IDX)];
 	get_ref_qpos_action(tmp->traj, env.frameskip, next_phase, ref_pos);
 
-	pd_in_t u;
+	pd_in_t u = {0};
 	for(int i = 0; i < 5; i++){
+#ifndef CASSIE_ENV_NO_DELTAS
 		double ltarget = action[i+0] + ref_pos[i+0];
 		double rtarget = action[i+5] + ref_pos[i+5];
-
-    //printf("%d: ltarget: %f + %f, rtarget: %f + %f\n", i, action[i], ref_pos[i], action[i+5], ref_pos[i+5]);
+#else
+		double ltarget = action[i+0];
+		double rtarget = action[i+5];
+#endif
 
 		u.leftLeg.motorPd.pGain[i]  = PID_P[i];
 		u.rightLeg.motorPd.pGain[i] = PID_P[i];
@@ -296,23 +348,14 @@ static void sim_step(Environment env, float *action){
 	cassie_sim_step_pd(tmp->sim, &y, &u);
 }
 
-float step(Environment env, float *action){
+float cassie_env_step(Environment env, float *action){
 	Data *tmp = (Data*)env.data;
-  cassie_sim_t *c = tmp->sim;
 
-  mjData *d = cassie_sim_mjdata(c);
+  mjData *d  = cassie_sim_mjdata(tmp->sim);
 
 	for(int i = 0; i < env.frameskip; i++){
 		sim_step(env, action);
 	}
-
-	/*
-	double ref_pos[LENGTHOF(ACTION_POS_IDX)];
-	get_ref_qpos_action(tmp->traj, env.frameskip, tmp->phase+1, ref_pos);
-	printf("phase %d: ", tmp->phase);
-	PRINTLIST(ref_pos, LENGTHOF(ACTION_POS_IDX));
-	getchar();
-	*/
 
 	tmp->time++;
 	tmp->phase++;
@@ -327,30 +370,40 @@ float step(Environment env, float *action){
 	}
 	double reward = calculate_reward(env);
 
+#ifndef CASSIE_ENV_USE_HUMANOID_REWARD
 	if(reward < 0.3)
 		*env.done = 1;
+#endif
 
 	set_state(env);
   return reward;
 }
 
 Environment create_cassie_env(){
+
+#ifndef USE_CASSIE_VIS
+  glfwInit();
+#endif
 	setenv("MUJOCO_KEY_PATH", SIEKNET_MJKEYPATH, 0);
-	setenv("CASSIE_MODEL_PATH", "assets/cassie.xml", 0);
+	setenv("CASSIE_MODEL_PATH", "assets/cassie.xml", 1);
 
   const char modelfile[] = "assets/cassie.xml";
 	const char trajfile[]  = "assets/stepdata.bin";
+
+  if(!cassie_mujoco_init(modelfile)){
+    printf("nope!\n");
+  }
 
   cassie_sim_t *c = cassie_sim_init(modelfile);
 
   Environment env;
   
-  env.render = render;
-  env.close = env_close;
-  env.step = step;
-  env.dispose = dispose;
-  env.reset = reset;
-  env.seed = seed;
+  env.render = cassie_env_render;
+  env.close = cassie_env_close;
+  env.step = cassie_env_step;
+  env.dispose = cassie_env_dispose;
+  env.reset = cassie_env_reset;
+  env.seed = cassie_env_seed;
 
 	env.frameskip = 60;
   env.alive_bonus = 0.0f;
@@ -359,13 +412,13 @@ Environment create_cassie_env(){
 
 	d->sim = c;
 	d->vis = NULL;
+  d->render_setup = 1;
 	d->render_setup = 0;
 	d->counter = 0;
 	d->phase = 0;
 	d->time = 0;
 
-	size_t idx = 0;
-
+#ifndef CASSIE_ENV_USE_HUMANOID_REWARD
 	FILE *fp = fopen(trajfile, "rb");
 	if(!fp){
 		printf("ERROR: create_cassie_env(): couldn't open binary file '%s'\n", trajfile);
@@ -382,31 +435,31 @@ Environment create_cassie_env(){
 		size_t n_read = fread(d->traj[i], sizeof(double), traj_data_row_len, fp);
 
     if(n_read != traj_data_row_len){
-      printf("WARNING: create_cassie_env(): unable to read stepdata.bin correctly, read %lu of %lu bytes\n", n_read, traj_data_row_len);
-      //exit(1);
+      printf("WARNING: create_cassie_env(): may not have been able to read stepdata.bin correctly, ", n_read, traj_data_row_len);
+      if(ferror(fp))
+        perror("error encountered");
+      else if(feof(fp))
+        perror("got an EOF");
     }
   }
 	d->phaselen = (size_t)(TRAJECTORY_LENGTH / env.frameskip);
+#else
+  d->traj = NULL;
+#endif
 
 	env.data = d;
 
+	env.observation_space = 40;
+
 #if defined(CASSIE_ENV_USE_CLOCK)
 
-  env.observation_space = 42;
+  env.observation_space += 2;
 
-#elif defined(CASSIE_ENV_REF)
+#elif defined(CASSIE_ENV_USE_REF_TRAJ)
 
-  env.observation_space = 80;
+  env.observation_space += 40;
 
   #error "Not implemented"
-
-#elif defined(CASSIE_ENV_NOCLOCK)
-
-  env.observation_space = 40;
-
-#else
-
-  #error "Cassie environment type not defined"
 
 #endif
 
