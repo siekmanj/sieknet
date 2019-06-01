@@ -270,7 +270,7 @@ void rs_step(RS r){
 
   /* Generate deltas for next step */
   #ifdef _OPENMP
-  omp_set_num_threads(NUM_THREADS);
+  omp_set_num_threads(r.num_threads);
   #pragma omp parallel for default(none) shared(r)
   #endif
 	for(int i = 0; i < r.directions; i++)

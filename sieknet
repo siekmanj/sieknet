@@ -25,6 +25,12 @@ DATADIR=""
 ARCH=""
 LOADNEW=""
 
+echo $LD_LIBRARY_PATH | grep -rnw "$(pwd)/bin"
+if [ $? -ne 0 ]
+then
+  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/bin
+fi
+
 char_nn_help() {
 cat << EOF  
 Usage (training):   ./sieknet char_nn --new [modelpath] --train [dataset]
@@ -408,7 +414,7 @@ ga)
   $cmd
   ;;
 rs)
-  #SRCFILES="$SRCFILES src/rs.c src/env.c src/lstm.c src/rnn.c src/optimizer.c"
+  SRCFILES="$SRCFILES src/rs.c " #src/env.c src/lstm.c src/rnn.c src/optimizer.c"
 
   options=$(getopt -l "help,new:,load:,lr:,std:,env:,algo:,directions:,use_top:,threads:,layers:,hidden_size:,eval,train,debug,seed:,timesteps:,traj_len:,linear,mlp,rnn,lstm" -o "h,n,L,l,e,t,d" -a -- "$@")
   eval set -- "$options"
@@ -502,7 +508,7 @@ rs)
           ;;
       --threads)
           shift
-          DEFINES="$DEFINES -DNUM_THREADS=$1 -DSIEKNET_USE_OMP"
+          DEFINES="$DEFINES -DNUM_THREADS=$1"
           COMMON="$COMMON -fopenmp"
           ;;
       -v)
