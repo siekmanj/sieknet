@@ -137,14 +137,14 @@ float evaluate(Environment *env, NETWORK_TYPE *n, Normalizer *normalizer, int re
     env->seed(*env);
 
     for(int t = 0; t < MAX_TRAJ_LEN; t++){
-      if(render)
-        env->render(*env);
-
       if(timesteps)
         *timesteps = *timesteps + 1;
       normalize(normalizer, env);
       forward(network_type)(n, env->state);
       perf += env->step(*env, n->output);
+
+      if(render)
+        env->render(*env);
 
       if(*env->done)
         break;

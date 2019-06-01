@@ -12,10 +12,10 @@ MJ_DIR="$HOME/.mujoco/mujoco200_linux"
 MJ_FLAGS="-I$MJ_DIR/include -L$MJ_DIR/bin"
 MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
 
-CASSIE_MUJOCO_DIR="$HOME/jonah/cassie-mujoco-sim/"
+#CASSIE_MUJOCO_DIR="$HOME/jonah/cassie-mujoco-sim/"
 CASSIE_DIR="env/cassie"
 CASSIE_INCLUDE="$CASSIE_DIR/include"
-CASSIE_LIB="-L$CASSIE_MUJOCO_DIR -lcassiemujoco"
+CASSIE_LIB="-L./bin -lcassiemujoco"
 
 CL_LIBS="-lOpenCL"
 
@@ -233,7 +233,6 @@ char_nn)
   $cmd
   ;;
 ga)
-  SRCFILES="$SRCFILES env/mj_env.c"
 
   options=$(getopt -l "help,eval,train,load:,new:,std:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:,mutation_type:,elite_percentile:,threads:,crossover,seed:,traj_len:" -o "h,e:,t:,L:,n:,s:,d,v" -a -- "$@")
   eval set -- "$options"
@@ -246,9 +245,11 @@ ga)
           ;;
       -e|--eval)
           MODE="eval"
+          MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
           ;;
       -t|--train)
           MODE="train"
+          MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
           ;;
       -L|--load)
           shift
@@ -386,11 +387,16 @@ ga)
 
 	if [ $ENV_NAME == "cassie" ]
 	then
-		$COMMON="$COMMON -I$CASSIE_INCLUDE $CASSIE_LIB"
+		COMMON="$COMMON -I$CASSIE_INCLUDE "
+		LIBS="$FLAGS $CASSIE_LIB -lm " #$MJ_LIBS -lm"
+	else
+		SRCFILES="$SRCFILES env/mj_env.c"
+		LIBS="$LIBS $MJ_LIBS"
 	fi
 
   SRCFILES="$SRCFILES example/genetic.c"
-  compile="gcc -L./bin -Ienv $COMMON $MJ_FLAGS $SRCFILES $DEFINES $ARCH $SIEKNET_LIB $MJ_LIBS $LIBS -o ./bin/genetic"
+  compile="gcc -L./bin -Ienv $MJ_FLAGS $COMMON $SRCFILES $DEFINES $ARCH $SIEKNET_LIB $LIBS -o ./bin/genetic"
+  echo $compile
   $compile
 
   if [ $? -ne 0 ]
@@ -402,7 +408,7 @@ ga)
   $cmd
   ;;
 rs)
-  SRCFILES="$SRCFILES src/rs.c src/env.c src/lstm.c src/rnn.c src/optimizer.c"
+  #SRCFILES="$SRCFILES src/rs.c src/env.c src/lstm.c src/rnn.c src/optimizer.c"
 
   options=$(getopt -l "help,new:,load:,lr:,std:,env:,algo:,directions:,use_top:,threads:,layers:,hidden_size:,eval,train,debug,seed:,timesteps:,traj_len:,linear,mlp,rnn,lstm" -o "h,n,L,l,e,t,d" -a -- "$@")
   eval set -- "$options"
@@ -415,11 +421,11 @@ rs)
           ;;
       -e|--eval)
           MODE="eval"
-	  MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
+          MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
           ;;
       -t|--train)
           MODE="train"
-	  MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
+          MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
           ;;
       -L|--load)
           shift
@@ -449,7 +455,7 @@ rs)
           shift
           DEFINES="$DEFINES -DENV_NAME=$1"
           ENV_NAME="$1"
-          SRCFILES="$SRCFILES env/$1_env.c"
+          SRCFILES="env/$1_env.c"
           ;;
       --algo)
           shift
@@ -564,8 +570,8 @@ rs)
 
 	if [ $ENV_NAME == "cassie" ]
 	then
-		COMMON="$COMMON -I$CASSIE_INCLUDE -L$CASSIE_MUJOCO_DIR "
-		LIBS="$FLAGS $CASSIE_LIB $MJ_LIBS -lm"
+		COMMON="$COMMON -I$CASSIE_INCLUDE "
+		LIBS="$FLAGS $CASSIE_LIB -lm " #$MJ_LIBS -lm"
 	else
 		SRCFILES="$SRCFILES env/mj_env.c"
 		LIBS="$LIBS $MJ_LIBS"
