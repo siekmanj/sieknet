@@ -386,7 +386,7 @@ float step(Environment env, float *action){
 
 Environment create_cassie_env(){
   glfwInit();
-	setenv("MUJOCO_KEY_PATH", SIEKNET_MJKEYPATH, 0);
+	setenv("MUJOCO_KEY_PATH", "/home/drl/.mujoco/mjkey.txt", 1);
 	setenv("CASSIE_MODEL_PATH", "assets/cassie.xml", 0);
 
   const char modelfile[] = "assets/cassie.xml";
