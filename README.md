@@ -45,9 +45,11 @@ If you would like to use my library, you can find instructions on use below, as 
 Here are a few policies trained on various OpenAI-Gym environments using Augmented Random Search:
 
 <p float="left">
+  <img src="assets/readme_gifs/hopper.gif" width="300" />
   <img src="assets/readme_gifs/humanoid1.gif" width="300" />
-  <img src="assets/readme_gifs/humanoid3.gif" width="300" />
   <img src="assets/readme_gifs/walker2d1.gif" width="300" />
+  <img src="assets/readme_gifs/humanoid3.gif" width="300" />
+
 </p>
 
 Here is a short sample from an lstm trained on shakespeare's complete works:
