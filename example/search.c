@@ -129,8 +129,8 @@
 
 float evaluate(Environment *env, NETWORK_TYPE *n, Normalizer *normalizer, int render, size_t *timesteps){
   float perf = 0;
-  if(!render)
-    env->close(*env);
+  //if(!render)
+    //env->close(*env);
 
   for(int i = 0; i < ROLLOUTS_PER_MEMBER; i++){
     env->reset(*env);

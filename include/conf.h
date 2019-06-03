@@ -6,7 +6,12 @@
 /*
  * Print debug information during execution.
  */
-#define SIEKNET_DEBUG
+//#define SIEKNET_DEBUG
+
+/*
+ * Use OpenMP
+ */
+#define SIEKNET_USE_OMP
 
 /*
  * In noisy datasets, it can be necessary to clip gradients to avoid destructive parameter
@@ -75,7 +80,7 @@
 /*
  * The path to your mujoco key file.
  */
-#define SIEKNET_MJKEYPATH "/home/jonah/.mujoco/mjkey.txt"
+#define SIEKNET_MJKEYPATH "/home/drl/.mujoco/mjkey.txt"
 
 /*
  * If enabled, stops execution upon encountering a NaN in network output. Not guaranteed
