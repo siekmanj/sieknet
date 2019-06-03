@@ -12,6 +12,10 @@ This project has no mandatory dependencies and is written completely from scratc
 
  - [Quick Start](#quickstart)
 
+   - [Unsupervised Learning](#ul)
+
+   - [Reinforcement Learning](#rl)
+
  - [Features](#features)  
 
  - [Future Plans](#future)  
@@ -20,11 +24,22 @@ This project has no mandatory dependencies and is written completely from scratc
 
  - [General Usage](#usage)
 
+    - [Architectures](#archs)
+
       - [Multilayer Perceptrons](#mlp)
 
       - [Recurrent Neural Networks](#rnn)
 
       - [Long Short-Term Memory](#lstm)
+
+    - [Algorithms](#algos)
+
+      - [State normalization](#sn)
+
+      - [Augmented Random Search](#ars)
+
+      - [Neuroevolution](#ga)
+
 
 
 
@@ -118,12 +133,9 @@ cd sieknet
 chmod +x sieknet
 ```
 
-You will need to tell the linker where to find `libsieknetcpu.so` and `libsieknetgpu.so`, which you can do with the following command.
-```
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path_to/sieknet/bin/
-```
-
 You can also put the above in your .bashrc to make it permanent - that way you won't have to run it after every reboot or when you close your terminal window.
+
+<a name="ul"/>
 
 ## Unsupervised Learning
 
@@ -149,13 +161,15 @@ Please note that using the GPU might actually be slower than using the CPU due t
 
 You'll notice that we used the `--layers 5` and `--hidden_size 1024` options. Of the five layers, one is a softmax output layer, and one is a 'pretend' input layer; only three of the five are actually recurrent layers. However, each of the recurrent layers is 1024 nodes large. In total, the above network has about 21,475,424 parameters; not especially large by research standards, but it should give your GPU a nice workout.
 
+<a name="rl"/>
+
 ## Reinforcement Learning
 
 Implemented are a few of the MuJoCo locomotion environments and a variety of reinforcement learning algorithms. You'll need [MuJoCo](http://www.mujoco.org/) to use them.
 
 ### random search
 
-Augmented Random Search is an ingeniously simple black-box optimization algorithm developed by Benjamin Recht's group. It is very parallelizable and computationally efficient. My implementation supports multithreading and you will probably experience a large speedup by using the `--threads [n]` option.
+Augmented Random Search is an ingeniously simple black-box optimization algorithm developed by Benjamin Recht's group. It is very parallelizable and computationally efficient. My implementation supports multithreading through OpenMP (an optional dependency) and you will probably experience a large speedup by using the `--threads [n]` option.
 
 ```
 ./sieknet rs --train --new ./model/walker2d.mlp --env walker2d --directions 200 --std 0.0075 --lr 0.005 --timesteps 1e7 --threads 4
@@ -183,7 +197,7 @@ You can use sieknet to train a pool of neural networks to come up with control a
 ```
 ./sieknet ga --train --new ./model/hopper.mlp --env hopper --pool_size 1000 --std 1.0 --mutation_rate 0.05 --timesteps 1e6
 ```
-I have added multithreading via OpenMP (an optional dependency), so you can experience between a potentially quite large speedup on a multicore machine by using the `--threads [n]` option.
+You could experience between a potentially quite large speedup on a multicore machine by using the `--threads [n]` option.
 ```
 ./sieknet ga --train --new ./model/hopper.mlp --env walker2d --pool_size 1000 --hidden_size 64 --threads 8
 ```
@@ -247,13 +261,15 @@ Plans for the near future include:
 
 As of April 2019, you can run sieknet on your GPU via OpenCL 1.1. If you don't need to use the GPU, you don't need to worry about installing OpenCL - it is an optional dependency.
 
-If you would like to use the GPU, you need to `#define SIEKNET_USE_GPU` when compiling. You can put this in include/conf.h, or declare it with the -D flag (check the Makefile for an example).
+If you would like to use the GPU, you need to `#define SIEKNET_USE_GPU` when compiling so that the correct headers are used. You can put this in include/conf.h, or declare it with the -D flag (check the Makefile for an example).
 
 
-<a name="usage">
+<a name="usage"/>
 
-## General Usage
+# General Usage
 
+<a name="archs" />
+## Architectures
 
 All networks have a member array that stores the parameters of the network (`n.params`), and an array that stores the gradient of the loss function with respect to the parameters (`n.param_grad`).  
 
@@ -433,6 +449,114 @@ save_lstm(&n, "../your/file.rnn");
 dealloc_lstm(&n);
 n = load_lstm("../your/file.rnn");
 ```
+
+<a name="algos"/>
+
+## Algorithms
+
+A variety of model-free reinforcement learning algorithms are implemented. For the time being, these are limited to black-box optimization algorithms, but eventually I will start implementing a few policy gradient methods.
+
+Also implemented are a variety of OpenAI-gym style environments. These are re-implemented in C, and should work identically to the Python environments in mujoco-py. You will need a MuJoCo license to use them. The `envs/` folder will have examples of how to instantiate a custom environment if you would like to create one. A high-level explanation: there is a struct `Environment` in `include/env.h` which contains a variety of function pointers like `step`, `render`, `reset`, etc. If you'd like to create your own, you will need to implement these functions and assign the function pointers as is done by the other environments in `envs/`. This will ensure compatibility with the algorithms implemented here.
+
+<a name="sn"/>
+
+### State normalization
+
+Online State Normalization is a key part of many reinforcement learning algorithms. It can accelerate convergence by normalizing the observations from the environment to a value between 0 and 1. This stops values from your environment which have a large magnitude from dominating ones that have a smaller magnitude. I use [Welford's algorithm](https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm) to do this.
+
+Below is an example of how a normalizer might be used.
+```C
+#include <env.h>
+#include <hopper_env.h>
+
+int main(){
+  Environment env = create_hopper_env(); // Use the hopper-v1 environment
+  Normalizer *norm;
+
+  norm = create_normalizer(env.observation_space); // Create a fresh normalizer
+
+  while(1){
+    float action[env.action_space] = {0};
+    env.step(env, action); // Proceed forward with the simulation
+    normalize(norm, &env); // Normalize the env.state and update internal stats
+  }
+  save_normalizer(norm, "./stats.norm"); // Save the internal state of the normalizer
+  dealloc_normalizer(norm); // Free the normalizer from the heap
+
+  norm = load_normalizer("./stats.norm"); // Load an existing normalizer
+
+  while(1){
+    float action[env.action_space] = {0};
+    env.step(env, action); // Proceed forward with the simulation
+    normalize(norm, &env); // Normalize the env.state and update internal stats
+  }
+
+  return 0;
+}
+```
+<a name="ars"/>
+
+### Augmented Random Search
+
+Augmented Random Search estimates the numerical gradient of the reward via a finite-difference-like method and performs gradient ascent. It is a deceptively simple and very powerful algorithm for reinforcement learning. Here is an example of how you might use it.
+
+```C
+#include <rs.h>
+#include <env.h>
+#include <mlp.h>
+
+Environment ENV;
+MLP POLICY;
+
+// This is the 'black-box' function that will be passed into ARS
+float R(const float *theta, size_t num_params, Normalizer *norm){
+  MLP *policy = &POLICY;
+  Environment *env = &ENV;
+
+  memcpy(policy.params, theta, sizeof(float) * num_params);
+
+  float perf = 0;
+
+  env->reset(*env);
+  env->seed(*env);
+
+  for(int t = 0; t < 1000; t++){
+    normalize(normalizer, env);
+    mlp_forward(policy, env->state);
+    perf += env->step(*env, n->output);
+
+    if(*env->done)
+      break;
+  }
+ return perf;
+}
+
+int main(){
+  env = some_environment();
+  MLP seed = create_mlp(env.observation_space, 32, env.action_space);
+  Normalizer *norm = create_normalizer(env.observation_space);
+
+  POLICY = *copy_mlp(seed);
+
+  RS r = create_rs(R, policy.params, policy.num_params, 16); // Pass in the evaluation function pointer, use 16 directions
+  r.num_threads = 1; // For examples on using multithreading, see example/search.c
+  r.normalizer = norm; // If use algo V1, this can be NULL
+  r.algo = V2; // Use state normalization (if set to V1, won't use normalizer)
+
+  for(int iter = 0; iter < 150; iter++){
+    rs_step(r); // Perform a single iteration of ARS
+    float performance = R(seed.params, seed.num_params, norm); // Check the performance of the updated policy
+  }
+  save_mlp(seed);
+}
+
+```
+
+<a name="ga"/>
+
+### Neuroevolution
+
+Coming soon!
 
 
 ## References
