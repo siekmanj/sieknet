@@ -255,7 +255,10 @@ static float calculate_reward(Environment env){
 		joint_error += 30 * JOINT_WEIGHTS[i] * (target - actual) * (target - actual);
 	}
 
-	double expected_x = (tmp->traj[TRAJECTORY_LENGTH-2][1] - tmp->traj[0][1]) * tmp->counter;
+  double last_qpos[REF_QPOS_LEN];
+  get_ref_qpos_raw(tmp->traj, env.frameskip, 28, last_qpos);
+
+	double expected_x = last_qpos[0] * tmp->counter + ref_qpos[0];
 	double expected_y = 0;
 	double expected_z = ref_qpos[2];
 
@@ -434,6 +437,7 @@ Environment create_cassie_env(){
 		d->traj[i] = ALLOC(double, traj_data_row_len);
 		size_t n_read = fread(d->traj[i], sizeof(double), traj_data_row_len, fp);
 
+    /*
     if(n_read != traj_data_row_len){
       printf("WARNING: create_cassie_env(): may not have been able to read stepdata.bin correctly, ", n_read, traj_data_row_len);
       if(ferror(fp))
@@ -441,6 +445,7 @@ Environment create_cassie_env(){
       else if(feof(fp))
         perror("got an EOF");
     }
+    */
   }
 	d->phaselen = (size_t)(TRAJECTORY_LENGTH / env.frameskip);
 #else
