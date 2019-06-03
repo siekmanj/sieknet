@@ -39,7 +39,7 @@ bug:
 	$(CC) cassietest.c -I./env/cassie/include -L./bin -lcassiemujoco 
 
 cpu: src/*.c
-	gcc -shared -o $(BIN)/$(CPULIBOUT) -fPIC $(CFLAGS) $(CPU_SRC) $(INCLUDE) $(LIBS) -Wl,-rpath bin/
+	gcc -shared -o $(BIN)/$(CPULIBOUT) -fPIC $(CFLAGS) $(CPU_SRC) $(INCLUDE) $(LIBS) -Wl,-rpath bin/ -fopenmp
 
 gpu: src/*.c
 	gcc -shared -o $(BIN)/$(GPULIBOUT) -fPIC $(GPUFLAGS) $(GPU_SRC) $(INCLUDE) $(GPULIBS) -Wl,-rpath bin/

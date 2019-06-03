@@ -213,6 +213,7 @@ void rs_step(RS r){
 #ifdef SIEKNET_DEBUG
           if(!isfinite(r.update[j])){
             printf("WARNING: rs_step(): got non-finite gradient estimate from %f * %f * %f\n", weight, reward, d);
+            exit(1);
           }
 #endif
 				}
@@ -269,7 +270,7 @@ void rs_step(RS r){
 
   /* Generate deltas for next step */
   #ifdef _OPENMP
-  omp_set_num_threads(NUM_THREADS);
+  omp_set_num_threads(r.num_threads);
   #pragma omp parallel for default(none) shared(r)
   #endif
 	for(int i = 0; i < r.directions; i++)

@@ -6,7 +6,12 @@
 /*
  * Print debug information during execution.
  */
-#define SIEKNET_DEBUG
+//#define SIEKNET_DEBUG
+
+/*
+ * Use OpenMP
+ */
+#define SIEKNET_USE_OMP
 
 /*
  * In noisy datasets, it can be necessary to clip gradients to avoid destructive parameter
