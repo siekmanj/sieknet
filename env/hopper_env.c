@@ -1,4 +1,5 @@
 #include <mj_env.h>
+#include <stdio.h>
 
 static float step(Environment env, float *action){
   Data *tmp = ((Data*)env.data);
@@ -19,6 +20,14 @@ static float step(Environment env, float *action){
 
   for(int i = 0; i < m->nv; i++)
     env.state[i + m->nq - 1] = d->qvel[i];
+
+  for(int i = 0; i < env.observation_space; i++){
+    if(isnan(env.state[i])){
+      printf("\nWARNING: NaN in observation vector - aborting episode early.\n");
+      *env.done = 1;
+      return 0;
+    }
+  }
 
   /* REWARD CALCULATION: Identical to OpenAI's */
   
