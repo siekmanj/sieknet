@@ -35,6 +35,7 @@ typedef struct data {
 	size_t phaselen;
 	size_t phase;
 	size_t time;
+  double real_dt;
 	int render_setup;
 } Data;
 

@@ -219,6 +219,12 @@ void cassie_env_render(Environment env){
 	cassie_vis_draw(tmp->vis, tmp->sim);
 #endif
 
+  /* Ensure realtime rendering */
+  if(tmp->real_dt < dt(env)){
+    struct timespec sleep_for = {0, (long)(1e9 * (dt(env) - tmp->real_dt))};
+    nanosleep(&sleep_for, NULL);
+  }
+
 }
 
 static void cassie_env_close(Environment env){
@@ -315,6 +321,7 @@ static float calculate_reward(Environment env){
 static void sim_step(Environment env, float *action){
 	Data *tmp = (Data*)env.data;
 
+
 	size_t next_phase = tmp->phase + 1;
 	if(next_phase > tmp->phaselen)
 		next_phase = 0;
@@ -354,6 +361,8 @@ static void sim_step(Environment env, float *action){
 float cassie_env_step(Environment env, float *action){
 	Data *tmp = (Data*)env.data;
 
+  clock_t start = clock();
+
   mjData *d  = cassie_sim_mjdata(tmp->sim);
 
 	for(int i = 0; i < env.frameskip; i++){
@@ -379,6 +388,8 @@ float cassie_env_step(Environment env, float *action){
 #endif
 
 	set_state(env);
+
+  tmp->real_dt = (double)(clock() - start)/CLOCKS_PER_SEC;
   return reward;
 }
 
@@ -394,7 +405,7 @@ Environment create_cassie_env(){
 	const char trajfile[]  = "assets/stepdata.bin";
 
   if(!cassie_mujoco_init(modelfile)){
-    printf("nope!\n");
+    printf("WARNING: create_cassie_env(): cassie_mujoco_init() returned 0.\n");
   }
 
   cassie_sim_t *c = cassie_sim_init(modelfile);
@@ -435,7 +446,7 @@ Environment create_cassie_env(){
   for(int i = 0; i < TRAJECTORY_LENGTH; i++){
 
 		d->traj[i] = ALLOC(double, traj_data_row_len);
-		size_t n_read = fread(d->traj[i], sizeof(double), traj_data_row_len, fp);
+		size_t num_read = fread(d->traj[i], sizeof(double), traj_data_row_len, fp);
 
     /*
     if(n_read != traj_data_row_len){

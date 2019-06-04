@@ -16,7 +16,7 @@ LIBS=-lm
 GPULIBS=$(LIBS) -lOpenCL
 MJLIBS=-lmujoco200 -lGL -lglew $(MJ_DIR)/bin/libglfw.so.3
 
-CFLAGS=-O0 -Wno-unused-function
+CFLAGS=-O3 -Wno-unused-function
 GPUFLAGS=$(CFLAGS) -DSIEKNET_USE_GPU
 MUJOCOFLAGS=$(CFLAGS) -I$(MJ_DIR)/include -L$(MJ_DIR)/bin
 

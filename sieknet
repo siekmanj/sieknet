@@ -5,7 +5,7 @@ GPULIB="-lsieknetgpu"
 
 SIEKNET_LIB=""
 
-COMMON="-Iinclude -O3 -Wall -Wno-unused-function"
+COMMON="-Iinclude -O3 -Wall -Wno-unused-function -Wno-unused-variable"
 LIBS="-lm"
 
 MJ_DIR="$HOME/.mujoco/mujoco200_linux"
