@@ -8,8 +8,8 @@
 static void cpu_sgd_step(SGD o){
   for(int i = 0; i < o.num_params; i++){
     o.weights[i] -= o.learning_rate * o.gradient[i];
-		if(isnan(o.weights[i])){
-			printf("ERROR: cpu_sgd_step(): NAN'd parameter %d with %f * %f\n", i, o.learning_rate, o.gradient[i]);
+		if(!isfinite(o.weights[i])){
+			printf("ERROR: cpu_sgd_step(): non-finite parameter update %d with %f * %f\n", i, o.learning_rate, o.gradient[i]);
 			exit(1);
 		}
     o.gradient[i] = 0.0;
