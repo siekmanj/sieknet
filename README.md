@@ -22,7 +22,7 @@ This project has no mandatory dependencies and is written completely from scratc
 
  - [GPU Acceleration](#gpu)
 
- - [General Usage](#usage)
+ - [Programming](#usage)
 
     - [Architectures](#archs)
 
@@ -266,9 +266,10 @@ If you would like to use the GPU, you need to `#define SIEKNET_USE_GPU` when com
 
 <a name="usage"/>
 
-# General Usage
+# Programming
 
 <a name="archs" />
+
 ## Architectures
 
 All networks have a member array that stores the parameters of the network (`n.params`), and an array that stores the gradient of the loss function with respect to the parameters (`n.param_grad`).  
