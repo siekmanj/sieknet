@@ -57,6 +57,7 @@ typedef struct rnn {
   cl_mem output_label;
 #endif
   float *output;
+  float performance;
 
   int stateful;
   int guess;
@@ -77,10 +78,12 @@ typedef struct rnn {
 
 RNN rnn_from_arr(const size_t *, const size_t);
 RNN load_rnn(const char *);
+RNN *copy_rnn(RNN *n);
 void save_rnn(RNN *n, const char *);
 
 void rnn_forward(RNN *, const float *);
 void rnn_backward(RNN *);
+void rnn_abs_backward(RNN *);
 float rnn_cost(RNN *, const float *);
 
 void rnn_wipe(RNN *);
@@ -181,6 +184,7 @@ static void agnostic_rnn_parameter_gradient_kernel(__mem_ro float *gradient,
                                                    const int size,
                                                    const int layer_param_idx,
                                                    const int skiplength,
+																									 const int abs_grad,
                                                    const int i){
   const int recurrent_offset = dim - size;
   const int w_base = layer_param_idx + (skiplength * i);
@@ -196,23 +200,37 @@ static void agnostic_rnn_parameter_gradient_kernel(__mem_ro float *gradient,
 
   for(int j = 0; j < dim; j++){
     const int w_idx = w_base + j + 1;
+
     const float x = input[j];
 
-    if(j < recurrent_offset)
-      param_grad[w_idx] += (g + r) * d * x;
-    else{
-      if(use_past_output)
+    if(j < recurrent_offset){
+			float update = (g + r) * d * x;
+			if(abs_grad && update < 0)
+				param_grad[w_idx] -= update;
+			else
+				param_grad[w_idx] += update;
+		}else{
+			float update = 0;
+      if(use_past_output){
         l = previous_output[j - recurrent_offset];
-      else
-        l = 0;
-      param_grad[w_idx] += (g + r) * d * l;
+				update = (g + r) * d * l;
+			}
+			if(abs_grad && update < 0)
+				param_grad[w_idx] -= update;
+			else
+				param_grad[w_idx] += update;
+		}
 #ifdef SIEKNET_MAX_GRAD
-      if(param_grad[w_idx] >  SIEKNET_MAX_GRAD) param_grad[w_idx] =  SIEKNET_MAX_GRAD;
-      if(param_grad[w_idx] < -SIEKNET_MAX_GRAD) param_grad[w_idx] = -SIEKNET_MAX_GRAD;
+		if(param_grad[w_idx] >  SIEKNET_MAX_GRAD) param_grad[w_idx] =  SIEKNET_MAX_GRAD;
+		if(param_grad[w_idx] < -SIEKNET_MAX_GRAD) param_grad[w_idx] = -SIEKNET_MAX_GRAD;
 #endif
-    }
   }
-  param_grad[w_base] += (g + r) * d;
+
+	if(abs_grad && (g + r) * d < 0)
+		param_grad[w_base] -= (g + r) * d;
+	else
+		param_grad[w_base] += (g + r) * d;
+
 #ifdef SIEKNET_MAX_GRAD
   if(param_grad[w_base] >  SIEKNET_MAX_GRAD) param_grad[w_base] =  SIEKNET_MAX_GRAD;
   if(param_grad[w_base] < -SIEKNET_MAX_GRAD) param_grad[w_base] = -SIEKNET_MAX_GRAD;

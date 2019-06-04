@@ -1,0 +1,604 @@
+#!/bin/bash
+
+CPULIB="-lsieknetcpu"
+GPULIB="-lsieknetgpu"
+
+SIEKNET_LIB=""
+
+COMMON="-Iinclude -O3 -Wall -Wno-unused-function -Wno-unused-variable"
+LIBS="-lm"
+
+MJ_DIR="$HOME/.mujoco/mujoco200_linux"
+MJ_FLAGS="-I$MJ_DIR/include -L$MJ_DIR/bin"
+MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
+
+#CASSIE_MUJOCO_DIR="$HOME/jonah/cassie-mujoco-sim/"
+CASSIE_DIR="env/cassie"
+CASSIE_INCLUDE="$CASSIE_DIR/include"
+CASSIE_LIB="-L./bin -lcassiemujoco"
+
+CL_LIBS="-lOpenCL"
+
+MODELFILE=""
+SRCFILES=""
+DATADIR=""
+ARCH=""
+LOADNEW=""
+
+echo $LD_LIBRARY_PATH | grep -rnw "$(pwd)/bin"
+if [ $? -ne 0 ]
+then
+  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/bin
+fi
+
+char_nn_help() {
+cat << EOF  
+Usage (training):   ./sieknet char_nn --new [modelpath] --train [dataset]
+Usage (evaluating): ./sieknet char_nn --load [modelpath] --eval [num_chars]
+
+Options:
+
+-h,  --help                  Display help
+-n,  --new  [file]           Create a new model at the desired filepath
+-L,  --load [file]           Load a model from a file
+-e,  --eval [num_chars]      Run forward pass [num_chars] times (defaults to 1000)
+-t,  --train [datafile]      Train a model on some ascii text file
+-l,  --lr [learning_rate]    Set the learning rate (defaults to 5e-4)
+     --epochs [num epochs]   Train for set number of epochs (defaults to 3)
+-g,  --gpu                   Use GPU acceleration (must have OpenCL installed)
+-d,  --debug                 Enable debugging messages
+-s,  --seq [seq len]         Set the network unroll length
+     --rnn                   Use a recurrent neural network
+     --lstm                  Use an lstm
+     --layers [num_layers]   The number of hidden layers
+     --hidden_size [size]    The size of each hidden layer
+EOF
+}
+
+ga_help() {
+cat << EOF  
+Usage (training):   ./sieknet ga --new  [modelpath] --train --env [env name]
+Usage (evaluating): ./sieknet ga --load [modelpath] --eval  --env [env name]
+
+Options:
+
+-h,  --help                  Display help
+-n,  --new  [file]           Create a new model at the desired filepath
+-L,  --load [file]           Load a model from a file
+-l,  --lr   [learning_rate]  Set the learning rate
+     --mr   [mutation_rate]  Set the mutation rate
+     --env  [env name]       Set the environment
+     --gens [num gens]       Set the number of generations to run the pool forward
+     --mutation_type [type]  Set the mutation type (default is BASELINE)
+     --elite_percentile [p]  Set the proportion of population to be culled (default 0.9)
+     --threads [num]         Enable OpenMP, and use {num} threads in parallel
+     --layers [num_layers]   The number of hidden layers
+     --hidden_size [size]    The size of each hidden layer
+     --crossover             Enable sexual reproduction
+-e,  --eval                  Evaluate a single model
+-t,  --train                 Evolve a pool of models
+-d,  --debug                 Enable debugging messages
+     --seed [seed]           Seed srand() with a specific number (time(NULL)) if not specified
+     --timesteps [t]         Total number of timesteps
+     --traj_len [t]          Number of timesteps per rollout
+     --mlp                   Use a multilayer perceptron
+     --rnn                   Use a recurrent neural network
+     --lstm                  Use an lstm
+EOF
+}
+
+rs_help() {
+cat << EOF  
+Usage (training):   ./sieknet rs --new  [modelpath] --train --env [env name]
+Usage (evaluating): ./sieknet rs --load [modelpath] --eval  --env [env name]
+
+Options:
+
+-h,  --help                  Display help
+-n,  --new  [file]           Create a new model at the desired filepath
+-L,  --load [file]           Load a model from a file
+-l,  --lr   [learning_rate]  Set the learning rate
+     --std  [noise]          Set the standard deviation of noise
+     --env  [env name]       Set the environment
+     --algo [type]           Set the algorithm type (default is V1)
+     --directions [d]        Number of noise vectors to test
+     --b    [p]              Ignore the bottom [p] percent of directions
+     --threads [num]         Enable OpenMP, and use {num} threads in parallel
+     --layers [num_layers]   The number of hidden layers
+     --hidden_size [size]    The size of each hidden layer
+-e,  --eval                  Evaluate a single policy
+-t,  --train                 Trains a policy
+-d,  --debug                 Enable debugging messages
+     --seed [seed]           Seed srand() with a specific number (time(NULL)) if not specified
+     --timesteps [t]         Total number of timesteps
+     --traj_len [t]          Number of timesteps per rollout
+     --linear                Use a linear policy (enabled by default)
+     --mlp                   Use a multilayer perceptron
+     --rnn                   Use a recurrent neural network
+     --lstm                  Use an lstm
+EOF
+}
+
+case $1 in
+char_nn)
+  ARCH=""
+  MODE=""
+  DEFINES=""
+  options=$(getopt -l "help,gpu,eval:,train:,load:,new:,lr:,debug,rnn,lstm,layers:,hidden_size:" -o "h,g,e:,t:,L:,n:l:,d" -a -- "$@")
+
+  eval set -- "$options"
+  while true
+  do
+    case $1 in
+      -h|--help) 
+          char_nn_help
+          exit 0
+          ;;
+      -g|--gpu) 
+          DEFINES="$DEFINES -DSIEKNET_USE_GPU"
+          LIBS="$LIBS -lOpenCL"
+          SIEKNET_LIB=$GPULIB
+          ;;
+      -e|--eval)
+          shift
+          DEFINES="$DEFINES -DSAMPLE_CHARS=$1"
+          MODE="sample"
+          ;;
+      -t|--train)
+          shift
+          MODE="$1"
+          ;;
+      -L|--load)
+          shift
+          LOADNEW="load $1"
+          ;;
+      -n|--new)
+          shift
+          LOADNEW="new $1"
+          ;;
+      -l|--lr)
+          shift
+          DEFINES="$DEFINES -DLR=$1"
+          ;;
+      -d|--debug)
+          DEFINES="$DEFINES -DSIEKNET_DEBUG"
+          ;;
+      --rnn)
+          ARCH="-DUSE_RNN"
+          ;;
+      --lstm)
+          ARCH="-DUSE_LSTM"
+          ;;
+      --layers)
+          shift
+          DEFINES="$DEFINES -DLAYERS=$1"
+          ;;
+      --hidden_size)
+          shift
+          DEFINES="$DEFINES -DHIDDEN_LAYER_SIZE=$1"
+          ;;
+      --)
+          shift
+          break;;
+      *)
+          echo "got unrecognized arg $1"
+          ;;
+    esac
+    shift
+  done
+
+  if [ -z "$LOADNEW" ]
+  then
+    echo "ERROR: neither --load [path] nor --new [path] specified."
+    char_nn_help
+    exit
+  fi
+  if [ -z "$MODE" ]
+  then
+    echo "ERROR: need to specify either --eval [numchars] or --train [dataset]."
+    char_nn_help
+    exit
+  fi
+
+  if [ -z "$ARCH" ]
+  then
+    ARCH="-DUSE_LSTM"
+  fi
+
+  if [ -z "$SIEKNET_LIB" ]
+  then
+    SIEKNET_LIB=$CPULIB
+  fi
+  
+  if [ $SIEKNET_LIB == $CPULIB ]
+  then
+    CPU_LIB_SO=./bin/libsieknetcpu.so
+    if [ ! -f $CPU_LIB_SO ];
+    then
+      make cpu
+    fi
+  else
+    GPU_LIB_SO=./bin/libsieknetgpu.so
+    if [ ! -f $GPU_LIB_SO ];
+    then
+      make gpu
+    fi
+  fi
+
+  SRCFILES="$SRCFILES example/char.c"
+  compile="gcc -L./bin $COMMON $DEFINES $ARCH $SRCFILES -o ./bin/char_nn $SIEKNET_LIB $LIBS" 
+  $compile
+
+  if [ $? -ne 0 ]
+  then
+    echo "Compilation failed."
+    exit
+  fi
+
+  cmd="./bin/char_nn $LOADNEW $MODE"
+  $cmd
+  ;;
+ga)
+
+  options=$(getopt -l "help,eval,train,load:,new:,std:,mr:,debug,rnn,lstm,layers:,hidden_size:,env:,gens:,timesteps:,pool_size:,mutation_type:,elite_percentile:,threads:,crossover,seed:,traj_len:" -o "h,e:,t:,L:,n:,s:,d,v" -a -- "$@")
+  eval set -- "$options"
+  while true
+  do
+    case $1 in
+      -h|--help) 
+          ga_help
+          exit 0
+          ;;
+      -e|--eval)
+          MODE="eval"
+          MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
+          ;;
+      -t|--train)
+          MODE="train"
+          MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
+          ;;
+      -L|--load)
+          shift
+          LOADNEW="load $1"
+          ;;
+      -n|--new)
+          shift
+          LOADNEW="new $1"
+          ;;
+      -s|--std)
+          shift
+          DEFINES="$DEFINES -DNOISE_STD=$1"
+          ;;
+      --mr)
+          shift
+          DEFINES="$DEFINES -DMUTATION_RATE=$1"
+          ;;
+      --env)
+          shift
+          DEFINES="$DEFINES -DENV_NAME=$1"
+          ENV_NAME="$1"
+          SRCFILES="$SRCFILES env/$1_env.c"
+          ;;
+      --mutation_type)
+          shift
+          DEFINES="$DEFINES -DMUTATION_TYPE=$1"
+          ;;
+      -d|--debug)
+          DEFINES="$DEFINES -DSIEKNET_DEBUG"
+          ;;
+      --timesteps)
+          shift
+          DEFINES="$DEFINES -DTIMESTEPS=$1"
+          ;;
+      --traj_len)
+          shift
+          DEFINES="$DEFINES -DMAX_TRAJ_LEN=$1"
+          ;;
+      --pool_size)
+          shift
+          DEFINES="$DEFINES -DPOOL_SIZE=$1"
+          ;;
+      --seed)
+          shift
+          DEFINES="$DEFINES -DRANDOM_SEED=$1"
+          ;;
+      --mlp)
+          ARCH="-DUSE_MLP"
+          ;;
+      --rnn)
+          ARCH="-DUSE_RNN"
+          ;;
+      --lstm)
+          ARCH="-DUSE_LSTM"
+          ;;
+      --layers)
+          shift
+          DEFINES="$DEFINES -DLAYERS=$1"
+          ;;
+      --hidden_size)
+          shift
+          DEFINES="$DEFINES -DHIDDEN_LAYER_SIZE=$1"
+          ;;
+      --elite_percentile)
+          shift
+          DEFINES="$DEFINES -DELITE_PERCENTILE=$1"
+          ;;
+      --threads)
+          shift
+          DEFINES="$DEFINES -DNUM_THREADS=$1"
+          COMMON="$COMMON -fopenmp"
+          ;;
+      --crossover)
+          DEFINES="$DEFINES -DCROSSOVER=1"
+          ;;
+      -v)
+          DEFINES="$DEFINES -DVISDOM_OUTPUT"
+          ;;
+      --)
+          shift
+          break;;
+      *)
+          echo "got unrecognized arg $1"
+          ga_help
+          exit
+          ;;
+    esac
+    shift
+  done
+  
+  if [ -z "$LOADNEW" ]
+  then
+    echo "ERROR: neither --load [path] nor --new [path] specified."
+    ga_help
+    exit
+  fi
+  
+  if [ -z "$MODE" ]
+  then
+    echo "ERROR: need to specify either --eval or --train."
+    ga_help
+    exit
+  fi
+  if [ -z "$ENV_NAME" ]
+  then
+    ENV_NAME="hopper"
+    SRCFILES="$SRCFILES env/hopper_env.c"
+  fi
+
+  if [ -z "$ARCH" ]
+  then
+    echo "No arch specified, doing mlp"
+    ARCH="-DUSE_MLP"
+  fi
+
+  if [ -z "$SIEKNET_LIB" ]
+  then
+    SIEKNET_LIB=$CPULIB
+  fi
+  
+  if [ $SIEKNET_LIB == $CPULIB ]
+  then
+    CPU_LIB_SO=./bin/libsieknetcpu.so
+    if [ ! -f $CPU_LIB_SO ];
+    then
+      make cpu
+    fi
+  else
+    GPU_LIB_SO=./bin/libsieknetgpu.so
+    if [ ! -f $GPU_LIB_SO ];
+    then
+      make gpu
+    fi
+  fi
+
+	if [ $ENV_NAME == "cassie" ]
+	then
+		COMMON="$COMMON -I$CASSIE_INCLUDE "
+		LIBS="$FLAGS $CASSIE_LIB -lm " #$MJ_LIBS -lm"
+	else
+		SRCFILES="$SRCFILES env/mj_env.c"
+		LIBS="$LIBS $MJ_LIBS"
+	fi
+
+  SRCFILES="$SRCFILES example/genetic.c"
+  compile="gcc -L./bin -Ienv $MJ_FLAGS $COMMON $SRCFILES $DEFINES $ARCH $SIEKNET_LIB $LIBS -o ./bin/genetic"
+  echo $compile
+  $compile
+
+  if [ $? -ne 0 ]
+  then
+    echo "Compilation failed."
+    exit
+  fi
+  cmd="./bin/genetic $LOADNEW $MODE"
+  $cmd
+  ;;
+rs)
+  SRCFILES="$SRCFILES src/rs.c " #src/env.c src/lstm.c src/rnn.c src/optimizer.c"
+
+  options=$(getopt -l "help,new:,load:,lr:,std:,env:,algo:,directions:,use_top:,threads:,layers:,hidden_size:,eval,train,debug,seed:,timesteps:,traj_len:,linear,mlp,rnn,lstm" -o "h,n,L,l,e,t,d" -a -- "$@")
+  eval set -- "$options"
+  while true
+  do
+    case $1 in
+      -h|--help) 
+          rs_help
+          exit 0
+          ;;
+      -e|--eval)
+          MODE="eval"
+          MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
+          ;;
+      -t|--train)
+          MODE="train"
+          MJ_LIBS="-lmujoco200 -lGL -lglew $MJ_DIR/bin/libglfw.so.3"
+          ;;
+      -L|--load)
+          shift
+          LOADNEW="load $1"
+          ;;
+      -n|--new)
+          shift
+          LOADNEW="new $1"
+          ;;
+      -s|--std)
+          shift
+          DEFINES="$DEFINES -DNOISE_STD=$1"
+          ;;
+      --lr)
+          shift
+          DEFINES="$DEFINES -DSTEP_SIZE=$1"
+          ;;
+      --std)
+          shift
+          DEFINES="$DEFINES -DNOISE_STD=$1"
+          ;;
+      --use_top)
+          shift
+          DEFINES="$DEFINES -DTOP_B=$1"
+          ;;
+      --env)
+          shift
+          DEFINES="$DEFINES -DENV_NAME=$1"
+          ENV_NAME="$1"
+          SRCFILES="env/$1_env.c"
+          ;;
+      --algo)
+          shift
+          DEFINES="$DEFINES -DALGO=$1"
+          ;;
+      --directions)
+          shift
+          DEFINES="$DEFINES -DDIRECTIONS=$1"
+          ;;
+      -d|--debug)
+          DEFINES="$DEFINES -DSIEKNET_DEBUG"
+          ;;
+      --seed)
+          shift
+          DEFINES="$DEFINES -DRANDOM_SEED=$1"
+          ;;
+      --timesteps)
+          shift
+          DEFINES="$DEFINES -DTIMESTEPS=$1"
+          ;;
+      --traj_len)
+          shift
+          DEFINES="$DEFINES -DMAX_TRAJ_LEN=$1"
+          ;;
+      --linear)
+          DEFINES="$DEFINES -DUSE_LINEAR"
+          ;;
+      --mlp)
+          ARCH="-DUSE_MLP"
+          ;;
+      --rnn)
+          ARCH="-DUSE_RNN"
+          ;;
+      --lstm)
+          ARCH="-DUSE_LSTM"
+          ;;
+      --layers)
+          shift
+          DEFINES="$DEFINES -DLAYERS=$1"
+          ;;
+      --hidden_size)
+          shift
+          DEFINES="$DEFINES -DHIDDEN_LAYER_SIZE=$1"
+          ;;
+      --threads)
+          shift
+          DEFINES="$DEFINES -DNUM_THREADS=$1"
+          COMMON="$COMMON -fopenmp"
+          ;;
+      -v)
+          DEFINES="$DEFINES -DVISDOM_OUTPUT"
+          ;;
+      --)
+          shift
+          break;;
+      *)
+          echo "got unrecognized arg $1"
+          ga_help
+          exit
+          ;;
+    esac
+    shift
+  done
+  
+  if [ -z "$LOADNEW" ]
+  then
+    echo "ERROR: neither --load [path] nor --new [path] specified."
+    rs_help
+    exit
+  fi
+  
+  if [ -z "$MODE" ]
+  then
+    echo "ERROR: need to specify either --eval or --train."
+    rs_help
+    exit
+  fi
+  
+  if [ -z "$ENV_NAME" ]
+  then
+    ENV_NAME="hopper"
+    DEFINES="$DEFINES -DENV_NAME=hopper"
+    SRCFILES="$SRCFILES env/hopper_env.c"
+  fi
+  
+  if [ -z "$ARCH" ]
+  then
+    echo "No arch specified, doing linear policy (mlp)"
+    ARCH="-DUSE_MLP"
+    DEFINES="$DEFINES -DUSE_LINEAR"
+  fi
+
+  if [ -z "$SIEKNET_LIB" ]
+  then
+    SIEKNET_LIB=$CPULIB
+  fi
+  
+  if [ $SIEKNET_LIB == $CPULIB ]
+  then
+    CPU_LIB_SO=./bin/libsieknetcpu.so
+    if [ ! -f $CPU_LIB_SO ];
+    then
+      make cpu
+    fi
+  else
+    GPU_LIB_SO=./bin/libsieknetgpu.so
+    if [ ! -f $GPU_LIB_SO ];
+    then
+      make gpu
+    fi
+  fi
+
+	if [ $ENV_NAME == "cassie" ]
+	then
+		COMMON="$COMMON -I$CASSIE_INCLUDE "
+		LIBS="$FLAGS $CASSIE_LIB -lm " #$MJ_LIBS -lm"
+	else
+		SRCFILES="$SRCFILES env/mj_env.c"
+		LIBS="$LIBS $MJ_LIBS"
+	fi
+
+  SRCFILES="$SRCFILES example/search.c"
+
+  compile="gcc -L./bin -Ienv $MJ_FLAGS $COMMON $SRCFILES $DEFINES $ARCH $SIEKNET_LIB $LIBS -o ./bin/search"
+	echo $compile
+  $compile
+
+  if [ $? -ne 0 ]
+  then
+    echo "Compilation failed."
+    exit
+  fi
+  cmd="./bin/search $LOADNEW $MODE"
+  $cmd
+  ;;
+
+*)
+  printf "Invalid usage.\n./sieknet ga -h\n./sieknet char_nn -h\n./sieknet rs -h"
+  ;;
+esac

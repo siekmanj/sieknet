@@ -155,8 +155,9 @@ RNN cpu_rnn_from_arr(const size_t *arr, const size_t len){
   }
 
   size_t num_params = 0;
-  for(int i = 1; i < len-1; i++)
+  for(int i = 1; i < len-1; i++){
     num_params += ((arr[i-1]+arr[i]+1)*arr[i]); //parameters for input, recurrent input, and bias term
+  }
   num_params += (arr[len-2]+1)*arr[len-1]; //output mlp layer params
   n.num_params = num_params;
 
@@ -325,12 +326,6 @@ float cpu_rnn_cost(RNN *n, const float *y){
   float *o = mlp->output;
   float *dest = n->cost_gradient;
   float c = cpu_cost(o, y, dest, n->output_dimension, n->cost_fn);
-
-  cpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad);
-  float *grads = mlp->input_gradient;
-
-  for(int i = 0; i < mlp->input_dimension; i++)
-    n->recurrent_gradient[n->t][i] = grads[i];
   return c;
 }
 #else
@@ -341,17 +336,12 @@ float gpu_rnn_cost(RNN *n, const float *y){
   cl_mem dest = n->cost_gradient;
 
   float c = gpu_cost(o, n->output_label, dest, n->output_dimension, n->cost_fn);
-
-  gpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad);
-  
-  check_error(clEnqueueCopyBuffer(get_opencl_queue0(), mlp->input_gradient, n->recurrent_gradient[n->t], 0, 0, sizeof(float) * mlp->input_dimension, 0, NULL, NULL), "copying mlp input grad to rnn grad");
-
   return c;
 }
 #endif
 
 #ifndef SIEKNET_USE_GPU
-void cpu_rnn_layer_backward(RNN_layer *l, float **grad, float *params, float *param_grad, size_t MAX_TIME){
+void cpu_rnn_layer_backward(RNN_layer *l, float **grad, float *params, float *param_grad, int abs_grad, size_t MAX_TIME){
   int params_per_neuron = (l->input_dimension+1);
 
   for(int t = MAX_TIME; t >= 0; t--){
@@ -402,12 +392,13 @@ void cpu_rnn_layer_backward(RNN_layer *l, float **grad, float *params, float *pa
                                              l->size,
                                              l->param_offset,
                                              params_per_neuron,
+																						 abs_grad,
                                              i);
     }
   }
 }
 #else
-void gpu_rnn_layer_backward(RNN_layer *l, cl_mem *grad, cl_mem params, cl_mem param_grad, size_t MAX_TIME){
+void gpu_rnn_layer_backward(RNN_layer *l, cl_mem *grad, cl_mem params, cl_mem param_grad, int abs_grad, size_t MAX_TIME){
   int params_per_neuron = (l->input_dimension+1);
 
   for(int t = MAX_TIME; t >= 0; t--){
@@ -456,6 +447,7 @@ void gpu_rnn_layer_backward(RNN_layer *l, cl_mem *grad, cl_mem params, cl_mem pa
     check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 10, sizeof(int), &l->size), "setting forward kernel arg10");
     check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 11, sizeof(int), &l->param_offset), "setting forward kernel arg11");
     check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 12, sizeof(int), &params_per_neuron), "setting forward kernel arg12");
+    check_error(clSetKernelArg(rnn_parameter_gradient_kernel, 13, sizeof(int), &abs_grad), "setting forward kernel arg12");
     check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), rnn_parameter_gradient_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "gpu_rnn_layer_backward(): couldn't enqueue param grad kernel");
   }
 
@@ -463,12 +455,22 @@ void gpu_rnn_layer_backward(RNN_layer *l, cl_mem *grad, cl_mem params, cl_mem pa
 #endif
 
 #ifndef SIEKNET_USE_GPU
-void cpu_rnn_backward(RNN *n){
+void cpu_rnn_backward(RNN *n, int abs_grad){
+	{
+		MLP_layer *mlp = &n->output_layer;
+		cpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad, 0);
+		float *grads = mlp->input_gradient;
+
+		for(int i = 0; i < mlp->input_dimension; i++)
+			n->recurrent_gradient[n->t][i] = grads[i];
+
+		n->t++;
+	}
   if(n->t >= n->seq_len){
     float **grads = n->recurrent_gradient;
     for(int i = n->depth-1; i >= 0; i--){
       RNN_layer *l = &n->layers[i];
-      cpu_rnn_layer_backward(l, grads, n->params, n->param_grad, n->t-1);
+      cpu_rnn_layer_backward(l, grads, n->params, n->param_grad, abs_grad, n->t-1);
       grads = l->input_gradient;
     }
     if(!n->stateful) cpu_rnn_wipe(n);
@@ -476,12 +478,19 @@ void cpu_rnn_backward(RNN *n){
   }
 }
 #else
-void gpu_rnn_backward(RNN *n){
+void gpu_rnn_backward(RNN *n, int abs_grad){
+	{
+		MLP_layer *mlp = &n->output_layer;
+		gpu_mlp_layer_backward(mlp, n->cost_gradient, n->params, n->param_grad, 0);
+		check_error(clEnqueueCopyBuffer(get_opencl_queue0(), mlp->input_gradient, n->recurrent_gradient[n->t], 0, 0, sizeof(float) * mlp->input_dimension, 0, NULL, NULL), "copying mlp input grad to rnn grad");
+
+		n->t++;
+	}
   if(n->t >= n->seq_len){
     cl_mem *grads = n->recurrent_gradient;
     for(int i = n->depth-1; i >= 0; i--){
       RNN_layer *l = &n->layers[i];
-      gpu_rnn_layer_backward(l, grads, n->params, n->param_grad, n->t-1);
+      gpu_rnn_layer_backward(l, grads, n->params, n->param_grad, abs_grad, n->t-1);
       grads = l->input_gradient;
     }
     if(!n->stateful) gpu_rnn_wipe(n);
@@ -501,7 +510,6 @@ RNN rnn_from_arr(const size_t *arr, const size_t depth){
 }
 
 void rnn_forward(RNN *n, const float *x){
-  //printf("rnn forw\n");
 #ifndef SIEKNET_USE_GPU
   cpu_rnn_forward(n, x);
 #else
@@ -514,25 +522,28 @@ void rnn_forward(RNN *n, const float *x){
 }
 
 float rnn_cost(RNN *n, const float *y){
-  //printf("rnn cost\n");
 #ifndef SIEKNET_USE_GPU
   float c = cpu_rnn_cost(n, y);
 #else
   float c = gpu_rnn_cost(n, y);
 #endif
-  n->t++;
-  //printf("rnn cost done\n");
   return c;
 }
 
 void rnn_backward(RNN *n){
-  //printf("rnn backward\n");
 #ifndef SIEKNET_USE_GPU
-  cpu_rnn_backward(n);
+  cpu_rnn_backward(n, 0);
 #else
-  gpu_rnn_backward(n);
+  gpu_rnn_backward(n, 0);
 #endif
-  //printf("rnn backward done\n");
+}
+
+void rnn_abs_backward(RNN *n){
+#ifndef SIEKNET_USE_GPU
+  cpu_rnn_backward(n, 1);
+#else
+  gpu_rnn_backward(n, 1);
+#endif
 }
 
 void rnn_wipe(RNN *n){
@@ -540,6 +551,38 @@ void rnn_wipe(RNN *n){
   cpu_rnn_wipe(n);
 #else
   gpu_rnn_wipe(n);
+#endif
+}
+
+/*
+ * Does a deep-copy of an RNN.
+ */
+RNN *copy_rnn(RNN *n){
+#ifndef SIEKNET_USE_GPU
+	size_t arr[n->depth+2];
+	arr[0] = n->input_dimension;
+	for(int i = 0; i < n->depth; i++){
+		arr[i+1] = n->layers[i].size;
+	}
+	arr[n->depth+1] = n->output_layer.size;
+
+	RNN *ret = ALLOC(RNN, 1);
+	*ret = rnn_from_arr(arr, n->depth+2);
+
+	for(int i = 0; i < n->depth; i++){
+		ret->layers[i].logistic = n->layers[i].logistic;
+	}
+	ret->output_layer.logistic = n->output_layer.logistic;
+
+	for(int i = 0; i < n->num_params; i++)
+		ret->params[i] = n->params[i];
+  ret->performance = 0;
+
+  return ret;
+#else
+  printf("WARNING: copy_rnn(): copying currently not supported on GPU\n");
+  exit(1);
+  return NULL;
 #endif
 }
 
@@ -612,7 +655,6 @@ static int getWord(FILE *fp, char* dest){
 }
 
 void save_rnn(RNN *n, const char *filename){
-  printf("SAVING!\n");
   FILE *fp = fopen(filename, "w");
   if(!fp){
     printf("ERROR: save_lstm(): could not open file '%s' (correct filepath? does dir exist?)", filename);

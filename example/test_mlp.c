@@ -134,12 +134,6 @@ int main(){
 
     printf("\n");
     float c0 = mlp_cost(&n, y) - 3.744455;
-    if(c0 < 0) c0*=-1;
-    if(c0 > 0.0001){
-      printf("X | TEST FAILED: Cost scalar was not calculated correctly.\n");
-    }else{
-      printf("  | TEST PASSED: Cost scalar was as expected.\n");
-    }
 
     tmp = retrieve_array(n.cost_gradient, n.output_dimension);
     if(!assert_equal(tmp, c, n.output_dimension)){
@@ -204,6 +198,8 @@ int main(){
     sleep(1);
   }
   printf("\n");
+	//TODO: gradient checking on gpu
+	#ifndef SIEKNET_USE_GPU
   {
 
     float x[] = {0.05, 0.01, 0.10};
@@ -253,4 +249,60 @@ int main(){
     dealloc_mlp(&n);
 
   }
+	//TODO: gradient checking on gpu
+	{
+    float x[] = {0.05, 0.01, 0.10};
+    MLP n = create_mlp(3, 5, 5, 3);
+		n.layers[n.depth-1].logistic = linear;
+
+    float norm = 0;
+		int correct = 1;
+    for(int i = 0; i < n.num_params; i++){
+      memset(n.param_grad, '\0', n.num_params*sizeof(float));
+      mlp_forward(&n, x);
+			for(int j = 0; j < n.output_dimension; j++)
+				n.cost_gradient[j] = differentiate(n.output[j], linear);
+      mlp_abs_backward(&n);
+
+      int p_idx = i;
+      float epsilon = 0.001;
+      float p_grad = n.param_grad[p_idx];
+			if(p_grad < 0)
+				printf("got a negative p grad somehow, %d, %f\n", i, p_grad);
+
+      n.params[i] += epsilon;
+      mlp_forward(&n, x);
+      float c1 = 0;
+			for(int j = 0; j < n.output_dimension; j++){
+				c1 += n.output[j];
+			}
+
+
+      n.params[i] -= 2*epsilon;
+      mlp_forward(&n, x);
+      float c2 = 0;
+			for(int j = 0; j < n.output_dimension; j++){
+				c2 += n.output[j];
+			}
+      
+			float numeric = ((c1 - c2)/(2*epsilon));
+			if(numeric < 0)
+				numeric *= -1;
+      float diff = p_grad - numeric;
+      if(diff < 0) diff *=-1;
+      if(diff > 0.005){ // a fairly generous threshold
+        printf("  | (difference between numerical and actual gradient: %f - %f = %f)\n", numeric, p_grad, diff);
+        correct = 0;
+      }
+      norm += diff * diff;
+
+    }
+    if(correct)
+      printf("  | TEST PASSED: Numerical sensitivity gradient checking was successful (norm %f)\n", sqrt(norm));
+    else
+      printf("X | TEST FAILED: Numerical sensitivity gradient checking showed inconsistency - check gradient math (norm %f)\n", sqrt(norm));
+
+    dealloc_mlp(&n);
+	}
+	#endif
 }

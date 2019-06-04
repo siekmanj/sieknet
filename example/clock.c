@@ -52,7 +52,7 @@ int main(){
       avg_cost /= n.seq_len * 1000;
       printf("resulting cost: %f\n", avg_cost);
       if(avg_cost < best_cost){
-        printf("%f: new best config found: lr %f and sequence len %d\n", avg_cost, lr, n.seq_len);
+        printf("%f: new best config found: lr %f and sequence len %lu\n", avg_cost, lr, n.seq_len);
         best_cost = avg_cost;
         for(int i = 0; i < 60; i++){
           float x[] = {0.0};
@@ -65,4 +65,5 @@ int main(){
       dealloc_lstm(&n);
     }
   }
+  printf("\n");
 }

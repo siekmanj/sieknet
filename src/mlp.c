@@ -15,6 +15,17 @@
 
 #define ARR_FROM_GPU(name, gpumem, size) float name[size]; memset(name, '\0', size*sizeof(float)); check_error(clEnqueueReadBuffer(get_opencl_queue0(), gpumem, 1, 0, sizeof(float) * size, name, 0, NULL, NULL), "error reading from gpu (ARR_FROM_SIEKNET_USE_GPU)");
 
+float uniform(float lowerbound, float upperbound){
+	return lowerbound + (upperbound - lowerbound) * ((float)rand()/RAND_MAX);
+}
+
+float normal(float mean, float std){
+	float u1 = uniform(0, 1);
+	float u2 = uniform(0, 1);
+	float norm = sqrt(-2 * log(u1)) * cos(2 * M_PI * u2);
+	return mean + norm * std;
+}
+
 #ifdef SIEKNET_USE_GPU
 static cl_kernel mlp_forward_kernel;
 static cl_kernel mlp_input_gradient_kernel, mlp_parameter_gradient_kernel;
@@ -71,6 +82,7 @@ float **alloc_2d_array(size_t num, size_t depth){
     ret[i] = ALLOC(float, depth);
   return ret;
 }
+
 
 /*
  * Handy function for zeroing out a 2d array
@@ -171,6 +183,8 @@ float gpu_cost(cl_mem o, cl_mem y, cl_mem dest, size_t dim, Costfn c){
 }
 #endif
 
+
+
 #ifndef SIEKNET_USE_GPU
 float cpu_mlp_cost(MLP *n, float *y){
   float *o = n->layers[n->depth-1].output;
@@ -197,14 +211,8 @@ MLP_layer cpu_create_MLP_layer(const size_t input_dimension, const size_t num_ne
   layer.param_offset = param_idx;
 
   for(int i = 0; i < num_neurons; i++){
-    //neurons[i].bias = &params[param_idx];
-    //neurons[i].weights = &params[param_idx+1];
-
     //Xavier (or Xavier-like) bias+weight initialization
     xavier_init(&params[param_idx + i*(input_dimension+1)], input_dimension+1, num_neurons);
-
-    //neurons[i].bias_grad = &param_grad[param_idx];
-    //neurons[i].weight_grad = &param_grad[param_idx+1];
   }
 
   layer.z = ALLOC(float, num_neurons);
@@ -266,6 +274,7 @@ MLP cpu_mlp_from_arr(size_t arr[], size_t size){
   n.params = ALLOC(float, num_params);
 
   n.param_grad = ALLOC(float, num_params);
+	memset(n.param_grad, '\0', num_params*sizeof(float));
 
   //n.cost_gradient = (float*)malloc(n.output_dimension * sizeof(float));
   n.cost_gradient = ALLOC(float, n.output_dimension);
@@ -412,9 +421,15 @@ void cpu_mlp_forward(MLP *n, float *input){
     x = l->output; //Use this layer's output as the next layer's input
   }
   n->guess = 0;
-  for(int i = 0; i < n->output_dimension; i++)
+  for(int i = 0; i < n->output_dimension; i++){
+		if(isnan(n->output[i])){
+			printf("ERROR: cpu_mlp_forward(): got nan in network output, index %d: %f\n", i, n->output[i]);
+			exit(1);
+		}
     if(n->output[n->guess] < n->output[i])
       n->guess = i;
+	
+	}
 }
 #else
 void gpu_mlp_forward(MLP *n, float *x){
@@ -443,16 +458,16 @@ void gpu_mlp_forward(MLP *n, float *x){
  * Calculates the backward pass for a single layer (does parameter update)
  */
 #ifndef SIEKNET_USE_GPU
-void cpu_mlp_layer_backward(MLP_layer *l, float *grads, float *params, float *param_grad){
+void cpu_mlp_layer_backward(MLP_layer *l, float *grads, float *params, float *param_grad, int abs_grad){
   for(int i = 0; i < l->input_dimension; i++){
     agnostic_mlp_input_gradient_kernel(grads, l->output, params, l->input_gradient, l->logistic, l->param_offset, l->size, l->input_dimension, i);
   }
   for(int i = 0; i < l->size; i++){
-    agnostic_mlp_parameter_gradient_kernel(grads, l->output, l->input, param_grad, l->logistic, l->param_offset, l->size, l->input_dimension, i);
+    agnostic_mlp_parameter_gradient_kernel(grads, l->output, l->input, param_grad, l->logistic, l->param_offset, l->size, l->input_dimension, abs_grad, i);
   }
 }
 #else
-void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem param_grad){
+void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem param_grad, int abs_grad){
   check_error(clSetKernelArg(mlp_input_gradient_kernel, 0, sizeof(cl_mem), &grad), "setting input grad kernel arg 0");
   check_error(clSetKernelArg(mlp_input_gradient_kernel, 1, sizeof(cl_mem), &l->output), "setting input grad kernel arg 1");
   check_error(clSetKernelArg(mlp_input_gradient_kernel, 2, sizeof(cl_mem), &params), "setting input grad kernel arg 2");
@@ -471,6 +486,7 @@ void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem par
   check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 5, sizeof(int), &l->param_offset), "setting param grad kernel arg 5");
   check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 6, sizeof(int), &l->size), "setting param grad kernel arg 6");
   check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 7, sizeof(int), &l->input_dimension), "setting param grad kernel arg 7");
+  check_error(clSetKernelArg(mlp_parameter_gradient_kernel, 8, sizeof(int), &abs_grad), "setting param grad kernel arg 8");
   check_error(clEnqueueNDRangeKernel(get_opencl_queue0(), mlp_parameter_gradient_kernel, 1, NULL, &l->size, NULL, 0, NULL, NULL), "couldn't enqueue param grad kernel");
 
 }
@@ -480,30 +496,55 @@ void gpu_mlp_layer_backward(MLP_layer *l, cl_mem grad, cl_mem params, cl_mem par
  * Does backward pass for entire network (calculates n.param_grad)
  */
 #ifndef SIEKNET_USE_GPU
-void cpu_mlp_backward(MLP *n){
+void cpu_mlp_backward(MLP *n, int abs_grad){
 
   float *grads = n->cost_gradient;
-  for(int i = n->depth-1; i >= 0; i--){
-    cpu_mlp_layer_backward(&n->layers[i], grads, n->params, n->param_grad);
-    grads = n->layers[i].input_gradient;
+  int l_idx = n->depth;
+  while(l_idx --> 0){ //l_idx goes to 0
+    MLP_layer *l = &n->layers[l_idx];
+    cpu_mlp_layer_backward(l, grads, n->params, n->param_grad, abs_grad);
+    grads = l->input_gradient;
   }
-  //printf("printing p %p\n", n->param_grad);
-  //PRINTLIST(n->param_grad, 10);
-  //getchar();
 }
 #else
-void gpu_mlp_backward(MLP *n){
-  //check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n->network_grad, 1, 0, sizeof(float) * n->output_dimension, n->cost_gradient, 0, NULL, NULL), "enqueuing network grads");
+void gpu_mlp_backward(MLP *n, int abs_grad){
 
   cl_mem grads = n->cost_gradient;
   int l_idx = n->depth;
   while(l_idx --> 0){ //l_idx goes to 0
     MLP_layer *l = &n->layers[l_idx];
-    gpu_mlp_layer_backward(l, grads, n->params, n->param_grad);
+    gpu_mlp_layer_backward(l, grads, n->params, n->param_grad, abs_grad);
     grads = l->input_gradient;
   }
 }
 #endif
+
+/*
+ * Does a deep-copy of an MLP.
+ */
+MLP *copy_mlp(MLP *n){
+	size_t arr[n->depth+1];
+	arr[0] = n->input_dimension;
+	for(int i = 0; i < n->depth; i++){
+		arr[i+1] = n->layers[i].size;
+	}
+	MLP *ret = ALLOC(MLP, 1);
+	*ret = mlp_from_arr(arr, n->depth+1);
+
+	for(int i = 0; i < n->depth; i++){
+		ret->layers[i].logistic = n->layers[i].logistic;
+	}
+
+  #ifndef SIEKNET_USE_GPU
+	for(int i = 0; i < n->num_params; i++)
+		ret->params[i] = n->params[i];
+  #else
+  //TODO
+  #endif
+  ret->performance = 0;
+
+  return ret;
+}
 
 /*
  * Deallocates a network's memory from the heap
@@ -563,21 +604,28 @@ float mlp_cost(MLP *n, float *y){
 
 void mlp_backward(MLP *n){
 #ifndef SIEKNET_USE_GPU
-  cpu_mlp_backward(n);
+  cpu_mlp_backward(n, 0);
 #else
-  gpu_mlp_backward(n);
+  gpu_mlp_backward(n, 0);
+#endif
+}
+
+void mlp_abs_backward(MLP *n){
+#ifndef SIEKNET_USE_GPU
+  cpu_mlp_backward(n, 1);
+#else
+  gpu_mlp_backward(n, 1);
 #endif
 }
 
 /*
  * IO FUNCTIONS FOR READING AND WRITING TO A FILE
  */
-
 static int getWord(FILE *fp, char* dest){
   memset(dest, '\0', strlen(dest));
-  //printf("bytes read: %lu\n", fread(dest, 1024, 1, fp));
   return fscanf(fp, " %1023s", dest);
 }
+
 /* 
  * Saves the network's state to a file that can be read later.
  * n: A pointer to the network.
@@ -593,12 +641,16 @@ void save_mlp(MLP *n, const char* filename){
 
   //Create file
   FILE *fp = fopen(filename, "w");
+  if(!fp){
+    printf("ERROR: save_mlp(): unable to open file '%s' for writing.\n", filename);
+    exit(1);
+  }
   memset(buff, '\0', strlen(buff));
 
   //Write header info to file
   fprintf(fp, "MLP %lu %lu ", n->depth, n->input_dimension);
   for(int i = 0; i < n->depth; i++){
-    fprintf(fp, "%lu", n->layers[i].size);
+    fprintf(fp, "%lu %u", n->layers[i].size, n->layers[i].logistic);
     if(i < n->depth-1) fprintf(fp, " ");
     else fprintf(fp, "\n");
   }
@@ -640,9 +692,10 @@ MLP load_mlp(const char *filename){
     exit(1);
   }
   size_t arr[num_layers+1];
+  Nonlinearity logistics[num_layers];
   arr[0] = input_dim;
   for(int i = 1; i <= num_layers; i++){
-    if(fscanf(fp, " %lu", &arr[i]) == EOF){
+    if(fscanf(fp, " %lu %u", &arr[i], &logistics[i-1]) == EOF){
       printf("ERROR: '%s' corrupted.\n", filename);
       exit(1);
     }
@@ -650,6 +703,9 @@ MLP load_mlp(const char *filename){
 
   MLP n;
   n = mlp_from_arr(arr, num_layers+1);
+  for(int i = 0; i < n.depth; i++)
+    n.layers[i].logistic = logistics[i];
+
 #ifndef SIEKNET_USE_GPU
   for(int i = 0; i < n.num_params; i++){
     if(fscanf(fp, "%f", &n.params[i]) == EOF){
@@ -669,8 +725,6 @@ MLP load_mlp(const char *filename){
   check_error(clEnqueueWriteBuffer(get_opencl_queue0(), n.params, 1, 0, sizeof(float)*n.num_params, tmp, 0, NULL, NULL), "could not enqueue layer params");
   check_error(err, "could not write params into gpu");
   free(tmp);
-  //printf("n.layers[2].input_dimension: %d\n", n.layers[2].input_dimension);
-  //printf("tf: %d\n", assert_equal(tmp, g2, n.layers[2].input_dimension));
 #endif
   return n;
 }
