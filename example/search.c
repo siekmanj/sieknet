@@ -129,8 +129,6 @@
 
 float evaluate(Environment *env, NETWORK_TYPE *n, Normalizer *normalizer, int render, size_t *timesteps){
   float perf = 0;
-  //if(!render)
-    //env->close(*env);
 
   for(int i = 0; i < ROLLOUTS_PER_MEMBER; i++){
     env->reset(*env);
@@ -172,6 +170,7 @@ NETWORK_TYPE new_policy(char *modelfile, size_t obs_space, size_t act_space){
 
   return from_arr(network_type)(layersizes, LAYERS);
 }
+
 double get_time(){
 #ifdef _OPENMP
   return omp_get_wtime();
@@ -264,6 +263,10 @@ int main(int argc, char **argv){
     normalizer = load_normalizer(normalfile);
     if(!normalizer)
       printf("Couldn't find '%s' - not normalizing states.\n", normalfile);
+    else if(normalizer->dimension != policy.input_dimension){
+      printf("ERROR: normalizer dimension (%lu) did not match policy input dimension (%lu)\n", normalizer->dimension, policy.input_dimension);
+      exit(1);
+    }
   }
   else if(!strcmp(argv[1], "new")){
     policy = new_policy(modelfile, ENVS[0].observation_space, ENVS[0].action_space);
@@ -296,6 +299,11 @@ int main(int argc, char **argv){
       #endif
 
     #endif
+  }
+
+  if(policy.input_dimension != ENVS[0].observation_space){
+    printf("ERROR: Policy not compatible with environment.\n");
+    exit(1);
   }
 
   printf("%s has %'lu params.\n", MACROVAL(network_type), policy.num_params);
