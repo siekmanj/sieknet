@@ -13,7 +13,7 @@
 
 //#define CASSIE_ENV_USE_REF_TRAJ
 
-//#define CASSIE_ENV_NO_DELTAS
+#define CASSIE_ENV_NO_DELTAS
 
 //#define CASSIE_ENV_USE_HUMANOID_REWARD
 
@@ -329,14 +329,18 @@ static void sim_step(Environment env, float *action){
 	double ref_pos[LENGTHOF(ACTION_POS_IDX)];
 	get_ref_qpos_action(tmp->traj, env.frameskip, next_phase, ref_pos);
 
+#ifdef CASSIE_ENV_NO_DELTAS
+  double offsets[] = {0.0045, 0.0000, 0.4973, -1.9997, -1.5968, 0.0045, 0.0000, 0.4973, -1.997, -1.5968};
+#endif
+
 	pd_in_t u = {0};
 	for(int i = 0; i < 5; i++){
 #ifndef CASSIE_ENV_NO_DELTAS
 		double ltarget = action[i+0] + ref_pos[i+0];
 		double rtarget = action[i+5] + ref_pos[i+5];
 #else
-		double ltarget = action[i+0];
-		double rtarget = action[i+5];
+		double ltarget = action[i+0] + offsets[i+0];
+		double rtarget = action[i+5] + offsets[i+5];
 #endif
 
 		u.leftLeg.motorPd.pGain[i]  = PID_P[i];

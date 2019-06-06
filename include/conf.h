@@ -80,7 +80,7 @@
 /*
  * The path to your mujoco key file.
  */
-#define SIEKNET_MJKEYPATH "/home/drl/.mujoco/mjkey.txt"
+#define SIEKNET_MJKEYPATH "/home/jonah/.mujoco/mjkey.txt"
 
 /*
  * If enabled, stops execution upon encountering a NaN in network output. Not guaranteed
