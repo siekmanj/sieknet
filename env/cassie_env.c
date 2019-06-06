@@ -13,19 +13,21 @@
 
 //#define CASSIE_ENV_USE_REF_TRAJ
 
-#define CASSIE_ENV_NO_DELTAS
+//#define CASSIE_ENV_NO_DELTAS
 
 //#define CASSIE_ENV_USE_HUMANOID_REWARD
+
+#define CASSIE_ENV_USE_STATE_ESTIMATOR
 
 static const double JOINT_WEIGHTS[] = {0.15, 0.15, 0.1, 0.05, 0.05, 0.15, 0.15, 0.1, 0.05, 0.05};
 
 static const size_t ACTION_POS_IDX[10] = {7, 8, 9, 14, 20, 21, 22, 23, 28, 34};
 static const size_t ACTION_VEL_IDX[10] = {6, 7, 8, 12, 18, 19, 20, 21, 25, 31};
 
-static const size_t STATE_POS_IDX[20] = {1,2,3,4,5,6,7,8,9,14,15,16,20,21,22,23,28,29,30,34};
-static const size_t STATE_VEL_IDX[20] = {0,1,2,3,4,5,6,7,8,12,13,14,18,19,20,21,25,26,27,31};
+static const size_t STATE_POS_IDX[20] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 14, 15, 16, 20, 21, 22, 23, 28, 29, 30, 34};
+static const size_t STATE_VEL_IDX[20] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 18, 19, 20, 21, 25, 26, 27, 31};
 
-static const float PID_P[5] = {100,  100,  88,  96,  50};
+static const float PID_P[5] = {100., 100., 88., 96., 50.};
 static const float PID_D[5] = {10.0, 10.0, 8.0, 9.6, 5.0};
 
 const size_t TRAJECTORY_LENGTH = 1684; /* 1684 rows in stepdata.bin */
@@ -113,6 +115,44 @@ static void set_state(Environment env){
 	Data *tmp = (Data*)env.data;
   mjData *d = cassie_sim_mjdata(tmp->sim);
 
+#if defined(CASSIE_ENV_USE_STATE_ESTIMATOR)
+  size_t idx = 0;
+  state_out_t estimator = tmp->est;
+
+  /* Positions */
+
+  env.state[idx++] = estimator.pelvis.position[2] - estimator.terrain.height;
+
+  for(int i = 0; i < 4; i++)
+    env.state[idx++] = estimator.pelvis.orientation[i];
+
+  for(int i = 0; i < 10; i++)
+    env.state[idx++] = estimator.motor.position[i];
+
+  /* Velocities */
+
+  for(int i = 0; i < 3; i++)
+    env.state[idx++] = estimator.pelvis.translationalVelocity[i];
+
+  for(int i = 0; i < 3; i++)
+    env.state[idx++] = estimator.pelvis.rotationalVelocity[i];
+
+  for(int i = 0; i < 10; i++)
+    env.state[idx++] = estimator.motor.velocity[i];
+
+  /* Acceleration */
+  for(int i = 0; i < 3; i++)
+    env.state[idx++] = estimator.pelvis.translationalAcceleration[i];
+
+  /* Join positions */
+  for(int i = 0; i < 6; i++)
+    env.state[idx++] = estimator.joint.position[i];
+
+  for(int i = 0; i < 6; i++)
+    env.state[idx++] = estimator.joint.velocity[i];
+  
+#else
+
 	for(int i = 0; i < 20; i++){
 		env.state[i] = d->qpos[STATE_POS_IDX[i]];
 	}
@@ -120,6 +160,7 @@ static void set_state(Environment env){
 	for(int i = 0; i < 20; i++){
 			env.state[i+20] = d->qvel[STATE_VEL_IDX[i]];
 	}
+#endif
 
 #if defined(CASSIE_ENV_USE_CLOCK)
 	double sin_clock = sin(2 * M_PI * (double)tmp->phase / tmp->phaselen);
@@ -360,6 +401,7 @@ static void sim_step(Environment env, float *action){
 	}
 	state_out_t y;
 	cassie_sim_step_pd(tmp->sim, &y, &u);
+  tmp->est = y;
 }
 
 float cassie_env_step(Environment env, float *action){
@@ -467,9 +509,16 @@ Environment create_cassie_env(){
   d->traj = NULL;
 #endif
 
+  state_out_t estimator = {0};
+  d->est = estimator;
+
 	env.data = d;
 
+#if defined(CASSIE_ENV_USE_STATE_ESTIMATOR)
+  env.observation_space = 46;
+#else
 	env.observation_space = 40;
+#endif
 
 #if defined(CASSIE_ENV_USE_CLOCK)
 

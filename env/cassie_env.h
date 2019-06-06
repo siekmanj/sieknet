@@ -11,6 +11,7 @@
 typedef struct data {
   cassie_sim_t *sim;
 	cassie_vis_t *vis;
+  state_out_t est;
 
   mjvCamera camera;
   mjvOption opt;
