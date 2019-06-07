@@ -64,7 +64,12 @@ Here are a few policies trained on various OpenAI-Gym environments using Augment
   <img src="assets/readme_gifs/humanoid1.gif" width="300" />
   <img src="assets/readme_gifs/walker2d1.gif" width="300" />
   <img src="assets/readme_gifs/humanoid3.gif" width="300" />
+</p>
 
+Here are two examples of an LSTM policy also trained with ARS:
+<p float="left">
+  <img src="assets/readme_gifs/cassie_robust.gif" width="300" />
+  <img src="assets/readme_gifs/cassie_walking.gif" width="300" />
 </p>
 
 Here is a short sample from an lstm trained on shakespeare's complete works:
