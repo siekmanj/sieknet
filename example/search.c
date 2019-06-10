@@ -134,6 +134,10 @@ float evaluate(Environment *env, NETWORK_TYPE *n, Normalizer *normalizer, int re
     env->reset(*env);
     env->seed(*env);
 
+    #if defined(USE_LSTM) || defined(USE_RNN)
+    wipe(network_type)(n);
+    #endif
+
     for(int t = 0; t < MAX_TRAJ_LEN; t++){
       if(timesteps)
         *timesteps = *timesteps + 1;
