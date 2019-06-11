@@ -9,7 +9,7 @@
 
 #include <conf.h>
 
-#define CASSIE_ENV_USE_CLOCK
+//#define CASSIE_ENV_USE_CLOCK
 
 //#define CASSIE_ENV_USE_REF_TRAJ
 
@@ -17,7 +17,7 @@
 
 //#define CASSIE_ENV_USE_HUMANOID_REWARD
 
-#define CASSIE_ENV_USE_STATE_ESTIMATOR
+//#define CASSIE_ENV_USE_STATE_ESTIMATOR
 
 static const double JOINT_WEIGHTS[] = {0.15, 0.15, 0.1, 0.05, 0.05, 0.15, 0.15, 0.1, 0.05, 0.05};
 
