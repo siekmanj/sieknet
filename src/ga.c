@@ -1,3 +1,10 @@
+/* 
+ * WARNING: This file is sort of a mess and should be mostly ignored. It would
+ * be very time consuming to refactor, and I would like to continue to have these
+ * algorithms available, so I will be leaving it up in its current state until
+ * I make some change that breaks it. You should consider everything in this file
+ * strongly deprecated. Use at your own risk.
+ */
 #include <ga.h>
 #include <stdlib.h>
 #include <math.h>

@@ -177,23 +177,23 @@ Implemented are a few of the MuJoCo locomotion environments and a variety of rei
 Augmented Random Search is an ingeniously simple black-box optimization algorithm developed by Benjamin Recht's group. It is very parallelizable and computationally efficient. My implementation supports multithreading through OpenMP (an optional dependency) and you will probably experience a large speedup by using the `--threads [n]` option.
 
 ```
-./sieknet rs --train --new ./model/walker2d.mlp --env walker2d --directions 200 --std 0.0075 --lr 0.005 --timesteps 1e7 --threads 4
+./sieknet ars --train --new ./model/walker2d.mlp --env walker2d --directions 200 --std 0.0075 --lr 0.005 --timesteps 1e7 --threads 4
 ```
 
 By default, the algorithm used is ARS-v1 (from the ARS paper), but you can specify which algorithm to use. The `use_top` option sets the proportion of top-performing directions to use. `--use_top 0.1` will consider only the top 10% of directions. Fair warning - I'm not confident I implemented the online state normalization right, so V2 and V2_t might not work as expected.
 
 ```
-./sieknet rs --train --new ./model/humanoid.mlp --env humanoid --algo V1
-./sieknet rs --train --new ./model/humanoid.mlp --env humanoid --algo V2
-./sieknet rs --train --new ./model/humanoid.mlp --env humanoid --algo V1_t --use_top 0.5
-./sieknet rs --train --new ./model/humanoid.mlp --env humanoid --algo V2_t --use_top 0.5
+./sieknet ars --train --new ./model/humanoid.mlp --env humanoid --algo V1
+./sieknet ars --train --new ./model/humanoid.mlp --env humanoid --algo V2
+./sieknet ars --train --new ./model/humanoid.mlp --env humanoid --algo V1_t --use_top 0.5
+./sieknet ars --train --new ./model/humanoid.mlp --env humanoid --algo V2_t --use_top 0.5
 ```
 
 ARS will by default use a linear policy, but you can use any architecture implemented.
 
 ```
-./sieknet rs --train --new ./model/cheetah.rnn --env half_cheetah --rnn
-./sieknet rs --train --new ./model/cheetah.rnn --env half_cheetah --lstm
+./sieknet ars --train --new ./model/cheetah.rnn --env half_cheetah --rnn
+./sieknet ars --train --new ./model/cheetah.rnn --env half_cheetah --lstm
 ```
 
 ### genetic algorithms

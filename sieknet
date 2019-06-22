@@ -87,10 +87,10 @@ Options:
 EOF
 }
 
-rs_help() {
+ars_help() {
 cat << EOF  
-Usage (training):   ./sieknet rs --new  [modelpath] --train --env [env name]
-Usage (evaluating): ./sieknet rs --load [modelpath] --eval  --env [env name]
+Usage (training):   ./sieknet ars --new  [modelpath] --train --env [env name]
+Usage (evaluating): ./sieknet ars --load [modelpath] --eval  --env [env name]
 
 Options:
 
@@ -413,7 +413,7 @@ ga)
   cmd="./bin/genetic $LOADNEW $MODE"
   $cmd
   ;;
-rs)
+ars)
   SRCFILES="$SRCFILES src/rs.c " #src/env.c src/lstm.c src/rnn.c src/optimizer.c"
 
   options=$(getopt -l "help,new:,load:,lr:,std:,env:,algo:,directions:,use_top:,threads:,layers:,hidden_size:,eval,train,debug,seed:,timesteps:,traj_len:,linear,mlp,rnn,lstm" -o "h,n,L,l,e,t,d" -a -- "$@")
@@ -422,7 +422,7 @@ rs)
   do
     case $1 in
       -h|--help) 
-          rs_help
+          ars_help
           exit 0
           ;;
       -e|--eval)
@@ -529,14 +529,14 @@ rs)
   if [ -z "$LOADNEW" ]
   then
     echo "ERROR: neither --load [path] nor --new [path] specified."
-    rs_help
+    ars_help
     exit
   fi
   
   if [ -z "$MODE" ]
   then
     echo "ERROR: need to specify either --eval or --train."
-    rs_help
+    ars_help
     exit
   fi
   
@@ -599,6 +599,6 @@ rs)
   ;;
 
 *)
-  printf "Invalid usage.\n./sieknet ga -h\n./sieknet char_nn -h\n./sieknet rs -h"
+  printf "Invalid usage.\n./sieknet ga -h\n./sieknet char_nn -h\n./sieknet ars -h\n"
   ;;
 esac
