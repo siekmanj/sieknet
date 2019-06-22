@@ -402,7 +402,6 @@ ga)
 
   SRCFILES="$SRCFILES example/genetic.c"
   compile="gcc -L./bin -Ienv $MJ_FLAGS $COMMON $SRCFILES $DEFINES $ARCH $SIEKNET_LIB $LIBS -o ./bin/genetic"
-  echo $compile
   $compile
 
   if [ $? -ne 0 ]
@@ -586,7 +585,7 @@ ars)
   SRCFILES="$SRCFILES example/search.c"
 
   compile="gcc -L./bin -Ienv $MJ_FLAGS $COMMON $SRCFILES $DEFINES $ARCH $SIEKNET_LIB $LIBS -o ./bin/search"
-	echo $compile
+	#echo $compile
   $compile
 
   if [ $? -ne 0 ]

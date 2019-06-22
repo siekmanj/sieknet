@@ -11,7 +11,7 @@
 #include <rnn.h>
 #include <lstm.h>
 #include <env.h>
-#include <rs.h>
+#include <ars.h>
 
 #ifdef NUM_THREADS
 #include <omp.h>
@@ -327,7 +327,7 @@ int main(int argc, char **argv){
       exit(1);
     }
     fprintf(log, "\nalgo:%u\n", ALGO);
-    fprintf(log, "directions:%lu\n", DIRECTIONS);
+    fprintf(log, "directions:%d\n", DIRECTIONS);
     fprintf(log, "env:%s\n", MACROVAL(ENV_NAME));
     fprintf(log, "hidden_size:%lu\n", policy.layers[0].size);
     fprintf(log, "noise std:%4.3f\n", NOISE_STD);
