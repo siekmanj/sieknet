@@ -337,7 +337,7 @@ int main(int argc, char **argv){
 
     fprintf(log, "\n\n%s %s %s\n", "iteration", "samples", "return");
 
-    RS r = create_rs(R, policy.params, policy.num_params, DIRECTIONS);
+    ARS r = create_ars(R, policy.params, policy.num_params, DIRECTIONS);
     r.top_b       = TOP_B;
     r.step_size   = STEP_SIZE;
     r.std         = NOISE_STD;
@@ -362,7 +362,7 @@ int main(int argc, char **argv){
 
       double start = get_time();
 
-      rs_step(r);
+      ars_step(r);
 
       ENVS[0].alive_bonus = default_alive_bonus;
       float iter_return = evaluate(&ENVS[0], &policy, r.normalizer, 0, NULL);

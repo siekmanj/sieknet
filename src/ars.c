@@ -1,7 +1,7 @@
 #include <string.h>
 #include <conf.h>
 #include <env.h>
-#include <rs.h>
+#include <ars.h>
 #include <math.h>
 
 #ifdef SIEKNET_USE_OMP
@@ -19,8 +19,8 @@ static float normal(float mean, float std){
 	return mean + norm * std;
 }
 
-RS create_rs(float (*R)(const float *, size_t, Normalizer*), float *seed, size_t num_params, size_t n){
-	RS r;
+ARS create_ars(float (*R)(const float *, size_t, Normalizer*), float *seed, size_t num_params, size_t n){
+	ARS r;
 	if(!seed){
 		printf("Error: parameter vector cannot be null!\n");
 		exit(1);
@@ -60,7 +60,7 @@ static float max(const float a, const float b){
 	return a > b ? a : b;
 }
 
-static int rs_comparator(const void *one, const void *two){
+static int ars_comparator(const void *one, const void *two){
 	Delta *a = *(Delta**)one;
 	Delta *b = *(Delta**)two;
 
@@ -75,7 +75,7 @@ static int rs_comparator(const void *one, const void *two){
 		return 0;
 }
 
-void rs_step(RS r){
+void ars_step(ARS r){
 
   /* Allocate memory for parameter vector for each thread */
   float **thetas = ALLOC(float*, r.num_threads);
@@ -159,7 +159,7 @@ void rs_step(RS r){
     case V2:
     {
       if(!r.normalizer){
-        printf("ERROR: rs_step(): normalizer not initialized.\n");
+        printf("ERROR: ars_step(): normalizer not initialized.\n");
         exit(1);
       }
     } /* Intentional fall-through */
@@ -176,7 +176,7 @@ void rs_step(RS r){
         mean += r.deltas[i]->r_pos + r.deltas[i]->r_neg;
 #ifdef SIEKNET_DEBUG
         if(!isfinite(mean)){
-          printf("WARNING: rs_step(): got non-finite mean while calculating reward stats, from %f or %f\n", r.deltas[i]->r_pos, r.deltas[i]->r_neg);
+          printf("WARNING: ars_step(): got non-finite mean while calculating reward stats, from %f or %f\n", r.deltas[i]->r_pos, r.deltas[i]->r_neg);
           exit(1);
         }
 #endif
@@ -190,14 +190,14 @@ void rs_step(RS r){
         std += (x - mean) * (x - mean);
 #ifdef SIEKNET_DEBUG
 				if(!isfinite(std)){
-          printf("WARNING: rs_step(): got non-finite std during sum from either: %f, %f, or %f\n", mean, r.deltas[i]->r_pos, r.deltas[i]->r_neg);
+          printf("WARNING: ars_step(): got non-finite std during sum from either: %f, %f, or %f\n", mean, r.deltas[i]->r_pos, r.deltas[i]->r_neg);
           exit(1);
 				}
 #endif
       }
 #ifdef SIEKNET_DEBUG
       if(!isfinite(sqrt(std/(2 * b)))){
-        printf("WARNING: rs_step(): got non-finite standard deviation of reward form sqrt(%f / (2 * %d))\n", std, b);
+        printf("WARNING: ars_step(): got non-finite standard deviation of reward form sqrt(%f / (2 * %d))\n", std, b);
         exit(1);
       }
 #endif
@@ -212,7 +212,7 @@ void rs_step(RS r){
           r.update[j] += weight * reward * d;
 #ifdef SIEKNET_DEBUG
           if(!isfinite(r.update[j])){
-            printf("WARNING: rs_step(): got non-finite gradient estimate from %f * %f * %f\n", weight, reward, d);
+            printf("WARNING: ars_step(): got non-finite gradient estimate from %f * %f * %f\n", weight, reward, d);
             exit(1);
           }
 #endif
@@ -223,14 +223,14 @@ void rs_step(RS r){
     case V2_t:
     {
       if(!r.normalizer){
-        printf("ERROR: rs_step(): normalizer not initialized.\n");
+        printf("ERROR: ars_step(): normalizer not initialized.\n");
         exit(1);
       }
     }
 		case V1_t:
 		{
       /* Sort all noise vectors by performance */
-			qsort(r.deltas, r.directions, sizeof(Delta*), rs_comparator);
+			qsort(r.deltas, r.directions, sizeof(Delta*), ars_comparator);
 
       /* Use only top b noise vectors when calculating update */
 			int b = (int)((r.top_b)*r.directions);
@@ -277,7 +277,7 @@ void rs_step(RS r){
 		for(int j = 0; j < r.num_params; j++){
 			r.deltas[i]->p[j] = normal(0, r.std);
 			if(!isfinite(r.deltas[i]->p[j])){
-				printf("ERROR: rs_step(): got non-finite value whil generating noise vector for direction %d, param %d: %f\n", i, j, r.deltas[i]->p[j]);
+				printf("ERROR: ars_step(): got non-finite value whil generating noise vector for direction %d, param %d: %f\n", i, j, r.deltas[i]->p[j]);
 				exit(1);
 			}
 		}

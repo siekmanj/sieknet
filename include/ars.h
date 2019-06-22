@@ -13,7 +13,7 @@ typedef struct delta_{
 	float r_neg;
 } Delta;
 
-typedef struct RS{
+typedef struct ars_{
 	float std;
 	float step_size;
 	float top_b;
@@ -31,10 +31,10 @@ typedef struct RS{
   Normalizer *normalizer;
 	Search_type algo;
 	SGD optim;
-} RS;
+} ARS;
 
-RS create_rs(float (*R)(const float *, size_t, Normalizer*), float *, size_t, size_t);
+ARS create_ars(float (*R)(const float *, size_t, Normalizer*), float *, size_t, size_t);
 
-void rs_step(RS);
+void ars_step(ARS);
 
 #endif
