@@ -1,7 +1,7 @@
 #include <string.h>
 #include <conf.h>
 #include <env.h>
-#include <rs.h>
+#include <ars.h>
 #include <math.h>
 
 #ifdef SIEKNET_USE_OMP
