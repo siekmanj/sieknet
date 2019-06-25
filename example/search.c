@@ -11,12 +11,11 @@
 #include <rnn.h>
 #include <lstm.h>
 #include <env.h>
-#include <rs.h>
+#include <ars.h>
 
 #ifdef NUM_THREADS
 #include <omp.h>
 #endif
-
 
 #if !defined(USE_MLP) && !defined(USE_RNN) && !defined(USE_LSTM)
 #define USE_MLP
@@ -213,26 +212,6 @@ size_t num_samples(){
   return samples;
 }
 
-char *create_logfile_name(size_t hidden_size, size_t random_seed){
-  char *ret = malloc(1000*sizeof(char));
-  snprintf(ret, 50, "%s", "./log/");
-  snprintf(ret + strlen(ret), 50, "%u.", ALGO);
-  snprintf(ret + strlen(ret), 50, "%d.", DIRECTIONS);
-  snprintf(ret + strlen(ret), 50, "%s.", MACROVAL(network_type));
-#ifdef USE_LINEAR
-  snprintf(ret + strlen(ret), 50, "linear.");
-#endif
-  snprintf(ret + strlen(ret), 50, "%s.", MACROVAL(ENV_NAME));
-  snprintf(ret + strlen(ret), 50, "hs.%lu.", hidden_size);
-  snprintf(ret + strlen(ret), 50, "std.%3.2f.", NOISE_STD);
-  snprintf(ret + strlen(ret), 50, "lr.%5.4f.", STEP_SIZE);
-  snprintf(ret + strlen(ret), 50, "seed.%lu.", random_seed);
-  if(NUM_THREADS > 1)
-    snprintf(ret + strlen(ret), 50, "nd");
-  return ret;
-}
-
-
 int main(int argc, char **argv){
   if(argc < 4){ printf("%d args needed. Usage: [new/load] [path_to_modelfile] [train/eval]\n", 3); exit(1);}
   setlocale(LC_ALL,"");
@@ -337,15 +316,26 @@ int main(int argc, char **argv){
     size_t seed = RANDOM_SEED;
     srand(seed);
 
-    char *logfile = create_logfile_name(policy.layers[0].size, seed);
+    char *logfile = (char*)malloc(sizeof(char) * (strlen(modelfile) + 5));
+    strcpy(logfile, modelfile);
+    strcat(logfile, ".log");
     printf("Logging to '%s'\n", logfile);
 
-    FILE *log = fopen(logfile, "wb");
+    FILE *log = fopen(logfile, "a+");
     if(!log){
-      printf("ERROR: main(): Couldn't open '%s' for write.\n", logfile);
+      printf("ERROR: main(): Couldn't open '%s' for write/append.\n", logfile);
       exit(1);
     }
-    fprintf(log, "%s %s %s\n", "iteration", "samples", "return");
+    fprintf(log, "\nalgo:%u\n", ALGO);
+    fprintf(log, "directions:%d\n", DIRECTIONS);
+    fprintf(log, "env:%s\n", MACROVAL(ENV_NAME));
+    fprintf(log, "hidden_size:%lu\n", policy.layers[0].size);
+    fprintf(log, "noise std:%4.3f\n", NOISE_STD);
+    fprintf(log, "step size:%4.3f\n", STEP_SIZE);
+    fprintf(log, "seed:%lu\n", seed);
+    free(logfile);
+
+    fprintf(log, "\n\n%s %s %s\n", "iteration", "samples", "return");
 
     RS r = create_rs(R, policy.params, policy.num_params, DIRECTIONS);
     r.top_b       = TOP_B;

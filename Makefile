@@ -29,11 +29,11 @@ CL_SRC=$(SRC_DIR)/opencl_utils.c
 
 MNIST_SRC=$(SRC_DIR)/mnist.c
 GA_SRC=$(SRC_DIR)/ga.c
-RS_SRC=$(SRC_DIR)/rs.c
+ARS_SRC=$(SRC_DIR)/ars.c
 HOPPER_SRC=env/hopper_env.c
 
-CPU_SRC=$(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(OPTIM_SRC) $(GA_SRC) $(RS_SRC) $(ENV_SRC)
-GPU_SRC=$(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(OPTIM_SRC) $(GA_SRC) $(RS_SRC) $(ENV_SRC) $(CL_SRC)
+CPU_SRC=$(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(OPTIM_SRC) $(GA_SRC) $(ARS_SRC) $(ENV_SRC)
+GPU_SRC=$(MLP_SRC) $(RNN_SRC) $(LSTM_SRC) $(OPTIM_SRC) $(GA_SRC) $(ARS_SRC) $(ENV_SRC) $(CL_SRC)
 
 bug:
 	$(CC) cassietest.c -I./env/cassie/include -L./bin -lcassiemujoco 
