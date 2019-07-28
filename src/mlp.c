@@ -426,10 +426,8 @@ void cpu_mlp_forward(MLP *n, float *input){
 			printf("ERROR: cpu_mlp_forward(): got nan in network output, index %d: %f\n", i, n->output[i]);
 			exit(1);
 		}
-    if(n->output[n->guess] < n->output[i])
-      n->guess = i;
-	
 	}
+  n->guess = argmax(n->output, n->output_dimension);
 }
 #else
 void gpu_mlp_forward(MLP *n, float *x){

@@ -9,7 +9,7 @@
 
 #include <conf.h>
 
-//#define CASSIE_ENV_USE_CLOCK
+#define CASSIE_ENV_USE_CLOCK
 
 //#define CASSIE_ENV_USE_REF_TRAJ
 
@@ -17,7 +17,9 @@
 
 //#define CASSIE_ENV_USE_HUMANOID_REWARD
 
-//#define CASSIE_ENV_USE_STATE_ESTIMATOR
+#define CASSIE_ENV_USE_STATE_ESTIMATOR
+
+#define CASSIE_ENV_RANDOMIZE_DAMPING
 
 static const double JOINT_WEIGHTS[] = {0.15, 0.15, 0.1, 0.05, 0.05, 0.15, 0.15, 0.1, 0.05, 0.05};
 
@@ -29,6 +31,8 @@ static const size_t STATE_VEL_IDX[20] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 
 
 static const float PID_P[5] = {100., 100., 88., 96., 50.};
 static const float PID_D[5] = {10.0, 10.0, 8.0, 9.6, 5.0};
+
+static float DOF_DAMPING[32];
 
 const size_t TRAJECTORY_LENGTH = 1684; /* 1684 rows in stepdata.bin */
 
@@ -56,6 +60,13 @@ const size_t REF_MVEL_LEN   = REF_MVEL_END - REF_MVEL_START;
 
 static float uniform(float lowerbound, float upperbound){
 	return lowerbound + (upperbound - lowerbound) * ((float)rand()/RAND_MAX);
+}
+
+float normal(float mean, float std){
+	float u1 = uniform(1e-5, 1);
+	float u2 = uniform(1e-5, 1);
+	float norm = sqrt(-2 * log(u1)) * cos(2 * M_PI * u2);
+	return mean + norm * std;
 }
 
 static float dt(Environment env){
@@ -107,6 +118,18 @@ static void get_ref_qvel_state(double **traj, size_t frameskip, size_t phase, do
 	for(int i = 0; i < LENGTHOF(STATE_VEL_IDX); i++){
 		dest[i] = tmp[STATE_VEL_IDX[i]];
 	}
+}
+
+static void set_random_damping(Environment env){
+	Data *tmp = (Data*)env.data;
+  mjData *d  = cassie_sim_mjdata(tmp->sim);
+  mjModel *m = cassie_sim_mjmodel(tmp->sim);
+
+  for(int i = 0; i < m->nv; i++){
+    float num = normal(0, 1e1);
+    m->dof_damping[i] = DOF_DAMPING[i] + ((num > 0) ? num : 0);
+  }
+
 }
 
 void cassie_env_dispose(Environment env){}
@@ -186,6 +209,7 @@ void cassie_env_reset(Environment env){
 	tmp->time  = 0;
 
   mjData *d = cassie_sim_mjdata(tmp->sim);
+  mjModel *m = cassie_sim_mjmodel(tmp->sim);
 	d->time = 0;
 
 	double *qpos = d->qpos;
@@ -193,6 +217,11 @@ void cassie_env_reset(Environment env){
 
 	get_ref_qpos_raw(tmp->traj, env.frameskip, tmp->phase, qpos);
 	get_ref_qvel_raw(tmp->traj, env.frameskip, tmp->phase, qvel);
+
+#ifdef CASSIE_ENV_RANDOMIZE_DAMPING
+  printf("randomizing\n");
+  set_random_damping(env);
+#endif
 
 	set_state(env);
 }
@@ -536,6 +565,12 @@ Environment create_cassie_env(){
 	env.state = calloc(env.observation_space, sizeof(float));
 
   env.done = calloc(1, sizeof(int));
+
+  mjModel *m = cassie_sim_mjmodel(d->sim);
+  for(int i = 0; i < m->nv; i++){
+    DOF_DAMPING[i] = m->dof_damping[i];
+    printf("DOF DAMPING[%d]: %f\n", i, DOF_DAMPING[i]);
+  }
   return env;
 }
 
