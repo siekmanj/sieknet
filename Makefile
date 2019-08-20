@@ -50,6 +50,10 @@ clean:
 
 
 # DEPRECATED
+pk:
+	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(RNN_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
+pk_gpu:
+	$(CC) $(GPUFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(RNN_SRC) $(MLP_SRC) $(CL_SRC) example/pk.c -o $(BIN)/$@ $(GPULIBS)
 
 char:
 	$(CC) $(CFLAGS) $(INCLUDE) $(OPTIM_SRC) $(LSTM_SRC) $(RNN_SRC) $(MLP_SRC) example/$@.c -o $(BIN)/$@ $(LIBS)
