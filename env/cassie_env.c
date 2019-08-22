@@ -17,7 +17,7 @@
 
 //#define CASSIE_ENV_USE_HUMANOID_REWARD
 
-#define CASSIE_ENV_USE_STATE_ESTIMATOR
+//#define CASSIE_ENV_USE_STATE_ESTIMATOR
 
 #define CASSIE_ENV_RANDOMIZE_DAMPING
 
@@ -125,11 +125,17 @@ static void set_random_damping(Environment env){
   mjData *d  = cassie_sim_mjdata(tmp->sim);
   mjModel *m = cassie_sim_mjmodel(tmp->sim);
 
+  //int rand_idx = rand() % m->nv;
+  //m->dof_damping[rand_idx] = uniform(0, 50*DOF_DAMPING[rand_idx]);
+#if 1
   for(int i = 0; i < m->nv; i++){
-    float num = normal(0, 1e1);
-    m->dof_damping[i] = DOF_DAMPING[i] + ((num > 0) ? num : 0);
+    //if(!(rand() % 5)){
+      float num = uniform(0, 5*DOF_DAMPING[i]);
+      m->dof_damping[i] = num;
+      printf("went from %f to %f\n", DOF_DAMPING[i], m->dof_damping[i]);
+    //}
   }
-
+#endif
 }
 
 void cassie_env_dispose(Environment env){}
@@ -205,7 +211,7 @@ void cassie_env_reset(Environment env){
 	Data *tmp = (Data*)env.data;
 
 	tmp->counter = 0;
-	tmp->phase = 0;//rand() % tmp->phaselen;
+	tmp->phase = rand() % tmp->phaselen;
 	tmp->time  = 0;
 
   mjData *d = cassie_sim_mjdata(tmp->sim);
