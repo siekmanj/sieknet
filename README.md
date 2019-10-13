@@ -72,7 +72,7 @@ Here are two examples of an LSTM policy also trained with ARS:
   <img src="assets/readme_gifs/cassie_walking.gif" width="300" />
 </p>
 
-Here is a short sample from an lstm trained on shakespeare's complete works:
+Here is a short sample from an LSTM trained on shakespeare's complete works:
 
     PRINCE. My lord, now, then him in the with thee,
       For speak to the with the part of the wide,
@@ -137,8 +137,6 @@ Then, cd into the cloned repo and give the bash script permission to run:
 cd sieknet
 chmod +x sieknet
 ```
-
-You can also put the above in your .bashrc to make it permanent - that way you won't have to run it after every reboot or when you close your terminal window.
 
 <a name="ul"/>
 
