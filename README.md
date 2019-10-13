@@ -4,6 +4,8 @@ This is a recurrent neural network and deep learning library written in C which 
 
 This project has no mandatory dependencies and is written completely from scratch - all you need to compile and run this code is `gcc` or any C compiler.
 
+This repo is no longer being maintained because I am in the process of rewriting this project. You can find the new version here: https://github.com/siekmanj/sieknet_2.0
+
 
 ##### Contents  
  - [But why?](#purpose)  
